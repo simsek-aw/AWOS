@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
+import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -145,6 +146,14 @@ export default async function TaskDetail({
   return (
     <>
       <AppHeader ctx={ctx} />
+      <RealtimeRefresh
+        channel={`task-${taskId}`}
+        subscriptions={[
+          { table: "comments", filter: `task_id=eq.${taskId}` },
+          { table: "task_values", filter: `task_id=eq.${taskId}` },
+          { table: "tasks", filter: `id=eq.${taskId}` },
+        ]}
+      />
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "24px" }}>
         <a href={`/boards/${id}`} style={{ color: "var(--muted)", fontSize: 14 }}>
           ← {board.name}

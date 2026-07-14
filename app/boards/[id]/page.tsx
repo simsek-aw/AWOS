@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
+import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { renderCell } from "@/components/columns";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -59,6 +60,13 @@ export default async function BoardPage({
   return (
     <>
       <AppHeader ctx={ctx} />
+      <RealtimeRefresh
+        channel={`board-${id}`}
+        subscriptions={[
+          { table: "tasks", filter: `board_id=eq.${id}` },
+          { table: "task_values" },
+        ]}
+      />
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "24px" }}>
         <a href="/" style={{ color: "var(--muted)", fontSize: 14 }}>
           ← Boards
