@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { mirrorCustomerTask } from "@/lib/agent/mirror";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { requireEmployee } from "@/lib/auth";
+import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 
 /** Create a task on a board. RLS ensures the caller may write to this board. */
 export async function createTask(boardId: string, formData: FormData) {
@@ -80,6 +81,80 @@ export async function addComment(
     .insert({ task_id: taskId, body, author_id: user?.id ?? null });
 
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+}
+
+/**
+ * Return channel: an employee releases a result from an internal task to the
+ * linked customer task. This is the ONLY path by which internal work reaches a
+ * customer, and it is always human-initiated. It posts a customer-visible
+ * comment (and optionally a status) on the customer task — never copies the
+ * internal task, its notes, or its comments.
+ */
+export async function releaseToCustomer(
+  internalBoardId: string,
+  internalTaskId: string,
+  formData: FormData,
+) {
+  const ctx = await requireEmployee();
+  const body = String(formData.get("body") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim();
+  if (!body && !status) return; // nothing to release
+
+  const supabase = await createServerSupabase();
+
+  // Authoritative link lookup — never trust a client-supplied customer id.
+  const { data: link } = await supabase
+    .from("task_links")
+    .select("customer_task_id")
+    .eq("internal_task_id", internalTaskId)
+    .maybeSingle<{ customer_task_id: string }>();
+  if (!link) return;
+  const customerTaskId = link.customer_task_id;
+
+  // Optional: set the customer task's status.
+  if (status) {
+    const { data: ctask } = await supabase
+      .from("tasks")
+      .select("board_id")
+      .eq("id", customerTaskId)
+      .single<{ board_id: string }>();
+    if (ctask) {
+      const { data: statusCol } = await supabase
+        .from("columns")
+        .select("id")
+        .eq("board_id", ctask.board_id)
+        .eq("key", "status")
+        .maybeSingle<{ id: string }>();
+      if (statusCol) {
+        await supabase
+          .from("task_values")
+          .upsert(
+            { task_id: customerTaskId, column_id: statusCol.id, value: status },
+            { onConflict: "task_id,column_id" },
+          );
+      }
+    }
+  }
+
+  // The customer-visible comment (authored by the employee → shows as "Team").
+  if (body) {
+    await supabase
+      .from("comments")
+      .insert({ task_id: customerTaskId, author_id: ctx.userId, is_agent: false, body });
+  }
+
+  // Audit the release (audit_log has no client insert policy → service client).
+  const svc = createServiceClient();
+  await svc.from("audit_log").insert({
+    actor_id: ctx.userId,
+    action: "task.release_to_customer",
+    entity_type: "task",
+    entity_id: customerTaskId,
+    details: { internal_task_id: internalTaskId, status: status || null },
+  });
+
+  revalidatePath(`/boards/${internalBoardId}/tasks/${internalTaskId}`);
+  redirect(`/boards/${internalBoardId}/tasks/${internalTaskId}?released=1`);
 }
 
 export async function deleteTask(boardId: string, taskId: string) {

@@ -4,17 +4,25 @@ import { shortId } from "@/components/columns";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Board, Column, Comment, Task, TaskValue } from "@/lib/types";
-import { addComment, deleteTask, saveTask } from "../../actions";
+import {
+  addComment,
+  deleteTask,
+  releaseToCustomer,
+  saveTask,
+} from "../../actions";
 
 // Columns bound to the task row itself, not stored in task_values.
 const ROW_BOUND = new Set(["task_id", "name"]);
 
 export default async function TaskDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; taskId: string }>;
+  searchParams: Promise<{ released?: string }>;
 }) {
   const { id, taskId } = await params;
+  const { released } = await searchParams;
   const ctx = await requireSession();
   const supabase = await createServerSupabase();
 
@@ -56,6 +64,75 @@ export default async function TaskDetail({
   const editable = (columns ?? []).filter((c) => !ROW_BOUND.has(c.key));
   const isEmployee = ctx.profile.role === "employee";
 
+  // Return-channel wiring (employees only). Two directions:
+  //  - this task is the INTERNAL one  -> show the release panel
+  //  - this task is the CUSTOMER one  -> show a link to its internal task
+  let release: {
+    customerBoard: Board;
+    statusOptions: { label: string; color: string }[];
+  } | null = null;
+  let linkedInternal: { taskId: string; boardId: string } | null = null;
+
+  if (isEmployee) {
+    const [{ data: asInternal }, { data: asCustomer }] = await Promise.all([
+      supabase
+        .from("task_links")
+        .select("customer_task_id")
+        .eq("internal_task_id", taskId)
+        .maybeSingle<{ customer_task_id: string }>(),
+      supabase
+        .from("task_links")
+        .select("internal_task_id")
+        .eq("customer_task_id", taskId)
+        .maybeSingle<{ internal_task_id: string }>(),
+    ]);
+
+    if (asInternal) {
+      const { data: cTask } = await supabase
+        .from("tasks")
+        .select("board_id")
+        .eq("id", asInternal.customer_task_id)
+        .single<{ board_id: string }>();
+      if (cTask) {
+        const { data: cBoard } = await supabase
+          .from("boards")
+          .select("*")
+          .eq("id", cTask.board_id)
+          .single<Board>();
+        const { data: statusCol } = await supabase
+          .from("columns")
+          .select("*")
+          .eq("board_id", cTask.board_id)
+          .eq("key", "status")
+          .maybeSingle<Column>();
+        if (cBoard) {
+          release = {
+            customerBoard: cBoard,
+            statusOptions: statusCol?.options.options ?? [],
+          };
+        }
+      }
+    }
+
+    if (asCustomer) {
+      const { data: iTask } = await supabase
+        .from("tasks")
+        .select("board_id")
+        .eq("id", asCustomer.internal_task_id)
+        .single<{ board_id: string }>();
+      if (iTask) {
+        linkedInternal = {
+          taskId: asCustomer.internal_task_id,
+          boardId: iTask.board_id,
+        };
+      }
+    }
+  }
+
+  const release_ = release
+    ? releaseToCustomer.bind(null, id, taskId)
+    : null;
+
   const save = saveTask.bind(
     null,
     id,
@@ -75,6 +152,31 @@ export default async function TaskDetail({
         <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 8 }}>
           Task-ID <code>{shortId(task.id)}</code>
         </div>
+
+        {released && (
+          <p
+            style={{
+              marginTop: 12,
+              padding: "8px 12px",
+              borderRadius: 8,
+              fontSize: 14,
+              background: "#12301f",
+              color: "#7ee2b0",
+            }}
+          >
+            An Kunde freigegeben.
+          </p>
+        )}
+
+        {linkedInternal && (
+          <p style={{ marginTop: 8, fontSize: 13 }}>
+            <a
+              href={`/boards/${linkedInternal.boardId}/tasks/${linkedInternal.taskId}`}
+            >
+              ↗ Verknüpfter interner Task
+            </a>
+          </p>
+        )}
 
         <form action={save} style={{ display: "grid", gap: 14, marginTop: 12 }}>
           <label style={labelStyle}>
@@ -106,6 +208,53 @@ export default async function TaskDetail({
               Task löschen
             </button>
           </form>
+        )}
+
+        {release && release_ && (
+          <section
+            style={{
+              marginTop: 24,
+              border: "1px solid #2d4a63",
+              background: "#101a24",
+              borderRadius: 10,
+              padding: 16,
+            }}
+          >
+            <h2 style={{ fontSize: 16, marginTop: 0 }}>
+              An Kunde freigeben → {release.customerBoard.name}
+            </h2>
+            <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
+              Nur dieser Text (und optional der Status) wird für den Kunden
+              sichtbar. Interne Kommentare bleiben intern.
+            </p>
+            <form action={release_} style={{ display: "grid", gap: 10 }}>
+              <textarea
+                name="body"
+                rows={3}
+                placeholder="Kurzer Kommentar an den Kunden…"
+                style={{ ...inputStyle, resize: "vertical" }}
+              />
+              {release.statusOptions.length > 0 && (
+                <label style={labelStyle}>
+                  Status beim Kunden setzen (optional)
+                  <select name="status" defaultValue="" style={inputStyle}>
+                    <option value="">— nicht ändern —</option>
+                    {release.statusOptions.map((o) => (
+                      <option key={o.label} value={o.label}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <button
+                type="submit"
+                style={{ ...primaryButton, background: "#00a86b" }}
+              >
+                Freigeben
+              </button>
+            </form>
+          </section>
         )}
 
         <section style={{ marginTop: 32 }}>
