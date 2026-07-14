@@ -46,6 +46,22 @@ function buildCsp(nonce: string): string {
 }
 
 export async function updateSession(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Fail with a readable message instead of an opaque MIDDLEWARE_INVOCATION_FAILED
+  // when the app was built/deployed without the Supabase env vars. Still blocks
+  // (does not fall through to unauthenticated access).
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return new NextResponse(
+      "Serverkonfiguration unvollständig: NEXT_PUBLIC_SUPABASE_URL und " +
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY fehlen. In Vercel unter Settings → " +
+        "Environment Variables (Environment: Production) setzen und danach neu " +
+        "deployen (Redeploy).",
+      { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } },
+    );
+  }
+
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const csp = buildCsp(nonce);
 
@@ -58,8 +74,8 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
