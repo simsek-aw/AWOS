@@ -62,6 +62,25 @@ export async function updateSession(request: NextRequest) {
     );
   }
 
+  // The URL must be a valid https(s) URL — a stray space, missing scheme, or
+  // trailing newline would otherwise make the Supabase fetch throw and crash
+  // the whole middleware (opaque MIDDLEWARE_INVOCATION_FAILED).
+  let urlOk = false;
+  try {
+    const u = new URL(supabaseUrl);
+    urlOk = u.protocol === "https:" || u.protocol === "http:";
+  } catch {
+    urlOk = false;
+  }
+  if (!urlOk) {
+    return new NextResponse(
+      "NEXT_PUBLIC_SUPABASE_URL ist keine gültige URL. Erwartet wird z. B. " +
+        "https://<projekt>.supabase.co (mit https://, ohne Leerzeichen/Zeilenumbruch, " +
+        "ohne Schrägstrich am Ende). In Vercel korrigieren und neu deployen.",
+      { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } },
+    );
+  }
+
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const csp = buildCsp(nonce);
 
@@ -101,10 +120,16 @@ export async function updateSession(request: NextRequest) {
   );
 
   // IMPORTANT: getUser() revalidates the token with Supabase — do not trust
-  // getSession() alone for auth decisions.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getSession() alone for auth decisions. Wrapped so a transient Supabase
+  // error can't crash the middleware; on failure we treat the user as
+  // unauthenticated (fail closed → protected routes redirect to /login).
+  let user = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch (e) {
+    console.error("middleware getUser failed:", e);
+  }
 
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PREFIXES.some((p) => path.startsWith(p));
