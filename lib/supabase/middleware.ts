@@ -1,13 +1,61 @@
-// Session refresh + route protection for Next.js middleware.
-// Runs on every matched request: refreshes the Supabase auth cookie and
-// redirects unauthenticated users to /login.
+// Session refresh + route protection + Content-Security-Policy for middleware.
+// Runs on every matched request: builds a per-request CSP nonce, refreshes the
+// Supabase auth cookie, and redirects unauthenticated users to /login.
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PREFIXES = ["/login", "/auth"];
 
+// Build the CSP. In production, scripts are locked to a per-request nonce +
+// strict-dynamic (no inline/eval). In development we relax script-src so
+// Next.js HMR (which uses eval + inline scripts) keeps working.
+function buildCsp(nonce: string): string {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  let supabaseHost = "";
+  try {
+    supabaseHost = new URL(supabaseUrl).host;
+  } catch {
+    /* unset/invalid in some environments — connect-src just omits it */
+  }
+  const dev = process.env.NODE_ENV !== "production";
+
+  const scriptSrc = dev
+    ? "'self' 'unsafe-inline' 'unsafe-eval'"
+    : `'self' 'nonce-${nonce}' 'strict-dynamic'`;
+
+  const connectSrc = ["'self'", supabaseUrl, supabaseHost && `wss://${supabaseHost}`]
+    .filter(Boolean)
+    .join(" ");
+  const imgSrc = ["'self'", "data:", "blob:", supabaseUrl].filter(Boolean).join(" ");
+
+  return [
+    "default-src 'self'",
+    `script-src ${scriptSrc}`,
+    // React renders inline style attributes (style={{…}}); those need
+    // 'unsafe-inline' (nonces don't cover style attributes). Not a script
+    // execution vector.
+    "style-src 'self' 'unsafe-inline'",
+    `img-src ${imgSrc}`,
+    "font-src 'self'",
+    `connect-src ${connectSrc}`,
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join("; ");
+}
+
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const csp = buildCsp(nonce);
+
+  // Pass the nonce + CSP on the REQUEST headers so Next.js applies the nonce to
+  // its own scripts and components can read `x-nonce` for any inline script.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("content-security-policy", csp);
+
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +75,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          response = NextResponse.next({ request });
+          response = NextResponse.next({ request: { headers: requestHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );
@@ -51,5 +99,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  response.headers.set("content-security-policy", csp);
   return response;
 }
