@@ -4,12 +4,21 @@ import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { Board, Column, Comment, Task, TaskValue } from "@/lib/types";
+import type {
+  Attachment,
+  Board,
+  Column,
+  Comment,
+  Task,
+  TaskValue,
+} from "@/lib/types";
 import {
   addComment,
+  deleteAttachment,
   deleteTask,
   releaseToCustomer,
   saveTask,
+  uploadAttachment,
 } from "../../actions";
 
 // Columns bound to the task row itself, not stored in task_values.
@@ -20,10 +29,10 @@ export default async function TaskDetail({
   searchParams,
 }: {
   params: Promise<{ id: string; taskId: string }>;
-  searchParams: Promise<{ released?: string }>;
+  searchParams: Promise<{ released?: string; err?: string }>;
 }) {
   const { id, taskId } = await params;
-  const { released } = await searchParams;
+  const { released, err } = await searchParams;
   const ctx = await requireSession();
   const supabase = await createServerSupabase();
 
@@ -58,6 +67,23 @@ export default async function TaskDetail({
     .eq("task_id", taskId)
     .order("created_at", { ascending: true })
     .returns<Comment[]>();
+
+  const { data: attachments } = await supabase
+    .from("attachments")
+    .select("*")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true })
+    .returns<Attachment[]>();
+
+  // Signed download URLs (RLS lets us sign only files we may access).
+  const files = await Promise.all(
+    (attachments ?? []).map(async (a) => {
+      const { data } = await supabase.storage
+        .from("attachments")
+        .createSignedUrl(a.storage_path, 3600);
+      return { ...a, url: data?.signedUrl ?? null };
+    }),
+  );
 
   const valueByColumn = new Map<string, unknown>();
   for (const v of values ?? []) valueByColumn.set(v.column_id, v.value);
@@ -151,6 +177,7 @@ export default async function TaskDetail({
         subscriptions={[
           { table: "comments", filter: `task_id=eq.${taskId}` },
           { table: "task_values", filter: `task_id=eq.${taskId}` },
+          { table: "attachments", filter: `task_id=eq.${taskId}` },
           { table: "tasks", filter: `id=eq.${taskId}` },
         ]}
       />
@@ -174,6 +201,21 @@ export default async function TaskDetail({
             }}
           >
             An Kunde freigegeben.
+          </p>
+        )}
+
+        {err && (
+          <p
+            style={{
+              marginTop: 12,
+              padding: "8px 12px",
+              borderRadius: 8,
+              fontSize: 14,
+              background: "#3b1f24",
+              color: "#ff9aa2",
+            }}
+          >
+            {err}
           </p>
         )}
 
@@ -265,6 +307,76 @@ export default async function TaskDetail({
             </form>
           </section>
         )}
+
+        <section style={{ marginTop: 32 }}>
+          <h2 style={{ fontSize: 16 }}>Dateien</h2>
+          <div style={{ display: "grid", gap: 8 }}>
+            {files.map((f) => {
+              const remove = deleteAttachment.bind(null, id, taskId, f.id, f.storage_path);
+              return (
+                <div
+                  key={f.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    background: "var(--panel)",
+                    border: "1px solid #222834",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 14,
+                  }}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {f.url ? (
+                      <a href={f.url} target="_blank" rel="noopener noreferrer">
+                        {f.file_name}
+                      </a>
+                    ) : (
+                      f.file_name
+                    )}
+                    <span style={{ color: "var(--muted)", marginLeft: 8, fontSize: 12 }}>
+                      {formatBytes(f.size_bytes)}
+                    </span>
+                  </span>
+                  <form action={remove}>
+                    <button
+                      type="submit"
+                      title="Löschen"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#ff9aa2",
+                        cursor: "pointer",
+                        fontSize: 14,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </form>
+                </div>
+              );
+            })}
+            {files.length === 0 && <p style={{ color: "#5b6472" }}>Keine Dateien.</p>}
+          </div>
+
+          <form
+            action={uploadAttachment.bind(null, id, taskId)}
+            style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}
+          >
+            <input
+              type="file"
+              name="file"
+              required
+              style={{ flex: 1, minWidth: 200, color: "var(--muted)", fontSize: 14 }}
+            />
+            <button type="submit" style={primaryButton}>
+              Hochladen
+            </button>
+          </form>
+          <p style={{ color: "var(--muted)", fontSize: 12 }}>Max. 10 MB pro Datei.</p>
+        </section>
 
         <section style={{ marginTop: 32 }}>
           <h2 style={{ fontSize: 16 }}>Kommentare</h2>
@@ -361,6 +473,13 @@ const primaryButton: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
 };
+
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const commentStyle: React.CSSProperties = {
   background: "var(--panel)",

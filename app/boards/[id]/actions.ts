@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { mirrorCustomerTask } from "@/lib/agent/mirror";
-import { requireEmployee } from "@/lib/auth";
+import { requireEmployee, requireSession } from "@/lib/auth";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
+
+const BUCKET = "attachments";
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /** Create a task on a board. RLS ensures the caller may write to this board. */
 export async function createTask(boardId: string, formData: FormData) {
@@ -155,6 +158,69 @@ export async function releaseToCustomer(
 
   revalidatePath(`/boards/${internalBoardId}/tasks/${internalTaskId}`);
   redirect(`/boards/${internalBoardId}/tasks/${internalTaskId}?released=1`);
+}
+
+/** Upload a file attachment to a task. Storage RLS ties access to the board. */
+export async function uploadAttachment(
+  boardId: string,
+  taskId: string,
+  formData: FormData,
+) {
+  const ctx = await requireSession();
+  const file = formData.get("file");
+  const taskUrl = `/boards/${boardId}/tasks/${taskId}`;
+
+  if (!(file instanceof File) || file.size === 0) return;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    redirect(`${taskUrl}?err=${encodeURIComponent("Datei zu groß (max. 10 MB)")}`);
+  }
+
+  const supabase = await createServerSupabase();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
+  const path = `${boardId}/${taskId}/${crypto.randomUUID()}-${safeName}`;
+
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+  if (upErr) {
+    redirect(`${taskUrl}?err=${encodeURIComponent("Upload fehlgeschlagen")}`);
+  }
+
+  const { error: insErr } = await supabase.from("attachments").insert({
+    task_id: taskId,
+    storage_path: path,
+    file_name: file.name.slice(0, 200),
+    size_bytes: file.size,
+    content_type: file.type || null,
+    uploaded_by: ctx.userId,
+  });
+  if (insErr) {
+    // Roll back the stored object if the metadata row couldn't be written.
+    await supabase.storage.from(BUCKET).remove([path]);
+    redirect(`${taskUrl}?err=${encodeURIComponent("Datei konnte nicht gespeichert werden")}`);
+  }
+
+  revalidatePath(taskUrl);
+}
+
+export async function deleteAttachment(
+  boardId: string,
+  taskId: string,
+  attachmentId: string,
+  storagePath: string,
+) {
+  await requireSession();
+  const supabase = await createServerSupabase();
+
+  // RLS: only the uploader or an employee may delete the row / object.
+  const { error } = await supabase.from("attachments").delete().eq("id", attachmentId);
+  if (!error) {
+    await supabase.storage.from(BUCKET).remove([storagePath]);
+  }
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 
 export async function deleteTask(boardId: string, taskId: string) {

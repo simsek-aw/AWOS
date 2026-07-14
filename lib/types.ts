@@ -69,6 +69,17 @@ export interface TaskValue {
   value: unknown;
 }
 
+export interface Attachment {
+  id: string;
+  task_id: string;
+  storage_path: string;
+  file_name: string;
+  size_bytes: number | null;
+  content_type: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
 export interface Comment {
   id: string;
   task_id: string;

@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Allow file uploads via server actions up to 10 MB.
+    serverActions: { bodySizeLimit: "10mb" },
+  },
   async headers() {
     return [
       {
