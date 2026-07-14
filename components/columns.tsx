@@ -4,6 +4,20 @@ export function shortId(id: string) {
   return id.slice(0, 8);
 }
 
+/**
+ * Returns the URL only if it is a safe http/https link. Prevents stored XSS via
+ * `javascript:` / `data:` values in user-controlled link columns, which would
+ * otherwise execute in the session of anyone (e.g. an employee) who clicks it.
+ */
+export function safeHttpUrl(value: string): string | null {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function statusColor(column: Column, value: string): string {
   const opt = (column.options.options ?? []).find(
     (o: StatusOption) => o.label === value,
@@ -49,12 +63,15 @@ export function renderCell(
           {str}
         </span>
       );
-    case "link":
+    case "link": {
+      const safe = safeHttpUrl(str);
+      if (!safe) return <span style={{ color: "#5b6472" }}>{str}</span>;
       return (
-        <a href={str} target="_blank" rel="noopener noreferrer">
+        <a href={safe} target="_blank" rel="noopener noreferrer">
           Öffnen
         </a>
       );
+    }
     default:
       return <span>{str}</span>;
   }
