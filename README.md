@@ -61,6 +61,15 @@ npm run dev
 
 ## Status
 
-Frühe Fundament-Phase: Datenmodell, RLS-Sicherheitskern und Projektgerüst stehen. Die
-UI (Board-Ansicht, Task-Detail, Kommentare) und der Spiegelungs-Agent folgen als nächste
-Schritte.
+Lauffähiges MVP-Gerüst:
+
+- ✅ Datenmodell + RLS-Sicherheitskern (verhaltensgeprüft: Kundenisolation, kein
+  Leak interner Kommentare)
+- ✅ Auth-Flow (Login/Logout, geschützte Routen via Middleware)
+- ✅ Board-UI (dynamische Spalten-Tabelle, Task anlegen/bearbeiten, Kommentare)
+- ✅ Spiegelungs-Agent (`lib/agent/mirror.ts`) — serverseitig, mit Prompt-Injection-
+  Schutz und enger Tool-Fläche; läuft nach dem Anlegen eines Kunden-Tasks
+
+Zum Live-Betrieb fehlt noch ein Supabase-Projekt (Migrationen anwenden, Keys in
+`.env.local`) und ein `ANTHROPIC_API_KEY` für den Agenten (ohne Key ist der Agent
+inaktiv, die App läuft trotzdem).

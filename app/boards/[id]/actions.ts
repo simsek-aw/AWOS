@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { mirrorCustomerTask } from "@/lib/agent/mirror";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 /** Create a task on a board. RLS ensures the caller may write to this board. */
@@ -10,7 +12,18 @@ export async function createTask(boardId: string, formData: FormData) {
   if (!title) return;
 
   const supabase = await createServerSupabase();
-  await supabase.from("tasks").insert({ board_id: boardId, title });
+  const { data: task } = await supabase
+    .from("tasks")
+    .insert({ board_id: boardId, title })
+    .select("id")
+    .single<{ id: string }>();
+
+  // Run the mirroring agent after the response is sent, so task creation stays
+  // instant. The agent decides internally whether this task belongs to a
+  // customer board and needs mirroring.
+  if (task) {
+    after(() => mirrorCustomerTask(task.id));
+  }
 
   revalidatePath(`/boards/${boardId}`);
 }
