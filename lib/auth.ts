@@ -37,3 +37,10 @@ export async function requireSession(): Promise<SessionContext> {
   if (!ctx) redirect("/login");
   return ctx;
 }
+
+/** Requires an authenticated employee; sends customers back to the dashboard. */
+export async function requireEmployee(): Promise<SessionContext> {
+  const ctx = await requireSession();
+  if (ctx.profile.role !== "employee") redirect("/");
+  return ctx;
+}

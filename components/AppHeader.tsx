@@ -23,6 +23,11 @@ export default function AppHeader({ ctx }: { ctx: SessionContext }) {
         AWOS
       </a>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        {ctx.profile.role === "employee" && (
+          <a href="/admin" style={{ color: "var(--muted)", fontSize: 14 }}>
+            Admin
+          </a>
+        )}
         <span style={{ color: "var(--muted)", fontSize: 14 }}>
           {ctx.profile.full_name ?? ctx.email} ·{" "}
           {roleLabel[ctx.profile.role] ?? ctx.profile.role}
