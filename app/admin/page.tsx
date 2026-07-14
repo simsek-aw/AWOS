@@ -128,16 +128,6 @@ export default async function AdminPage({
             <div style={formRow}>
               <input name="full_name" placeholder="Name" style={input} />
               <input name="email" type="email" placeholder="E-Mail" required style={input} />
-            </div>
-            <div style={formRow}>
-              <input
-                name="password"
-                type="text"
-                placeholder="Start-Passwort (min. 8 Zeichen)"
-                required
-                minLength={8}
-                style={input}
-              />
               <select name="role" style={input} defaultValue="customer">
                 <option value="customer">Kunde</option>
                 <option value="employee">Mitarbeiter</option>
@@ -159,11 +149,11 @@ export default async function AdminPage({
                 <option value="grafik">Grafik</option>
               </select>
             </div>
-            <button style={{ ...button, justifySelf: "start" }}>Nutzer anlegen</button>
+            <button style={{ ...button, justifySelf: "start" }}>Einladen</button>
           </form>
           <p style={{ color: "var(--muted)", fontSize: 13 }}>
-            Der Nutzer meldet sich mit E-Mail + Start-Passwort an. Kunden sehen nur ihr
-            eigenes Board, Mitarbeiter alle.
+            Der Eingeladene erhält eine E-Mail, bestätigt den Link und setzt sein eigenes
+            Passwort. Kunden sehen nur ihr eigenes Board, Mitarbeiter alle.
           </p>
         </Section>
       </main>

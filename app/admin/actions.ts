@@ -1,10 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireEmployee } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Department } from "@/lib/types";
+
+async function siteOrigin(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  const h = await headers();
+  const host = h.get("host") ?? "localhost:3000";
+  const proto = host.startsWith("localhost") ? "http" : "https";
+  return `${proto}://${host}`;
+}
 
 // redirect() throws NEXT_REDIRECT, so these never return.
 function fail(message: string): never {
@@ -70,23 +79,27 @@ export async function createCustomerBoard(formData: FormData) {
 export async function inviteUser(formData: FormData) {
   await requireEmployee();
   const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("full_name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
   const customerId = String(formData.get("customer_id") ?? "");
   const department = String(formData.get("department") ?? "");
 
-  if (!email || password.length < 8) fail("E-Mail oder Passwort ungültig (min. 8 Zeichen)");
+  if (!email) fail("E-Mail fehlt");
   if (role !== "employee" && role !== "customer") fail("Rolle ungültig");
   if (role === "customer" && !customerId) fail("Kunde muss zugeordnet werden");
 
   const svc = createServiceClient();
-  const { data: created, error } = await svc.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
+  const origin = await siteOrigin();
+
+  // Sends the Supabase "Invite user" email; creates the auth user (unconfirmed)
+  // and returns it so we can provision the profile immediately.
+  const { data: created, error } = await svc.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${origin}/auth/confirm?next=/auth/update-password`,
+    data: { full_name: fullName || email },
   });
-  if (error || !created.user) fail("Nutzer konnte nicht angelegt werden (E-Mail evtl. vergeben)");
+  if (error || !created.user) {
+    fail("Einladung fehlgeschlagen (E-Mail evtl. vergeben oder SMTP nicht konfiguriert)");
+  }
 
   const { error: profileError } = await svc.rpc("provision_profile", {
     p_user_id: created.user.id,
@@ -96,11 +109,11 @@ export async function inviteUser(formData: FormData) {
     p_department: role === "employee" && department !== "" ? department : null,
   });
   if (profileError) {
-    // Roll back the orphaned auth user so it can be retried cleanly.
+    // Roll back the orphaned auth user so the invite can be retried cleanly.
     await svc.auth.admin.deleteUser(created.user.id);
     fail("Profil konnte nicht angelegt werden");
   }
 
   revalidatePath("/admin");
-  ok("Nutzer angelegt");
+  ok(`Einladung an ${email} gesendet`);
 }
