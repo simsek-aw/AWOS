@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { createGroup, createTask, moveTask } from "@/app/(app)/boards/[id]/actions";
+import {
+  createGroup,
+  createTask,
+  deleteBoardView,
+  moveTask,
+  saveBoardView,
+} from "@/app/(app)/boards/[id]/actions";
 import Icon, { type IconName } from "@/components/icons";
 import type { Column, Group, Person, Task, TaskValue } from "@/lib/types";
 import { Avatar } from "./Avatar";
@@ -39,6 +45,7 @@ export default function BoardView({
   customerIdByTask = {},
   lockedCustomerTasks = [],
   customers = [],
+  savedViews = [],
   autoOpenTaskId = null,
   highlightCommentId = null,
 }: {
@@ -58,6 +65,7 @@ export default function BoardView({
   customerIdByTask?: Record<string, string>;
   lockedCustomerTasks?: string[];
   customers?: { id: string; name: string }[];
+  savedViews?: { id: string; name: string; config: Record<string, unknown> }[];
   autoOpenTaskId?: string | null;
   highlightCommentId?: string | null;
 }) {
@@ -254,6 +262,42 @@ export default function BoardView({
     setVisibleGroupIds([]);
   };
 
+  // --- Saved views ---------------------------------------------------------
+  const currentConfig = () => ({
+    search,
+    personFilter,
+    deadlineFilter,
+    visibleGroupIds,
+    sortColId,
+    sortDir,
+  });
+  const applyView = (config: Record<string, unknown>) => {
+    setSearch(typeof config.search === "string" ? config.search : "");
+    setPersonFilter(
+      typeof config.personFilter === "string" ? config.personFilter : "",
+    );
+    setDeadlineFilter(
+      (["all", "overdue", "today", "week", "none"].includes(
+        config.deadlineFilter as string,
+      )
+        ? config.deadlineFilter
+        : "all") as DeadlineFilter,
+    );
+    setVisibleGroupIds(
+      Array.isArray(config.visibleGroupIds)
+        ? (config.visibleGroupIds as string[])
+        : [],
+    );
+    setSortColId(typeof config.sortColId === "string" ? config.sortColId : "");
+    setSortDir(config.sortDir === "desc" ? "desc" : "asc");
+  };
+  const saveCurrentView = () => {
+    const name = window.prompt("Name der Ansicht?");
+    if (name?.trim()) {
+      startTransition(() => saveBoardView(boardId, name.trim(), currentConfig()));
+    }
+  };
+
   return (
     <div
       onDragEnd={() => {
@@ -442,6 +486,71 @@ export default function BoardView({
                   </button>
                 );
               })}
+            </div>
+          )}
+        </ToolbarMenu>
+
+        <ToolbarMenu
+          icon="eye-off"
+          label="Ansichten"
+          badge={savedViews.length}
+          width={260}
+        >
+          {(close) => (
+            <div style={{ padding: 10, display: "grid", gap: 2 }}>
+              <div style={menuHead}>Gespeicherte Ansichten</div>
+              {savedViews.length === 0 && (
+                <div style={{ padding: 8, color: "var(--faint)", fontSize: 13 }}>
+                  Noch keine Ansicht gespeichert.
+                </div>
+              )}
+              {savedViews.map((v) => (
+                <div
+                  key={v.id}
+                  style={{ display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <button
+                    onClick={() => {
+                      applyView(v.config);
+                      close();
+                    }}
+                    style={{ ...menuItem, flex: 1 }}
+                  >
+                    {v.name}
+                  </button>
+                  <button
+                    onClick={() =>
+                      startTransition(() => deleteBoardView(boardId, v.id))
+                    }
+                    title="Ansicht löschen"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--danger)",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      padding: 4,
+                    }}
+                  >
+                    <Icon name="trash" size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => {
+                  saveCurrentView();
+                  close();
+                }}
+                style={{
+                  ...menuItem,
+                  marginTop: 4,
+                  borderTop: "1px solid var(--border)",
+                  color: "var(--accent)",
+                  fontWeight: 600,
+                }}
+              >
+                + Aktuelle Ansicht speichern
+              </button>
             </div>
           )}
         </ToolbarMenu>

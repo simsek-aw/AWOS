@@ -198,6 +198,15 @@ export default async function BoardPage({
     }
   }
 
+  // The user's saved views for this board.
+  const { data: savedViews } = await supabase
+    .from("board_views")
+    .select("id, name, config")
+    .eq("board_id", id)
+    .eq("user_id", ctx.userId)
+    .order("created_at", { ascending: true })
+    .returns<{ id: string; name: string; config: Record<string, unknown> }[]>();
+
   let groupList = groups ?? [];
 
   // If the groups query itself errored (most commonly: the `groups` table
@@ -303,6 +312,7 @@ export default async function BoardPage({
             customerIdByTask={customerIdByTask}
             lockedCustomerTasks={lockedCustomerTasks}
             customers={customers}
+            savedViews={savedViews ?? []}
             autoOpenTaskId={openTaskParam ?? null}
             highlightCommentId={highlightComment ?? null}
           />

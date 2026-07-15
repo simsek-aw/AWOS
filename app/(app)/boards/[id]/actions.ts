@@ -471,6 +471,41 @@ export async function updateColumnOptions(
   revalidatePath(`/boards/${boardId}`, "layout");
 }
 
+/** Save the current toolbar filters/sort as a named view for this user. */
+export async function saveBoardView(
+  boardId: string,
+  name: string,
+  config: Record<string, unknown>,
+) {
+  const ctx = await requireSession();
+  const n = name.trim();
+  if (!n) return;
+  const supabase = await createServerSupabase();
+  const { error } = await supabase.from("board_views").insert({
+    board_id: boardId,
+    user_id: ctx.userId,
+    name: n,
+    config,
+  });
+  if (error) {
+    console.error("saveBoardView failed", { boardId, error });
+    throw new Error(`Ansicht konnte nicht gespeichert werden: ${error.message}`);
+  }
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Delete one of the current user's saved views. */
+export async function deleteBoardView(boardId: string, viewId: string) {
+  const ctx = await requireSession();
+  const supabase = await createServerSupabase();
+  await supabase
+    .from("board_views")
+    .delete()
+    .eq("id", viewId)
+    .eq("user_id", ctx.userId);
+  revalidatePath(`/boards/${boardId}`);
+}
+
 const COLUMN_TYPES = ["text", "person", "status", "date", "link", "number"];
 // Core columns that must not be deleted (the board depends on them).
 const PROTECTED_KEYS = new Set(["task_id", "name"]);
