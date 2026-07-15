@@ -113,4 +113,5 @@ export interface Comment {
   is_agent: boolean;
   body: string;
   created_at: string;
+  released_at: string | null;
 }

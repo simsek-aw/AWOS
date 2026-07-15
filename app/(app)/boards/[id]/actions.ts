@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { mirrorCustomerTask } from "@/lib/agent/mirror";
+import { syncMirrorForCustomerTask } from "@/lib/agent/mirror";
 import { requireEmployee, requireSession } from "@/lib/auth";
 import { notifyAssignment, notifyMentions } from "@/lib/notifications";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
@@ -21,19 +21,12 @@ export async function createTask(
   if (!title) return;
 
   const supabase = await createServerSupabase();
-  const { data: task } = await supabase
+  await supabase
     .from("tasks")
-    .insert({ board_id: boardId, group_id: groupId, title })
-    .select("id")
-    .single<{ id: string }>();
+    .insert({ board_id: boardId, group_id: groupId, title });
 
-  // Run the mirroring agent after the response is sent, so task creation stays
-  // instant. The agent decides internally whether this task belongs to a
-  // customer board and needs mirroring.
-  if (task) {
-    after(() => mirrorCustomerTask(task.id));
-  }
-
+  // Note: mirroring is NOT triggered on creation. It fires when the customer
+  // writes a comment (the briefing) — see postComment / addComment.
   revalidatePath(`/boards/${boardId}`);
 }
 
@@ -253,14 +246,17 @@ export async function postComment(
 ) {
   const b = body.trim();
   if (!b) return;
+  const ctx = await requireSession();
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
   await supabase
     .from("comments")
-    .insert({ task_id: taskId, body: b, author_id: user?.id ?? null });
-  after(() => notifyMentions({ boardId, taskId, body: b, actorId: user?.id ?? null }));
+    .insert({ task_id: taskId, body: b, author_id: ctx.userId });
+  after(() => notifyMentions({ boardId, taskId, body: b, actorId: ctx.userId }));
+  // A customer's comment is the briefing → (re)sync the internal mirror. Runs
+  // after the response so commenting stays instant; idempotent per department.
+  if (ctx.profile.role === "customer") {
+    after(() => syncMirrorForCustomerTask(taskId));
+  }
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
   revalidatePath(`/boards/${boardId}`);
 }
@@ -321,16 +317,17 @@ export async function addComment(
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return;
 
+  const ctx = await requireSession();
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   await supabase
     .from("comments")
-    .insert({ task_id: taskId, body, author_id: user?.id ?? null });
+    .insert({ task_id: taskId, body, author_id: ctx.userId });
 
-  after(() => notifyMentions({ boardId, taskId, body, actorId: user?.id ?? null }));
+  after(() => notifyMentions({ boardId, taskId, body, actorId: ctx.userId }));
+  if (ctx.profile.role === "customer") {
+    after(() => syncMirrorForCustomerTask(taskId));
+  }
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 
@@ -406,6 +403,90 @@ export async function releaseToCustomer(
 
   revalidatePath(`/boards/${internalBoardId}/tasks/${internalTaskId}`);
   redirect(`/boards/${internalBoardId}/tasks/${internalTaskId}?released=1`);
+}
+
+/**
+ * Return channel (per-comment): an employee releases ONE internal comment to
+ * the linked customer task. The comment must belong to this task's mirror group
+ * (the customer task or one of its internal copies) — never an arbitrary id.
+ * A customer-visible copy is posted on the customer task; the source comment is
+ * stamped `released_at` so it can't be released twice.
+ */
+export async function releaseComment(
+  internalBoardId: string,
+  internalTaskId: string,
+  commentId: string,
+) {
+  const ctx = await requireEmployee();
+  const supabase = await createServerSupabase();
+
+  // The customer task this internal task mirrors.
+  const { data: link } = await supabase
+    .from("task_links")
+    .select("customer_task_id")
+    .eq("internal_task_id", internalTaskId)
+    .maybeSingle<{ customer_task_id: string }>();
+  if (!link) return;
+  const customerTaskId = link.customer_task_id;
+
+  // Every task in this mirror group: the customer task + all its internal copies.
+  const { data: siblings } = await supabase
+    .from("task_links")
+    .select("internal_task_id")
+    .eq("customer_task_id", customerTaskId)
+    .returns<{ internal_task_id: string }[]>();
+  const groupTaskIds = new Set<string>([
+    customerTaskId,
+    ...(siblings ?? []).map((s) => s.internal_task_id),
+  ]);
+
+  // Load the comment and verify it belongs to this group and isn't already sent.
+  const { data: comment } = await supabase
+    .from("comments")
+    .select("id, task_id, body, is_agent, released_at")
+    .eq("id", commentId)
+    .maybeSingle<{
+      id: string;
+      task_id: string;
+      body: string;
+      is_agent: boolean;
+      released_at: string | null;
+    }>();
+  if (!comment) return;
+  if (!groupTaskIds.has(comment.task_id)) return; // not part of this task
+  if (comment.task_id === customerTaskId) return; // already customer-visible
+  if (comment.is_agent) return; // don't forward the agent's internal work order
+  if (comment.released_at) return; // already released
+
+  // Atomically claim the release: only the caller whose conditional UPDATE
+  // actually stamps released_at (was NULL) proceeds to post the copy. A second
+  // concurrent click updates zero rows and bails — no double-post.
+  const { data: stamped } = await supabase
+    .from("comments")
+    .update({ released_at: new Date().toISOString() })
+    .eq("id", commentId)
+    .is("released_at", null)
+    .select("id");
+  if (!stamped || stamped.length === 0) return;
+
+  // Post the customer-visible copy (authored by the employee → shows as "Team").
+  await supabase.from("comments").insert({
+    task_id: customerTaskId,
+    author_id: ctx.userId,
+    is_agent: false,
+    body: comment.body,
+  });
+
+  const svc = createServiceClient();
+  await svc.from("audit_log").insert({
+    actor_id: ctx.userId,
+    action: "comment.release_to_customer",
+    entity_type: "comment",
+    entity_id: commentId,
+    details: { customer_task_id: customerTaskId, internal_task_id: internalTaskId },
+  });
+
+  revalidatePath(`/boards/${internalBoardId}/tasks/${internalTaskId}`);
 }
 
 /** Upload a file attachment to a task. Storage RLS ties access to the board. */

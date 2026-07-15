@@ -18,6 +18,7 @@ import {
   addComment,
   deleteAttachment,
   deleteTask,
+  releaseComment,
   releaseToCustomer,
   uploadAttachment,
 } from "../../actions";
@@ -71,13 +72,6 @@ export default async function TaskDetail({
     name: p.full_name ?? p.id.slice(0, 8),
   }));
 
-  const { data: comments } = await supabase
-    .from("comments")
-    .select("*")
-    .eq("task_id", taskId)
-    .order("created_at", { ascending: true })
-    .returns<Comment[]>();
-
   const { data: attachments } = await supabase
     .from("attachments")
     .select("*")
@@ -109,6 +103,9 @@ export default async function TaskDetail({
     statusOptions: { label: string; color: string }[];
   } | null = null;
   let linkedInternal: { taskId: string; boardId: string } | null = null;
+  // The customer task this internal task mirrors (if any) — drives the shared
+  // comment thread and the per-comment release buttons.
+  let customerTaskId: string | null = null;
 
   if (isEmployee) {
     const [{ data: asInternal }, { data: asCustomer }] = await Promise.all([
@@ -123,6 +120,8 @@ export default async function TaskDetail({
         .eq("customer_task_id", taskId)
         .maybeSingle<{ internal_task_id: string }>(),
     ]);
+
+    customerTaskId = asInternal?.customer_task_id ?? null;
 
     if (asInternal) {
       const { data: cTask } = await supabase
@@ -170,6 +169,32 @@ export default async function TaskDetail({
     ? releaseToCustomer.bind(null, id, taskId)
     : null;
 
+  // Comment thread. For an internal task that mirrors a customer task, assemble
+  // the SHARED thread: the customer briefing + every internal copy's comments,
+  // ordered by time. Otherwise just this task's own comments. (Only employees
+  // ever reach an internal task, so the cross-board read stays RLS-safe.)
+  let threadTaskIds: string[] = [taskId];
+  if (customerTaskId) {
+    const { data: sibs } = await supabase
+      .from("task_links")
+      .select("internal_task_id")
+      .eq("customer_task_id", customerTaskId)
+      .returns<{ internal_task_id: string }[]>();
+    threadTaskIds = [
+      customerTaskId,
+      ...(sibs ?? []).map((s) => s.internal_task_id),
+    ];
+  }
+  const { data: comments } = await supabase
+    .from("comments")
+    .select("*")
+    .in("task_id", threadTaskIds)
+    .order("created_at", { ascending: true })
+    .returns<Comment[]>();
+
+  const peopleName = new Map(people.map((p) => [p.id, p.name]));
+  const isMirrored = !!customerTaskId;
+
   const nameColumn = (columns ?? []).find((c) => c.key === "name");
   const comment = addComment.bind(null, id, taskId);
   const remove = deleteTask.bind(null, id, taskId);
@@ -179,7 +204,11 @@ export default async function TaskDetail({
       <RealtimeRefresh
         channel={`task-${taskId}`}
         subscriptions={[
-          { table: "comments", filter: `task_id=eq.${taskId}` },
+          // For a mirrored task the thread spans several tasks, so we can't
+          // filter by a single task_id — refresh on any comment change.
+          isMirrored
+            ? { table: "comments" }
+            : { table: "comments", filter: `task_id=eq.${taskId}` },
           { table: "task_values", filter: `task_id=eq.${taskId}` },
           { table: "attachments", filter: `task_id=eq.${taskId}` },
           { table: "tasks", filter: `id=eq.${taskId}` },
@@ -393,19 +422,68 @@ export default async function TaskDetail({
 
         <section style={{ marginTop: 32 }}>
           <h2 style={{ fontSize: 16 }}>Kommentare</h2>
+          {isMirrored && (
+            <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
+              Gemeinsamer interner Thread aller Abteilungen. Das Briefing des
+              Kunden ist enthalten. Mit „An Kunde senden" wird ein einzelner
+              Kommentar für den Kunden sichtbar gemacht.
+            </p>
+          )}
           <div style={{ display: "grid", gap: 10 }}>
-            {(comments ?? []).map((cm) => (
-              <div key={cm.id} style={commentStyle}>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  {cm.is_agent
-                    ? "AWOS Agent"
-                    : cm.author_id === ctx.userId
-                      ? "Du"
-                      : "Team"}
+            {(comments ?? []).map((cm) => {
+              const fromCustomer = cm.task_id === customerTaskId;
+              const label = fromCustomer
+                ? "Kunde"
+                : cm.is_agent
+                  ? "AWOS Agent"
+                  : cm.author_id === ctx.userId
+                    ? "Du"
+                    : (cm.author_id && peopleName.get(cm.author_id)) || "Team";
+              const canRelease =
+                isEmployee &&
+                isMirrored &&
+                !fromCustomer &&
+                !cm.is_agent &&
+                !cm.released_at;
+              const releaseThis = releaseComment.bind(null, id, taskId, cm.id);
+              return (
+                <div
+                  key={cm.id}
+                  style={{
+                    ...commentStyle,
+                    borderColor: fromCustomer
+                      ? "var(--accent)"
+                      : "var(--border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                      {label}
+                    </span>
+                    {canRelease && (
+                      <form action={releaseThis}>
+                        <button type="submit" style={sendBtn} title="Diesen Kommentar an den Kunden senden">
+                          An Kunde senden →
+                        </button>
+                      </form>
+                    )}
+                    {isEmployee && !fromCustomer && cm.released_at && (
+                      <span style={{ fontSize: 11, color: "var(--ok-text)" }}>
+                        ✓ an Kunde gesendet
+                      </span>
+                    )}
+                  </div>
+                  <div>{cm.body}</div>
                 </div>
-                <div>{cm.body}</div>
-              </div>
-            ))}
+              );
+            })}
             {(comments ?? []).length === 0 && (
               <p style={{ color: "var(--faint)" }}>Noch keine Kommentare.</p>
             )}
@@ -481,4 +559,16 @@ const dangerButton: React.CSSProperties = {
   padding: "8px 14px",
   cursor: "pointer",
   fontSize: 14,
+};
+
+const sendBtn: React.CSSProperties = {
+  background: "transparent",
+  color: "#00a86b",
+  border: "1px solid #00a86b",
+  borderRadius: 6,
+  padding: "3px 8px",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
