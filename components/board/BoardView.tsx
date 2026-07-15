@@ -6,6 +6,7 @@ import Icon, { type IconName } from "@/components/icons";
 import type { Column, Group, Person, Task, TaskValue } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import BoardTable from "./BoardTable";
+import ColumnsManager from "./ColumnsManager";
 import Popover from "./Popover";
 
 type DeadlineFilter = "all" | "overdue" | "today" | "week" | "none";
@@ -444,6 +445,12 @@ export default function BoardView({
             </div>
           )}
         </ToolbarMenu>
+
+        {isEmployee && (
+          <ToolbarMenu icon="more" label="Spalten" width={330}>
+            {() => <ColumnsManager boardId={boardId} columns={columns} />}
+          </ToolbarMenu>
+        )}
 
         {(activeFilterCount > 0 || search || visibleGroupIds.length > 0) && (
           <>

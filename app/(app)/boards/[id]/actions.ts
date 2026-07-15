@@ -471,6 +471,120 @@ export async function updateColumnOptions(
   revalidatePath(`/boards/${boardId}`, "layout");
 }
 
+const COLUMN_TYPES = ["text", "person", "status", "date", "link", "number"];
+// Core columns that must not be deleted (the board depends on them).
+const PROTECTED_KEYS = new Set(["task_id", "name"]);
+
+/** Employee-only: add a new column to a board. */
+export async function addColumn(
+  boardId: string,
+  label: string,
+  type: string,
+) {
+  await requireEmployee();
+  const name = label.trim();
+  if (!name) return;
+  const t = COLUMN_TYPES.includes(type) ? type : "text";
+  const supabase = await createServerSupabase();
+
+  const { data: existing } = await supabase
+    .from("columns")
+    .select("key, position")
+    .eq("board_id", boardId)
+    .returns<{ key: string; position: number }[]>();
+  const keys = new Set((existing ?? []).map((c) => c.key));
+  const base =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 24) || "feld";
+  let key = base;
+  let n = 2;
+  while (keys.has(key)) key = `${base}_${n++}`;
+  const position =
+    Math.max(-1, ...(existing ?? []).map((c) => c.position)) + 1;
+
+  // A status column needs at least one option to be usable straight away.
+  const options =
+    t === "status"
+      ? {
+          options: [
+            { label: "Offen", color: "#9e9e9e" },
+            { label: "Fertig", color: "#00c875" },
+          ],
+        }
+      : {};
+
+  const { error } = await supabase.from("columns").insert({
+    board_id: boardId,
+    key,
+    label: name,
+    type: t,
+    position,
+    is_required: false,
+    options,
+  });
+  if (error) {
+    console.error("addColumn failed", { boardId, error });
+    throw new Error(`Spalte konnte nicht erstellt werden: ${error.message}`);
+  }
+  revalidatePath(`/boards/${boardId}`, "layout");
+}
+
+/** Employee-only: rename a column (its header label). */
+export async function renameColumn(
+  boardId: string,
+  columnId: string,
+  label: string,
+) {
+  await requireEmployee();
+  const name = label.trim();
+  if (!name) return;
+  const supabase = await createServerSupabase();
+  await supabase.from("columns").update({ label: name }).eq("id", columnId);
+  revalidatePath(`/boards/${boardId}`, "layout");
+}
+
+/** Employee-only: delete a column (its values cascade). Core columns are kept. */
+export async function deleteColumn(boardId: string, columnId: string) {
+  await requireEmployee();
+  const supabase = await createServerSupabase();
+  const { data: col } = await supabase
+    .from("columns")
+    .select("key")
+    .eq("id", columnId)
+    .maybeSingle<{ key: string }>();
+  if (!col || PROTECTED_KEYS.has(col.key)) return;
+  await supabase.from("columns").delete().eq("id", columnId);
+  revalidatePath(`/boards/${boardId}`, "layout");
+}
+
+/** Employee-only: move a column one slot left (-1) or right (+1). */
+export async function moveColumn(
+  boardId: string,
+  columnId: string,
+  dir: -1 | 1,
+) {
+  await requireEmployee();
+  const supabase = await createServerSupabase();
+  const { data: cols } = await supabase
+    .from("columns")
+    .select("id, position")
+    .eq("board_id", boardId)
+    .order("position", { ascending: true })
+    .returns<{ id: string; position: number }[]>();
+  const list = cols ?? [];
+  const idx = list.findIndex((c) => c.id === columnId);
+  const swap = idx + dir;
+  if (idx < 0 || swap < 0 || swap >= list.length) return;
+  const a = list[idx];
+  const b = list[swap];
+  await supabase.from("columns").update({ position: b.position }).eq("id", a.id);
+  await supabase.from("columns").update({ position: a.position }).eq("id", b.id);
+  revalidatePath(`/boards/${boardId}`, "layout");
+}
+
 /** Post a comment or a reply (parentId) on a task. */
 export async function postComment(
   boardId: string,
