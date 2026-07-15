@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppHeader from "@/components/AppHeader";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
 import { requireSession } from "@/lib/auth";
@@ -171,7 +170,6 @@ export default async function TaskDetail({
 
   return (
     <>
-      <AppHeader ctx={ctx} />
       <RealtimeRefresh
         channel={`task-${taskId}`}
         subscriptions={[
@@ -181,7 +179,7 @@ export default async function TaskDetail({
           { table: "tasks", filter: `id=eq.${taskId}` },
         ]}
       />
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "24px" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px" }}>
         <a href={`/boards/${id}`} style={{ color: "var(--muted)", fontSize: 14 }}>
           ← {board.name}
         </a>
@@ -411,7 +409,7 @@ export default async function TaskDetail({
             </button>
           </form>
         </section>
-      </main>
+      </div>
     </>
   );
 }

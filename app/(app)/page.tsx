@@ -1,5 +1,3 @@
-import AppHeader from "@/components/AppHeader";
-import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Board } from "@/lib/types";
 
@@ -10,7 +8,6 @@ const deptLabel: Record<string, string> = {
 };
 
 export default async function Dashboard() {
-  const ctx = await requireSession();
   const supabase = await createServerSupabase();
 
   // RLS ensures customers only ever get their own board here.
@@ -25,10 +22,11 @@ export default async function Dashboard() {
   const customer = (boards ?? []).filter((b) => b.type === "customer");
 
   return (
-    <>
-      <AppHeader ctx={ctx} />
-      <main style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
-        <h1 style={{ fontSize: 26 }}>Boards</h1>
+    <div style={{ maxWidth: 960, padding: "32px 28px" }}>
+        <h1 style={{ fontSize: 26, marginTop: 0 }}>Boards</h1>
+        <p style={{ color: "var(--muted)", marginTop: -4 }}>
+          Wähle links ein Board oder starte hier.
+        </p>
 
         {(boards ?? []).length === 0 && (
           <p style={{ color: "var(--muted)" }}>
@@ -57,8 +55,7 @@ export default async function Dashboard() {
             </div>
           </section>
         )}
-      </main>
-    </>
+    </div>
   );
 }
 

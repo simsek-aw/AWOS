@@ -32,6 +32,58 @@ export async function createTask(boardId: string, formData: FormData) {
   revalidatePath(`/boards/${boardId}`);
 }
 
+/** Inline: rename a task (the "Name" column). */
+export async function renameTask(
+  boardId: string,
+  taskId: string,
+  title: string,
+) {
+  const t = title.trim();
+  if (!t) return;
+  const supabase = await createServerSupabase();
+  await supabase.from("tasks").update({ title: t }).eq("id", taskId);
+  revalidatePath(`/boards/${boardId}`);
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+}
+
+/** Inline: set a single column value on a task. */
+export async function setCellValue(
+  boardId: string,
+  taskId: string,
+  columnId: string,
+  value: string,
+) {
+  const v = value.trim() === "" ? null : value;
+  const supabase = await createServerSupabase();
+  await supabase
+    .from("task_values")
+    .upsert(
+      { task_id: taskId, column_id: columnId, value: v },
+      { onConflict: "task_id,column_id" },
+    );
+  revalidatePath(`/boards/${boardId}`);
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+}
+
+/** Panel: post a comment (plain-args variant for client components). */
+export async function postComment(
+  boardId: string,
+  taskId: string,
+  body: string,
+) {
+  const b = body.trim();
+  if (!b) return;
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await supabase
+    .from("comments")
+    .insert({ task_id: taskId, body: b, author_id: user?.id ?? null });
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+  revalidatePath(`/boards/${boardId}`);
+}
+
 /** Save a task's title and its column values (upsert into task_values). */
 export async function saveTask(
   boardId: string,
