@@ -16,15 +16,22 @@ export default async function MyTasksPage() {
     .returns<{ id: string }[]>();
   const personColIds = (personCols ?? []).map((c) => c.id);
 
+  // Fetch PM/Macher values and match in JS — jsonb arrays don't play nicely
+  // with the `contains` filter, and the volume here is small.
   const { data: mine } = personColIds.length
     ? await supabase
         .from("task_values")
-        .select("task_id")
+        .select("task_id, value")
         .in("column_id", personColIds)
-        .contains("value", [ctx.userId])
-        .returns<{ task_id: string }[]>()
-    : { data: [] as { task_id: string }[] };
-  const taskIds = [...new Set((mine ?? []).map((m) => m.task_id))];
+        .returns<{ task_id: string; value: unknown }[]>()
+    : { data: [] as { task_id: string; value: unknown }[] };
+  const containsMe = (v: unknown) =>
+    Array.isArray(v)
+      ? v.map(String).includes(ctx.userId)
+      : v != null && String(v) === ctx.userId;
+  const taskIds = [
+    ...new Set((mine ?? []).filter((m) => containsMe(m.value)).map((m) => m.task_id)),
+  ];
 
   const { data: tasks } = taskIds.length
     ? await supabase

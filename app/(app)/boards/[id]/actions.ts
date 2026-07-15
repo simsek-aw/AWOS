@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { generateCreatives } from "@/lib/agent/creative";
 import {
-  propagateFieldsToMirror,
+  propagateFieldAcrossMirror,
+  propagateTitleAcrossMirror,
   syncMirrorForCustomerTask,
 } from "@/lib/agent/mirror";
 import { draftCustomerReply } from "@/lib/agent/reply";
@@ -257,6 +258,7 @@ export async function renameTask(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  after(() => propagateTitleAcrossMirror(taskId, t));
   after(() =>
     logTaskEvent(taskId, user?.id ?? null, "renamed", `Umbenannt in „${t}"`),
   );
@@ -317,10 +319,9 @@ export async function setCellValue(
     }
   }
 
-  // Keep the mirrored internal copies in sync (customer → internal, one-way).
-  if (columnKey === "status" || columnKey === "deadline") {
-    after(() => propagateFieldsToMirror(taskId, [columnKey]));
-  }
+  // Mirror this field across the task's mirror group (customer ↔ internal,
+  // both directions). No-op if the task isn't mirrored.
+  after(() => propagateFieldAcrossMirror(taskId, columnKey));
 
   after(() =>
     logTaskEvent(
@@ -396,8 +397,8 @@ export async function setPeople(
   // push the new assignment down to existing internal copies.
   if (notifyRole) {
     after(() => syncMirrorForCustomerTask(taskId));
-    after(() => propagateFieldsToMirror(taskId, [columnKey]));
   }
+  after(() => propagateFieldAcrossMirror(taskId, columnKey));
 
   {
     const {

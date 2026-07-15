@@ -233,8 +233,125 @@ export async function syncMirrorForCustomerTask(
   }
 }
 
-// Fields kept in sync from the customer task down to its internal copies.
-export const SYNC_KEYS = ["pm", "macher", "deadline", "status"] as const;
+// Fields a freshly created internal copy is seeded with from the customer task.
+export const SYNC_KEYS = [
+  "pm",
+  "macher",
+  "deadline",
+  "status",
+  "onedrive",
+] as const;
+
+/**
+ * All task ids in a task's mirror group (the customer task + every internal
+ * copy), or null if the task isn't mirrored. Works from either side.
+ */
+async function mirrorGroup(
+  svc: ReturnType<typeof createServiceClient>,
+  taskId: string,
+): Promise<{ ids: string[] } | null> {
+  const { data: asInternal } = await svc
+    .from("task_links")
+    .select("customer_task_id")
+    .eq("internal_task_id", taskId)
+    .maybeSingle<{ customer_task_id: string }>();
+  const customerTaskId = asInternal?.customer_task_id ?? taskId;
+  const { data: links } = await svc
+    .from("task_links")
+    .select("internal_task_id")
+    .eq("customer_task_id", customerTaskId)
+    .returns<{ internal_task_id: string }[]>();
+  const internalIds = (links ?? []).map((l) => l.internal_task_id);
+  if (internalIds.length === 0) return null; // not mirrored
+  return { ids: [customerTaskId, ...internalIds] };
+}
+
+/**
+ * Propagate one column's value from `taskId` to every OTHER task in its mirror
+ * group, matched by column key. Bidirectional (customer ↔ internal). Comments
+ * are never touched. No-op for non-mirrored tasks. Writes directly (service
+ * role) so it never re-triggers an action → no loops.
+ */
+export async function propagateFieldAcrossMirror(
+  taskId: string,
+  columnKey: string,
+): Promise<void> {
+  if (columnKey === "task_id") return;
+  try {
+    const svc = createServiceClient();
+    const group = await mirrorGroup(svc, taskId);
+    if (!group) return;
+    const targetIds = group.ids.filter((id) => id !== taskId);
+    if (!targetIds.length) return;
+
+    // Source value.
+    const { data: srcTask } = await svc
+      .from("tasks")
+      .select("board_id")
+      .eq("id", taskId)
+      .maybeSingle<{ board_id: string }>();
+    if (!srcTask) return;
+    const { data: srcCol } = await svc
+      .from("columns")
+      .select("id")
+      .eq("board_id", srcTask.board_id)
+      .eq("key", columnKey)
+      .maybeSingle<{ id: string }>();
+    if (!srcCol) return;
+    const { data: srcVal } = await svc
+      .from("task_values")
+      .select("value")
+      .eq("task_id", taskId)
+      .eq("column_id", srcCol.id)
+      .maybeSingle<{ value: unknown }>();
+    const value = srcVal?.value ?? null;
+
+    // Target columns matched by key.
+    const { data: tTasks } = await svc
+      .from("tasks")
+      .select("id, board_id")
+      .in("id", targetIds)
+      .returns<{ id: string; board_id: string }[]>();
+    const boardIds = [...new Set((tTasks ?? []).map((t) => t.board_id))];
+    const { data: tCols } = await svc
+      .from("columns")
+      .select("id, board_id")
+      .eq("key", columnKey)
+      .in("board_id", boardIds)
+      .returns<{ id: string; board_id: string }[]>();
+    const colByBoard = new Map((tCols ?? []).map((c) => [c.board_id, c.id]));
+
+    const rows: { task_id: string; column_id: string; value: unknown }[] = [];
+    for (const t of tTasks ?? []) {
+      const colId = colByBoard.get(t.board_id);
+      if (colId) rows.push({ task_id: t.id, column_id: colId, value });
+    }
+    if (rows.length) {
+      await svc
+        .from("task_values")
+        .upsert(rows, { onConflict: "task_id,column_id" });
+    }
+  } catch (err) {
+    console.error("propagateFieldAcrossMirror failed:", err);
+  }
+}
+
+/** Propagate a task's title to the rest of its mirror group. Bidirectional. */
+export async function propagateTitleAcrossMirror(
+  taskId: string,
+  title: string,
+): Promise<void> {
+  try {
+    const svc = createServiceClient();
+    const group = await mirrorGroup(svc, taskId);
+    if (!group) return;
+    const targetIds = group.ids.filter((id) => id !== taskId);
+    if (!targetIds.length) return;
+    await svc.from("tasks").update({ title }).in("id", targetIds);
+  } catch (err) {
+    console.error("propagateTitleAcrossMirror failed:", err);
+  }
+}
 
 /** Copy the given column keys' values from a customer task to internal copies. */
 async function copyFields(
@@ -304,30 +421,6 @@ async function copyFields(
     await svc
       .from("task_values")
       .upsert(rows, { onConflict: "task_id,column_id" });
-  }
-}
-
-/**
- * Push edited field(s) from a customer task to all its internal copies. Called
- * after PM/Macher/Deadline/Status change on a customer board. No-op for tasks
- * that aren't mirrored. One-way only (customer → internal).
- */
-export async function propagateFieldsToMirror(
-  customerTaskId: string,
-  keys: readonly string[],
-): Promise<void> {
-  try {
-    const svc = createServiceClient();
-    const { data: links } = await svc
-      .from("task_links")
-      .select("internal_task_id")
-      .eq("customer_task_id", customerTaskId)
-      .returns<{ internal_task_id: string }[]>();
-    const ids = (links ?? []).map((l) => l.internal_task_id);
-    if (!ids.length) return;
-    await copyFields(svc, customerTaskId, ids, keys);
-  } catch (err) {
-    console.error("propagateFieldsToMirror failed:", err);
   }
 }
 
