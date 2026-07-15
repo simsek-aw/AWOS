@@ -5,6 +5,14 @@ import { markNotificationsRead } from "@/app/(app)/boards/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { Notification } from "@/lib/types";
 
+const LABELS: Record<string, string> = {
+  assignment: "Zuweisung",
+  mention: "Erwähnung",
+  new_task: "Neue Aufgabe",
+  comment: "Kommentar",
+  reaction: "Reaktion",
+};
+
 export default function NotificationBell({ userId }: { userId: string }) {
   const [items, setItems] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
@@ -134,11 +142,7 @@ export default function NotificationBell({ userId }: { userId: string }) {
                 >
                   <div style={{ fontSize: 13 }}>{n.body}</div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                    {n.type === "assignment"
-                      ? "Zuweisung"
-                      : n.type === "new_task"
-                        ? "Neue Aufgabe"
-                        : "Erwähnung"}
+                    {LABELS[n.type] ?? "Benachrichtigung"}
                   </div>
                 </a>
               );

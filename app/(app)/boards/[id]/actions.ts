@@ -7,8 +7,10 @@ import { syncMirrorForCustomerTask } from "@/lib/agent/mirror";
 import { requireEmployee, requireSession } from "@/lib/auth";
 import {
   notifyAssignment,
+  notifyComment,
   notifyMentions,
   notifyNewInternalTask,
+  notifyReaction,
 } from "@/lib/notifications";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 
@@ -398,6 +400,9 @@ export async function postComment(
     parent_id: parentId ?? null,
   });
   after(() => notifyMentions({ boardId, taskId, body: b, actorId: ctx.userId }));
+  after(() =>
+    notifyComment({ boardId, taskId, actorId: ctx.userId, body: b, parentId }),
+  );
   // A comment on a customer task is the briefing → (re)sync the internal
   // mirror. Runs after the response; idempotent and a no-op on internal boards.
   after(() => syncMirrorForCustomerTask(taskId));
@@ -437,6 +442,9 @@ export async function toggleLike(
     await supabase
       .from("comment_likes")
       .insert({ comment_id: commentId, user_id: ctx.userId });
+    after(() =>
+      notifyReaction({ boardId, taskId, commentId, actorId: ctx.userId }),
+    );
   }
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
@@ -505,6 +513,7 @@ export async function addComment(
     .insert({ task_id: taskId, body, author_id: ctx.userId });
 
   after(() => notifyMentions({ boardId, taskId, body, actorId: ctx.userId }));
+  after(() => notifyComment({ boardId, taskId, actorId: ctx.userId, body }));
   after(() => syncMirrorForCustomerTask(taskId));
   after(() =>
     logTaskEvent(taskId, ctx.userId, "commented", "Kommentar geschrieben"),

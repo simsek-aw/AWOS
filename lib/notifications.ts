@@ -158,6 +158,158 @@ export async function notifyNewInternalTask(opts: {
   );
 }
 
+/**
+ * Notify the people involved in a task when a new comment/reply is posted:
+ * its PM/Macher, everyone who already commented (thread participants), the
+ * parent comment's author (for replies) and the task creator. Excludes the
+ * actor and anyone already @-mentioned (they get a mention notification).
+ */
+export async function notifyComment(opts: {
+  boardId: string;
+  taskId: string;
+  actorId: string | null;
+  body: string;
+  parentId?: string | null;
+}) {
+  const { boardId, taskId, actorId, body, parentId } = opts;
+  const svc = createServiceClient();
+
+  const [{ data: board }, { data: task }, from] = await Promise.all([
+    svc.from("boards").select("type, customer_id").eq("id", boardId).single(),
+    svc.from("tasks").select("title, created_by").eq("id", taskId).single(),
+    actorName(svc, actorId),
+  ]);
+  if (!board) return;
+
+  const recipientIds = new Set<string>();
+
+  // PM / Macher assignees of this task.
+  const { data: personCols } = await svc
+    .from("columns")
+    .select("id")
+    .eq("board_id", boardId)
+    .in("key", ["pm", "macher"])
+    .returns<{ id: string }[]>();
+  const colIds = (personCols ?? []).map((c) => c.id);
+  if (colIds.length) {
+    const { data: vals } = await svc
+      .from("task_values")
+      .select("value")
+      .eq("task_id", taskId)
+      .in("column_id", colIds)
+      .returns<{ value: unknown }[]>();
+    for (const v of vals ?? []) {
+      const arr = Array.isArray(v.value) ? v.value : v.value ? [v.value] : [];
+      for (const id of arr) recipientIds.add(String(id));
+    }
+  }
+
+  // Thread participants (everyone who already commented on this task).
+  const { data: prior } = await svc
+    .from("comments")
+    .select("author_id")
+    .eq("task_id", taskId)
+    .returns<{ author_id: string | null }[]>();
+  for (const c of prior ?? []) if (c.author_id) recipientIds.add(c.author_id);
+
+  // Parent comment author (reply).
+  if (parentId) {
+    const { data: parent } = await svc
+      .from("comments")
+      .select("author_id")
+      .eq("id", parentId)
+      .maybeSingle<{ author_id: string | null }>();
+    if (parent?.author_id) recipientIds.add(parent.author_id);
+  }
+
+  if (task?.created_by) recipientIds.add(task.created_by);
+  if (actorId) recipientIds.delete(actorId);
+  if (recipientIds.size === 0) return;
+
+  // Resolve profiles, drop those without board access or already @-mentioned.
+  const { data: profiles } = await svc
+    .from("profiles")
+    .select("id, full_name, role, customer_id")
+    .in("id", [...recipientIds])
+    .returns<ProfileLite[]>();
+  const recipients = (profiles ?? []).filter(
+    (p) => canAccessBoard(p, board as BoardLite) && !isMentioned(body, p),
+  );
+  if (recipients.length === 0) return;
+
+  const preview = body.length > 140 ? body.slice(0, 140) + "…" : body;
+  const title = task?.title ?? "Task";
+  const by = from ? `${from} ` : "";
+  const verb = parentId ? "hat geantwortet" : "hat kommentiert";
+  await svc.from("notifications").insert(
+    recipients.map((p) => ({
+      user_id: p.id,
+      type: "comment",
+      task_id: taskId,
+      board_id: boardId,
+      actor_id: actorId,
+      body: `${by}${verb} in „${title}": ${preview}`,
+    })),
+  );
+
+  const url = taskUrl(boardId, taskId);
+  await Promise.all(
+    recipients.map(async (p) => {
+      const email = await emailForUser(svc, p.id);
+      if (email) {
+        await sendEmail(
+          email,
+          `AWOS: Neuer Kommentar in „${title}"`,
+          `${by}${verb}:\n\n${preview}\n\n${url}`,
+        );
+      }
+    }),
+  );
+}
+
+/** Notify a comment's author that someone reacted (liked) their comment. */
+export async function notifyReaction(opts: {
+  boardId: string;
+  taskId: string;
+  commentId: string;
+  actorId: string | null;
+}) {
+  const { boardId, taskId, commentId, actorId } = opts;
+  const svc = createServiceClient();
+
+  const { data: comment } = await svc
+    .from("comments")
+    .select("author_id")
+    .eq("id", commentId)
+    .maybeSingle<{ author_id: string | null }>();
+  if (!comment?.author_id || comment.author_id === actorId) return;
+
+  const [{ data: board }, { data: recipient }, { data: task }, from] =
+    await Promise.all([
+      svc.from("boards").select("type, customer_id").eq("id", boardId).single(),
+      svc
+        .from("profiles")
+        .select("id, full_name, role, customer_id")
+        .eq("id", comment.author_id)
+        .single(),
+      svc.from("tasks").select("title").eq("id", taskId).single(),
+      actorName(svc, actorId),
+    ]);
+  if (!board || !recipient) return;
+  if (!canAccessBoard(recipient as ProfileLite, board as BoardLite)) return;
+
+  const by = from ? `${from} ` : "Jemand ";
+  const body = `${by}gefällt dein Kommentar in „${task?.title ?? "Task"}".`;
+  await svc.from("notifications").insert({
+    user_id: comment.author_id,
+    type: "reaction",
+    task_id: taskId,
+    board_id: boardId,
+    actor_id: actorId,
+    body,
+  });
+}
+
 /** Notify every accessible user @-mentioned in a comment body. */
 export async function notifyMentions(opts: {
   boardId: string;
