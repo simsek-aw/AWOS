@@ -1,4 +1,6 @@
+import { statusPillStyle, urgencyPillStyle } from "@/components/board/pills";
 import { requireSession } from "@/lib/auth";
+import { deadlineUrgency, formatDate } from "@/lib/format";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -56,21 +58,42 @@ export default async function MyTasksPage() {
     boardIds.length
       ? supabase
           .from("columns")
-          .select("id, board_id, key")
+          .select("id, board_id, key, options")
           .in("board_id", boardIds)
           .in("key", ["status", "deadline"])
-          .returns<{ id: string; board_id: string; key: string }[]>()
+          .returns<
+            {
+              id: string;
+              board_id: string;
+              key: string;
+              options: { options?: { label: string; color: string }[] };
+            }[]
+          >()
       : Promise.resolve(
-          { data: [] as { id: string; board_id: string; key: string }[] },
+          {
+            data: [] as {
+              id: string;
+              board_id: string;
+              key: string;
+              options: { options?: { label: string; color: string }[] };
+            }[],
+          },
         ),
   ]);
 
   const boardName = new Map((boards ?? []).map((b) => [b.id, b.name]));
   const statusColByBoard = new Map<string, string>();
   const deadlineColByBoard = new Map<string, string>();
+  // boardId → (status label → colour), so the list can colour each status pill.
+  const statusColorsByBoard = new Map<string, Map<string, string>>();
   for (const c of sdCols ?? []) {
-    if (c.key === "status") statusColByBoard.set(c.board_id, c.id);
-    else deadlineColByBoard.set(c.board_id, c.id);
+    if (c.key === "status") {
+      statusColByBoard.set(c.board_id, c.id);
+      statusColorsByBoard.set(
+        c.board_id,
+        new Map((c.options?.options ?? []).map((o) => [o.label, o.color])),
+      );
+    } else deadlineColByBoard.set(c.board_id, c.id);
   }
 
   const sdColIds = (sdCols ?? []).map((c) => c.id);
@@ -104,10 +127,6 @@ export default async function MyTasksPage() {
     });
 
   const today = new Date().toISOString().slice(0, 10);
-  const fmtDate = (iso: string) => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-    return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
-  };
 
   return (
     <div className="page-pad" style={{ padding: "24px 28px", maxWidth: 880 }}>
@@ -125,6 +144,14 @@ export default async function MyTasksPage() {
         {rows.map((t) => {
           const overdue =
             t.deadline && t.deadline < today && t.status !== "Fertig";
+          const statusColor =
+            (t.status &&
+              statusColorsByBoard.get(t.board_id)?.get(t.status)) ||
+            "#6b7189";
+          const urgency =
+            t.deadline && t.status !== "Fertig"
+              ? deadlineUrgency(t.deadline)
+              : null;
           return (
             <a
               key={t.id}
@@ -161,12 +188,15 @@ export default async function MyTasksPage() {
                 }}
               >
                 {t.status && (
-                  <span style={{ color: "var(--muted)" }}>{t.status}</span>
+                  <span style={statusPillStyle(statusColor)}>{t.status}</span>
                 )}
                 {t.deadline && (
                   <span style={{ color: overdue ? "var(--danger)" : "var(--muted)" }}>
-                    {fmtDate(t.deadline)}
+                    {formatDate(t.deadline)}
                   </span>
+                )}
+                {urgency && (
+                  <span style={urgencyPillStyle(urgency.tone)}>{urgency.label}</span>
                 )}
               </div>
             </a>

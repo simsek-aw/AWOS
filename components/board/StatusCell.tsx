@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { setCellValue, updateColumnOptions } from "@/app/(app)/boards/[id]/actions";
 import type { Column, StatusOption } from "@/lib/types";
+import { darken, emptyPillStyle, statusPillStyle } from "./pills";
 import Popover from "./Popover";
 
 const PALETTE = [
@@ -30,7 +31,7 @@ export default function StatusCell({
   const options: StatusOption[] = column.options.options ?? [];
   const serverValue = value == null ? "" : String(value);
   const current = draft ?? serverValue;
-  const color = options.find((o) => o.label === current)?.color ?? "transparent";
+  const color = options.find((o) => o.label === current)?.color ?? "#6b7189";
 
   // Drop the optimistic value once the server round-trip refetch lands.
   useEffect(() => {
@@ -54,16 +55,20 @@ export default function StatusCell({
         }}
         style={{
           width: "100%",
-          height: 40,
+          minHeight: 40,
           border: "none",
-          background: current ? color : "transparent",
-          color: current ? "#fff" : "var(--muted)",
-          fontWeight: 600,
-          fontSize: 13,
+          background: "transparent",
           cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          padding: "4px 6px",
         }}
       >
-        {current || "—"}
+        {current ? (
+          <span style={statusPillStyle(color)}>{current}</span>
+        ) : (
+          <span style={emptyPillStyle}>—</span>
+        )}
       </button>
 
       {rect && (
@@ -88,10 +93,10 @@ export default function StatusCell({
                       key={o.label}
                       onClick={() => pick(o.label)}
                       style={{
-                        background: o.color,
+                        background: `linear-gradient(135deg, ${darken(o.color, 0.28)}, ${o.color})`,
                         color: "#fff",
                         border: "none",
-                        borderRadius: 6,
+                        borderRadius: 999,
                         padding: "10px 8px",
                         fontSize: 12,
                         fontWeight: 600,
@@ -99,6 +104,7 @@ export default function StatusCell({
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)",
                       }}
                     >
                       {o.label}
@@ -110,7 +116,7 @@ export default function StatusCell({
                       background: "var(--surface-2)",
                       color: "var(--muted)",
                       border: "none",
-                      borderRadius: 6,
+                      borderRadius: 999,
                       padding: "10px 8px",
                       fontSize: 12,
                       fontWeight: 600,

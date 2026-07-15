@@ -3,8 +3,10 @@
 import { useEffect, useState, useTransition } from "react";
 import { renameTask, setCellValue } from "@/app/(app)/boards/[id]/actions";
 import { shortId } from "@/components/columns";
+import { deadlineUrgency, formatDate } from "@/lib/format";
 import type { Column, Person, Task } from "@/lib/types";
 import PersonCell from "./PersonCell";
+import { urgencyPillStyle } from "./pills";
 import StatusCell from "./StatusCell";
 
 export default function EditableCell({
@@ -85,6 +87,9 @@ export default function EditableCell({
   // needs — but shown to the user as TT.MM.JJJJ.
   const displayValue =
     column.type === "date" ? formatDate(current) : current;
+  // Urgency badge for near/overdue deadlines.
+  const urgency =
+    column.key === "deadline" && current ? deadlineUrgency(current) : null;
 
   // When the server value changes (a refetch landed), drop the optimistic
   // draft so we display the confirmed truth.
@@ -142,7 +147,9 @@ export default function EditableCell({
     <span
       onClick={() => setEditing(true)}
       style={{
-        display: "inline-block",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
         minWidth: 60,
         minHeight: 20,
         cursor: "text",
@@ -150,14 +157,11 @@ export default function EditableCell({
       }}
       title="Zum Bearbeiten klicken"
     >
-      {column.type === "link" && current ? "🔗 " : ""}
-      {displayValue || "—"}
+      <span>
+        {column.type === "link" && current ? "🔗 " : ""}
+        {displayValue || "—"}
+      </span>
+      {urgency && <span style={urgencyPillStyle(urgency.tone)}>{urgency.label}</span>}
     </span>
   );
-}
-
-/** ISO date (YYYY-MM-DD) → TT.MM.JJJJ. Passes anything else through. */
-function formatDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
 }
