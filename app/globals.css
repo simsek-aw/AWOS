@@ -93,3 +93,15 @@ button {
   30% { transform: rotate(-8deg); }
   40% { transform: rotate(6deg); }
 }
+
+/* Skeleton loading shimmer */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: awos-shimmer 1.4s ease infinite;
+  border-radius: 6px;
+}
+@keyframes awos-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}

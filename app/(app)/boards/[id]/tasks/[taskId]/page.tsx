@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import EditableCell from "@/components/board/EditableCell";
+import TaskFields from "@/components/board/TaskFields";
 import TaskUpdates from "@/components/board/TaskUpdates";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
@@ -14,9 +15,6 @@ import type {
   TaskValue,
 } from "@/lib/types";
 import { deleteAttachment, deleteTask, uploadAttachment } from "../../actions";
-
-// Columns bound to the task row itself, not stored in task_values.
-const ROW_BOUND = new Set(["task_id", "name"]);
 
 export default async function TaskDetail({
   params,
@@ -93,10 +91,6 @@ export default async function TaskDetail({
     }),
   );
 
-  const valueByColumn = new Map<string, unknown>();
-  for (const v of values ?? []) valueByColumn.set(v.column_id, v.value);
-
-  const editable = (columns ?? []).filter((c) => !ROW_BOUND.has(c.key));
   const isEmployee = ctx.profile.role === "employee";
 
   // Mirror links (employees only). Two directions:
@@ -244,20 +238,15 @@ export default async function TaskDetail({
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
-          {editable.map((c) => (
-            <div key={c.id} style={{ display: "grid", gap: 4 }}>
-              <label style={{ fontSize: 12, color: "var(--muted)" }}>{c.label}</label>
-              <EditableCell
-                boardId={id}
-                task={task}
-                column={c}
-                value={valueByColumn.get(c.id)}
-                people={people}
-                canEditLabels={isEmployee}
-              />
-            </div>
-          ))}
+        <div style={{ marginTop: 12 }}>
+          <TaskFields
+            boardId={id}
+            task={task}
+            columns={columns ?? []}
+            values={values ?? []}
+            people={people}
+            isEmployee={isEmployee}
+          />
         </div>
 
         {isEmployee && (
