@@ -71,6 +71,8 @@ export default function BoardView({
   const [search, setSearch] = useState("");
   const [personFilter, setPersonFilter] = useState("");
   const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("all");
+  // Which groups to show. Empty = show all.
+  const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>([]);
   const [sortColId, setSortColId] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -89,6 +91,48 @@ export default function BoardView({
 
   const activeFilterCount =
     (personFilter ? 1 : 0) + (deadlineFilter !== "all" ? 1 : 0);
+
+  const groupById = useMemo(
+    () => new Map(groups.map((g) => [g.id, g.name])),
+    [groups],
+  );
+  const toggleGroupVisible = (id: string) =>
+    setVisibleGroupIds((prev) =>
+      prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id],
+    );
+
+  // Active-filter chips shown next to "Zurücksetzen"; each removable via ×.
+  const deadlineLabels: Record<Exclude<DeadlineFilter, "all">, string> = {
+    overdue: "Überfällig",
+    today: "Heute",
+    week: "Nächste 7 Tage",
+    none: "Ohne Datum",
+  };
+  const filterChips: { key: string; label: string; onRemove: () => void }[] = [];
+  if (search)
+    filterChips.push({
+      key: "search",
+      label: `Suche: „${search}"`,
+      onRemove: () => setSearch(""),
+    });
+  if (personFilter)
+    filterChips.push({
+      key: "person",
+      label: people.find((p) => p.id === personFilter)?.name ?? "Person",
+      onRemove: () => setPersonFilter(""),
+    });
+  if (deadlineFilter !== "all")
+    filterChips.push({
+      key: "deadline",
+      label: deadlineLabels[deadlineFilter],
+      onRemove: () => setDeadlineFilter("all"),
+    });
+  for (const id of visibleGroupIds)
+    filterChips.push({
+      key: `group-${id}`,
+      label: groupById.get(id) ?? "Gruppe",
+      onRemove: () => toggleGroupVisible(id),
+    });
 
   const { todayS, weekEndS } = useMemo(() => {
     const now = new Date();
@@ -206,6 +250,7 @@ export default function BoardView({
     setSearch("");
     setPersonFilter("");
     setDeadlineFilter("all");
+    setVisibleGroupIds([]);
   };
 
   return (
@@ -337,14 +382,86 @@ export default function BoardView({
           )}
         </ToolbarMenu>
 
-        {(activeFilterCount > 0 || search) && (
-          <button onClick={resetFilters} style={ghostBtn}>
-            <Icon name="x" size={14} /> Zurücksetzen
-          </button>
+        <ToolbarMenu
+          icon="group"
+          label="Gruppen"
+          badge={visibleGroupIds.length}
+          active={visibleGroupIds.length > 0}
+          width={240}
+        >
+          {() => (
+            <div style={{ padding: 10, display: "grid", gap: 2 }}>
+              <div style={menuHead}>Sichtbare Gruppen</div>
+              <button
+                onClick={() => setVisibleGroupIds([])}
+                style={{
+                  ...menuItem,
+                  color:
+                    visibleGroupIds.length === 0 ? "var(--accent)" : "var(--text)",
+                  fontWeight: visibleGroupIds.length === 0 ? 600 : 400,
+                }}
+              >
+                Alle anzeigen
+              </button>
+              {groups.map((g) => {
+                const on =
+                  visibleGroupIds.length === 0 || visibleGroupIds.includes(g.id);
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => toggleGroupVisible(g.id)}
+                    style={{
+                      ...menuItem,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 4,
+                        border: "1px solid var(--border)",
+                        background:
+                          visibleGroupIds.includes(g.id)
+                            ? "var(--accent)"
+                            : "transparent",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {visibleGroupIds.includes(g.id) && (
+                        <Icon name="check" size={12} style={{ color: "#fff" }} />
+                      )}
+                    </span>
+                    <span style={{ opacity: on ? 1 : 0.6 }}>{g.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </ToolbarMenu>
+
+        {(activeFilterCount > 0 || search || visibleGroupIds.length > 0) && (
+          <>
+            <button onClick={resetFilters} style={ghostBtn}>
+              <Icon name="x" size={14} /> Zurücksetzen
+            </button>
+            {filterChips.map((chip) => (
+              <FilterChip key={chip.key} label={chip.label} onRemove={chip.onRemove} />
+            ))}
+          </>
         )}
       </div>
 
-      {groups.map((g) => (
+      {groups
+        .filter(
+          (g) => visibleGroupIds.length === 0 || visibleGroupIds.includes(g.id),
+        )
+        .map((g) => (
         <BoardTable
           key={g.id}
           boardId={boardId}
@@ -379,6 +496,57 @@ export default function BoardView({
         </button>
       </form>
     </div>
+  );
+}
+
+function FilterChip({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <span
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        background: "var(--active)",
+        border: "1px solid var(--border)",
+        borderRadius: 999,
+        padding: "5px 6px 5px 12px",
+        fontSize: 13,
+        color: "var(--text)",
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+      <button
+        onClick={onRemove}
+        title="Filter entfernen"
+        aria-label="Filter entfernen"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "transparent",
+          border: "none",
+          color: "var(--muted)",
+          cursor: "pointer",
+          padding: 0,
+          width: 16,
+          opacity: hover ? 1 : 0,
+          transition: "opacity 120ms",
+        }}
+      >
+        <Icon name="x" size={13} />
+      </button>
+    </span>
   );
 }
 
