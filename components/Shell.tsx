@@ -30,6 +30,7 @@ export default function Shell({
         <Sidebar
           boards={boards}
           unreadByBoard={unreadByBoard}
+          isEmployee={ctx.profile.role === "employee"}
           open={open}
           onClose={() => setOpen(false)}
         />

@@ -13,11 +13,13 @@ const deptLabel: Record<string, string> = {
 export default function Sidebar({
   boards,
   unreadByBoard = {},
+  isEmployee = false,
   open = false,
   onClose,
 }: {
   boards: Board[];
   unreadByBoard?: Record<string, number>;
+  isEmployee?: boolean;
   open?: boolean;
   onClose?: () => void;
 }) {
@@ -59,6 +61,33 @@ export default function Sidebar({
         <Icon name="check" size={16} />
         Meine Aufgaben
       </a>
+
+      {isEmployee && (
+        <a
+          href="/agents"
+          onClick={onClose}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 10px",
+            borderRadius: 8,
+            textDecoration: "none",
+            color: pathname?.startsWith("/agents")
+              ? "var(--accent)"
+              : "var(--muted)",
+            background: pathname?.startsWith("/agents")
+              ? "var(--active)"
+              : "transparent",
+            fontSize: 14,
+            fontWeight: pathname?.startsWith("/agents") ? 600 : 400,
+            marginBottom: 4,
+          }}
+        >
+          <Icon name="sparkles" size={16} />
+          Agents
+        </a>
+      )}
 
       {customer.length > 0 && <Group title="Kunden" />}
       {customer.map((b) => (
