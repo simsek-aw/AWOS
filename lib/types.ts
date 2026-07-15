@@ -137,6 +137,17 @@ export interface TaskSuggestion {
   updated_at: string;
 }
 
+export interface TaskCreative {
+  task_id: string;
+  payload: {
+    headlines: string[];
+    sublines: string[];
+    ctas: string[];
+    visual_ideas: string[];
+  };
+  created_at: string;
+}
+
 export interface TaskEvent {
   id: string;
   task_id: string;

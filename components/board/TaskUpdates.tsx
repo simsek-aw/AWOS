@@ -8,10 +8,20 @@ import {
   useState,
   useTransition,
 } from "react";
-import { postComment, toggleLike } from "@/app/(app)/boards/[id]/actions";
+import {
+  postComment,
+  requestCreatives,
+  toggleLike,
+} from "@/app/(app)/boards/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/icons";
-import type { Comment, Person, TaskEvent, TaskSuggestion } from "@/lib/types";
+import type {
+  Comment,
+  Person,
+  TaskCreative,
+  TaskEvent,
+  TaskSuggestion,
+} from "@/lib/types";
 import { Avatar } from "./Avatar";
 import MentionTextarea from "./MentionTextarea";
 
@@ -76,6 +86,8 @@ export default function TaskUpdates({
   const [flashId, setFlashId] = useState<string | null>(highlightCommentId);
   const [summary, setSummary] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<TaskSuggestion | null>(null);
+  const [creatives, setCreatives] = useState<TaskCreative["payload"] | null>(null);
+  const [generating, setGenerating] = useState(false);
   const flashRef = useRef<HTMLDivElement | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [likes, setLikes] = useState<Record<string, number>>({});
@@ -152,12 +164,20 @@ export default function TaskUpdates({
     setSummary(sum?.summary ?? null);
 
     if (isEmployee) {
-      const { data: sug } = await supabase
-        .from("task_suggestions")
-        .select("*")
-        .eq("task_id", taskId)
-        .maybeSingle<TaskSuggestion>();
+      const [{ data: sug }, { data: cre }] = await Promise.all([
+        supabase
+          .from("task_suggestions")
+          .select("*")
+          .eq("task_id", taskId)
+          .maybeSingle<TaskSuggestion>(),
+        supabase
+          .from("task_creatives")
+          .select("payload")
+          .eq("task_id", taskId)
+          .maybeSingle<{ payload: TaskCreative["payload"] }>(),
+      ]);
       setSuggestion(sug ?? null);
+      setCreatives(cre?.payload ?? null);
     }
 
     if (isEmployee) {
@@ -187,6 +207,7 @@ export default function TaskUpdates({
         "task_events",
         "task_summaries",
         "task_suggestions",
+        "task_creatives",
       ]) {
         ch.on(
           "postgres_changes",
@@ -243,6 +264,15 @@ export default function TaskUpdates({
       setReplyBody("");
       setReplyTo(null);
       await load();
+    });
+  };
+
+  const generate = () => {
+    setGenerating(true);
+    startTransition(async () => {
+      const p = await requestCreatives(boardId, taskId);
+      if (p) setCreatives(p);
+      setGenerating(false);
     });
   };
 
@@ -421,6 +451,61 @@ export default function TaskUpdates({
         </div>
       )}
 
+      {isEmployee && (
+        <div
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: "12px 14px",
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <span
+              style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Icon name="sparkles" size={16} /> Creative-Ideen
+            </span>
+            <button
+              onClick={generate}
+              disabled={generating}
+              style={{
+                ...primaryBtn,
+                padding: "6px 12px",
+                fontSize: 13,
+                opacity: generating ? 0.6 : 1,
+              }}
+            >
+              {generating
+                ? "Generiere…"
+                : creatives
+                  ? "Neu generieren"
+                  : "Ideen generieren"}
+            </button>
+          </div>
+          {creatives && (
+            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+              <CreativeList title="Headlines" items={creatives.headlines} />
+              <CreativeList title="Sublines" items={creatives.sublines} />
+              <CreativeList title="CTAs" items={creatives.ctas} />
+              <CreativeList title="Visual-Ideen" items={creatives.visual_ideas} />
+            </div>
+          )}
+          {!creatives && !generating && (
+            <p style={{ color: "var(--faint)", fontSize: 13, margin: "8px 0 0" }}>
+              Vorschläge für Headline, Subline, CTA und Visual — auf Klick.
+            </p>
+          )}
+        </div>
+      )}
+
       {summary && (
         <div
           style={{
@@ -564,6 +649,59 @@ function Tab({
     >
       {children}
     </button>
+  );
+}
+
+function CreativeList({ title, items }: { title: string; items: string[] }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: 0.4,
+          color: "var(--muted)",
+          marginBottom: 4,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: "grid", gap: 4 }}>
+        {items.map((it, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              background: "var(--surface-2)",
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontSize: 14,
+            }}
+          >
+            <span>{it}</span>
+            <button
+              onClick={() => navigator.clipboard?.writeText(it)}
+              title="Kopieren"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--muted)",
+                cursor: "pointer",
+                display: "inline-flex",
+                flexShrink: 0,
+              }}
+            >
+              <Icon name="copy" size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

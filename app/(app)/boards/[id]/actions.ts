@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { generateCreatives } from "@/lib/agent/creative";
 import { syncMirrorForCustomerTask } from "@/lib/agent/mirror";
 import { draftCustomerReply } from "@/lib/agent/reply";
 import { refreshGroupSummaries } from "@/lib/agent/summary";
@@ -457,6 +458,14 @@ export async function postComment(
   );
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
   revalidatePath(`/boards/${boardId}`);
+}
+
+/** Employee-only: generate ad creatives for a task (on demand). */
+export async function requestCreatives(boardId: string, taskId: string) {
+  await requireEmployee();
+  const payload = await generateCreatives(taskId);
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+  return payload;
 }
 
 /** Toggle the current user's like on a comment. */
