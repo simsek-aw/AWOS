@@ -82,11 +82,17 @@ export default async function BoardPage({
 
   let groupList = groups ?? [];
 
+  // If the groups query itself errored (most commonly: the `groups` table
+  // does not exist because migration 0009 has not been applied), we cannot
+  // render the board normally. Surface a clear diagnostic in-app instead of
+  // crashing with an opaque "server-side exception" digest.
+  let groupsProblem: string | null = groupsError?.message ?? null;
+
   // Safety net: a board should never render with zero groups. Normally
   // create_board() seeds one and 0009_groups.sql backfilled existing boards,
   // but if one ever ends up empty (edge case, manual DB edit, …) provision a
   // default group on the fly instead of showing a blank board.
-  if (groupList.length === 0) {
+  if (!groupsProblem && groupList.length === 0) {
     const { data: created, error: createError } = await supabase
       .from("groups")
       .insert({ board_id: id, name: "Aufgaben", position: 0 })
@@ -97,6 +103,7 @@ export default async function BoardPage({
         boardId: id,
         createError,
       });
+      groupsProblem = createError.message;
     }
     if (created) groupList = [created];
   }
@@ -141,6 +148,41 @@ export default async function BoardPage({
           {board.name}
         </h1>
 
+        {groupsProblem && (
+          <div
+            style={{
+              background: "rgba(226, 68, 92, 0.12)",
+              border: "1px solid var(--danger)",
+              borderRadius: 8,
+              padding: "16px 18px",
+              color: "var(--text)",
+              fontSize: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            <strong style={{ display: "block", marginBottom: 6, fontSize: 15 }}>
+              Gruppen können nicht geladen werden
+            </strong>
+            Die Datenbank-Migration für Gruppen wurde noch nicht angewendet.
+            Bitte führe <code>supabase/migrations/0009_groups.sql</code> im
+            Supabase-SQL-Editor aus und lade die Seite neu.
+            <div
+              style={{
+                marginTop: 10,
+                padding: "8px 10px",
+                background: "var(--surface-2)",
+                borderRadius: 6,
+                fontFamily: "monospace",
+                fontSize: 12,
+                color: "var(--muted)",
+                wordBreak: "break-word",
+              }}
+            >
+              {groupsProblem}
+            </div>
+          </div>
+        )}
+
         {groupList.map((g) => (
           <BoardTable
             key={g.id}
@@ -157,27 +199,29 @@ export default async function BoardPage({
           />
         ))}
 
-        <form action={createGroupBound}>
-          <button
-            type="submit"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "10px 16px",
-              color: "var(--text)",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-            Neue Gruppe hinzufügen
-          </button>
-        </form>
+        {!groupsProblem && (
+          <form action={createGroupBound}>
+            <button
+              type="submit"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "10px 16px",
+                color: "var(--text)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+              Neue Gruppe hinzufügen
+            </button>
+          </form>
+        )}
       </div>
     </>
   );
