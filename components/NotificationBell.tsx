@@ -17,6 +17,7 @@ const LABELS: Record<string, string> = {
   stale: "Inaktiv",
   status: "Status",
   digest: "Tagesüberblick",
+  board_health: "Board-Report",
 };
 
 export default function NotificationBell({ userId }: { userId: string }) {

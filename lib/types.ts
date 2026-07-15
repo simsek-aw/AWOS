@@ -96,7 +96,8 @@ export interface Notification {
     | "overdue"
     | "stale"
     | "status"
-    | "digest";
+    | "digest"
+    | "board_health";
   task_id: string | null;
   board_id: string | null;
   comment_id: string | null;

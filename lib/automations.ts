@@ -198,6 +198,91 @@ export async function runReminders(): Promise<{ sent: number; archived: number }
   return { sent, archived };
 }
 
+/**
+ * Per-board health digest (daily): overdue / unassigned / stalled counts sent
+ * to the employees actually involved in that board (its PM/Macher). Only sent
+ * when there's something actionable.
+ */
+export async function runBoardHealth(): Promise<{ boards: number }> {
+  const svc = createServiceClient();
+  const ctx = await buildContext(svc);
+  const today = ymd(new Date());
+  const tomorrow = ymd(new Date(Date.now() + 86400000));
+  const staleBefore = Date.now() - STALE_DAYS * 86400000;
+
+  const { data: boards } = await svc
+    .from("boards")
+    .select("id, name")
+    .returns<{ id: string; name: string }[]>();
+
+  const lastEvent = new Map<string, string>();
+  const { data: evs } = await svc
+    .from("task_events")
+    .select("task_id, created_at")
+    .order("created_at", { ascending: true })
+    .returns<{ task_id: string; created_at: string }[]>();
+  for (const e of evs ?? []) lastEvent.set(e.task_id, e.created_at);
+
+  const tasksByBoard = new Map<string, typeof ctx.tasks>();
+  for (const t of ctx.tasks) {
+    if (!tasksByBoard.has(t.board_id)) tasksByBoard.set(t.board_id, []);
+    tasksByBoard.get(t.board_id)!.push(t);
+  }
+
+  let sentBoards = 0;
+  for (const b of boards ?? []) {
+    const list = tasksByBoard.get(b.id) ?? [];
+    if (list.length === 0) continue;
+
+    let overdue = 0;
+    let dueSoon = 0;
+    let unassigned = 0;
+    let stalled = 0;
+    const involved = new Set<string>();
+
+    for (const t of list) {
+      const status = String(fieldOf(ctx, t.id, b.id, "status") ?? "");
+      if (status === DONE_LABEL) continue;
+      const dl = String(fieldOf(ctx, t.id, b.id, "deadline") ?? "").slice(0, 10);
+      const assignees = [
+        ...toIds(fieldOf(ctx, t.id, b.id, "pm")),
+        ...toIds(fieldOf(ctx, t.id, b.id, "macher")),
+      ];
+      for (const a of assignees) involved.add(a);
+
+      if (dl && dl < today) overdue++;
+      else if (dl && (dl === today || dl === tomorrow)) dueSoon++;
+      if (toIds(fieldOf(ctx, t.id, b.id, "macher")).length === 0) unassigned++;
+      const last = lastEvent.get(t.id);
+      if (last && new Date(last).getTime() < staleBefore) stalled++;
+    }
+
+    if (overdue === 0 && unassigned === 0 && stalled === 0) continue;
+
+    const parts: string[] = [];
+    if (overdue) parts.push(`${overdue} überfällig`);
+    if (dueSoon) parts.push(`${dueSoon} bald fällig`);
+    if (unassigned) parts.push(`${unassigned} ohne Macher`);
+    if (stalled) parts.push(`${stalled} inaktiv`);
+    const body = `Board „${b.name}": ${parts.join(" · ")}.`;
+
+    const recipients = [...involved];
+    if (recipients.length === 0) continue;
+    await svc.from("notifications").insert(
+      recipients.map((uid) => ({
+        user_id: uid,
+        type: "board_health",
+        task_id: null,
+        board_id: b.id,
+        body,
+      })),
+    );
+    sentBoards++;
+  }
+
+  return { boards: sentBoards };
+}
+
 /** Per-employee daily digest: open tasks due today / overdue + unread mentions. */
 export async function runDigest(): Promise<{ users: number }> {
   const svc = createServiceClient();

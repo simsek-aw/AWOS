@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { runDigest } from "@/lib/automations";
+import { runBoardHealth, runDigest } from "@/lib/automations";
 
 // Per-employee daily digest. Scheduled once a day by Vercel Cron.
 export const dynamic = "force-dynamic";
@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    const result = await runDigest();
-    return NextResponse.json({ ok: true, ...result });
+    const [digest, health] = await Promise.all([runDigest(), runBoardHealth()]);
+    return NextResponse.json({ ok: true, ...digest, ...health });
   } catch (err) {
     console.error("cron/digest failed:", err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
