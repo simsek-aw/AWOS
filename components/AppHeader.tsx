@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { SessionContext } from "@/lib/auth";
 import GlobalSearch from "./GlobalSearch";
 import Icon from "./icons";
@@ -14,6 +15,7 @@ export default function AppHeader({
   onMenuClick?: () => void;
 }) {
   const isEmployee = ctx.profile.role === "employee";
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <header
@@ -73,13 +75,34 @@ export default function AppHeader({
         </a>
       </div>
 
-      {/* Middle: global search */}
-      <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 0 }}>
+      {/* Middle: global search (full bar on desktop) */}
+      <div
+        className="header-search"
+        style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 0 }}
+      >
         <GlobalSearch />
       </div>
+      {/* Mobile: spacer so the right group stays right */}
+      <div className="header-search-btn" style={{ flex: 1 }} />
 
-      {/* Right: notifications · (admin) · user */}
+      {/* Right: search (mobile) · notifications · (admin) · user */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+        <button
+          className="header-search-btn"
+          onClick={() => setSearchOpen(true)}
+          title="Suchen"
+          aria-label="Suchen"
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--text)",
+            cursor: "pointer",
+            padding: 0,
+            alignItems: "center",
+          }}
+        >
+          <Icon name="search" size={20} />
+        </button>
         <NotificationBell userId={ctx.userId} />
         {isEmployee && (
           <a
@@ -98,6 +121,51 @@ export default function AppHeader({
         )}
         <UserMenu ctx={ctx} />
       </div>
+
+      {/* Mobile search overlay */}
+      {searchOpen && (
+        <div
+          onClick={() => setSearchOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 80,
+            background: "rgba(0,0,0,0.5)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: 12,
+              background: "var(--topbar-bg)",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <GlobalSearch autoFocus />
+            </div>
+            <button
+              onClick={() => setSearchOpen(false)}
+              title="Schließen"
+              aria-label="Schließen"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--muted)",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                padding: 4,
+              }}
+            >
+              <Icon name="x" size={20} />
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -27,7 +27,11 @@ const SCOPES: { key: string; label: string }[] = [
   { key: "people", label: "Personen" },
 ];
 
-export default function GlobalSearch() {
+export default function GlobalSearch({
+  autoFocus = false,
+}: {
+  autoFocus?: boolean;
+}) {
   const [q, setQ] = useState("");
   const [scope, setScope] = useState("all");
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -102,6 +106,8 @@ export default function GlobalSearch() {
           <Icon name="search" size={16} />
         </span>
         <input
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus={autoFocus}
           value={q}
           onChange={(e) => {
             setQ(e.target.value);

@@ -89,6 +89,13 @@ button {
 .search-result:hover { background: var(--active); }
 .header-admin:hover { color: var(--text) !important; }
 
+/* Header search: full bar on desktop, icon + overlay on mobile */
+.header-search-btn { display: none; }
+@media (max-width: 900px) {
+  .header-search { display: none !important; }
+  .header-search-btn { display: inline-flex !important; }
+}
+
 /* Bell swing when there are unread notifications */
 @keyframes awos-bell {
   0%, 50%, 100% { transform: rotate(0deg); }
