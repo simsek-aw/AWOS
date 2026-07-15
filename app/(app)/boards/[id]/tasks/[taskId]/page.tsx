@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import EditableCell from "@/components/board/EditableCell";
 import TaskFields from "@/components/board/TaskFields";
+import MarkTaskRead from "@/components/board/MarkTaskRead";
 import TaskUpdates from "@/components/board/TaskUpdates";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
@@ -164,6 +165,7 @@ export default async function TaskDetail({
 
   return (
     <>
+      <MarkTaskRead taskId={taskId} />
       <RealtimeRefresh
         channel={`task-${taskId}`}
         subscriptions={[

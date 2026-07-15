@@ -30,6 +30,7 @@ export default function BoardView({
   values,
   people,
   commentCounts,
+  unreadTasks = [],
   currentUserId,
   isEmployee,
   showCustomer = false,
@@ -48,6 +49,7 @@ export default function BoardView({
   values: TaskValue[];
   people: Person[];
   commentCounts: Record<string, number>;
+  unreadTasks?: string[];
   currentUserId: string;
   isEmployee: boolean;
   showCustomer?: boolean;
@@ -353,6 +355,7 @@ export default function BoardView({
           values={values}
           people={people}
           commentCounts={commentCounts}
+          unreadTasks={unreadTasks}
           currentUserId={currentUserId}
           isEmployee={isEmployee}
           groups={groups}

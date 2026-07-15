@@ -5,6 +5,7 @@ import {
   createTask,
   deleteGroup,
   deleteTasks,
+  markTaskRead,
   renameGroup,
 } from "@/app/(app)/boards/[id]/actions";
 import type {
@@ -34,7 +35,6 @@ function accentFor(name: string): string {
 // their content (a long task name no longer widens the Name column).
 const CHECKBOX_W = 40;
 const CUSTOMER_W = 140;
-const COMMENT_W = 56;
 function colWidth(c: Column): number {
   if (c.key === "task_id") return 96;
   if (c.key === "name") return 300;
@@ -53,6 +53,7 @@ export default function BoardTable({
   values,
   people,
   commentCounts,
+  unreadTasks = [],
   currentUserId,
   isEmployee,
   groups,
@@ -76,6 +77,7 @@ export default function BoardTable({
   values: TaskValue[];
   people: Person[];
   commentCounts: Record<string, number>;
+  unreadTasks?: string[];
   currentUserId: string;
   isEmployee: boolean;
   groups: Group[];
@@ -121,11 +123,35 @@ export default function BoardTable({
     [lockedCustomerTasks],
   );
 
+  // Which tasks in this group have unread comments. Local state so opening a
+  // task clears its highlight immediately (optimistic), before the next load.
+  const [unread, setUnread] = useState<Set<string>>(() => new Set(unreadTasks));
+  useEffect(() => setUnread(new Set(unreadTasks)), [unreadTasks]);
+
+  const openTaskAndRead = (taskId: string) => {
+    setOpenTaskId(taskId);
+    if (unread.has(taskId)) {
+      setUnread((prev) => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+      markTaskRead(taskId);
+    }
+  };
+
   // Open the drawer automatically when arriving from a notification link
   // (?task=…) and the task lives in this group.
   useEffect(() => {
     if (autoOpenTaskId && tasks.some((t) => t.id === autoOpenTaskId)) {
       setOpenTaskId(autoOpenTaskId);
+      markTaskRead(autoOpenTaskId);
+      setUnread((prev) => {
+        if (!prev.has(autoOpenTaskId)) return prev;
+        const next = new Set(prev);
+        next.delete(autoOpenTaskId);
+        return next;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenTaskId]);
@@ -280,8 +306,7 @@ export default function BoardTable({
               minWidth:
                 CHECKBOX_W +
                 columns.reduce((sum, c) => sum + colWidth(c), 0) +
-                (showCustomer ? CUSTOMER_W : 0) +
-                COMMENT_W,
+                (showCustomer ? CUSTOMER_W : 0),
             }}
           >
             <colgroup>
@@ -294,7 +319,6 @@ export default function BoardTable({
                   )}
                 </Fragment>
               ))}
-              <col style={{ width: COMMENT_W }} />
             </colgroup>
             <thead>
               <tr>
@@ -319,7 +343,6 @@ export default function BoardTable({
                     )}
                   </Fragment>
                 ))}
-                <th style={{ ...th, borderRight: "none", textAlign: "center" }} />
               </tr>
             </thead>
 
@@ -377,7 +400,7 @@ export default function BoardTable({
                           taskTitle={t.title}
                           groups={groups}
                           currentGroupId={group.id}
-                          onOpenDrawer={() => setOpenTaskId(t.id)}
+                          onOpenDrawer={() => openTaskAndRead(t.id)}
                           onMove={(gid) => onMoveToGroup?.(t.id, gid)}
                         />
                       </span>
@@ -402,10 +425,11 @@ export default function BoardTable({
                         >
                           {c.key === "name" ? (
                             <div
-                              onClick={() => setOpenTaskId(t.id)}
+                              onClick={() => openTaskAndRead(t.id)}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
+                                justifyContent: "space-between",
                                 gap: 8,
                                 cursor: "pointer",
                                 minWidth: 0,
@@ -422,6 +446,36 @@ export default function BoardTable({
                                 }}
                               >
                                 {t.title}
+                              </span>
+                              <span
+                                style={{
+                                  ...commentBtn,
+                                  position: "relative",
+                                  color: unread.has(t.id)
+                                    ? "var(--accent)"
+                                    : commentCounts[t.id]
+                                      ? "var(--muted)"
+                                      : "var(--faint)",
+                                }}
+                              >
+                                <Icon name="message" size={16} />
+                                {commentCounts[t.id] ? (
+                                  <span style={countBadge}>{commentCounts[t.id]}</span>
+                                ) : null}
+                                {unread.has(t.id) && (
+                                  <span
+                                    style={{
+                                      position: "absolute",
+                                      top: -3,
+                                      right: -4,
+                                      width: 8,
+                                      height: 8,
+                                      borderRadius: "50%",
+                                      background: "var(--danger)",
+                                      border: "1px solid var(--surface)",
+                                    }}
+                                  />
+                                )}
                               </span>
                             </div>
                           ) : (
@@ -451,32 +505,6 @@ export default function BoardTable({
                         </Fragment>
                       );
                     })}
-                    {/* Updates bubble — set apart from the columns on the right. */}
-                    <td
-                      onClick={() => setOpenTaskId(t.id)}
-                      style={{
-                        ...td,
-                        borderRight: "none",
-                        borderLeft: "2px solid var(--border)",
-                        textAlign: "center",
-                        cursor: "pointer",
-                      }}
-                      title="Updates öffnen"
-                    >
-                      <span
-                        style={{
-                          ...commentBtn,
-                          color: commentCounts[t.id]
-                            ? "var(--accent)"
-                            : "var(--faint)",
-                        }}
-                      >
-                        <Icon name="message" size={16} />
-                        {commentCounts[t.id] ? (
-                          <span style={countBadge}>{commentCounts[t.id]}</span>
-                        ) : null}
-                      </span>
-                    </td>
                   </tr>
                 );
               })}
@@ -484,7 +512,7 @@ export default function BoardTable({
               {tasks.length === 0 && (
                 <tr>
                   <td
-                    colSpan={columns.length + 2 + (showCustomer ? 1 : 0)}
+                    colSpan={columns.length + 1 + (showCustomer ? 1 : 0)}
                     style={{ ...td, color: "var(--faint)" }}
                   >
                     Noch keine Tasks.
@@ -494,7 +522,7 @@ export default function BoardTable({
 
               <AddTaskRow
                 action={createTaskBound}
-                colSpan={columns.length + (showCustomer ? 1 : 0) + 1}
+                colSpan={columns.length + (showCustomer ? 1 : 0)}
               />
             </tbody>
 
@@ -517,7 +545,6 @@ export default function BoardTable({
                       )}
                     </Fragment>
                   ))}
-                  <td style={{ ...footTd, borderRight: "none" }} />
                 </tr>
               </tfoot>
             )}

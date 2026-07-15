@@ -82,25 +82,57 @@ export default async function BoardPage({
     )
     .map((p) => ({ id: p.id, name: p.full_name ?? p.id.slice(0, 8) }));
 
-  // Values + comment counts both depend on taskIds → fetch them together.
-  const [{ data: values }, { data: commentRows }] = taskIds.length
-    ? await Promise.all([
-        supabase
-          .from("task_values")
-          .select("*")
-          .in("task_id", taskIds)
-          .returns<TaskValue[]>(),
-        supabase
-          .from("comments")
-          .select("task_id")
-          .in("task_id", taskIds)
-          .returns<{ task_id: string }[]>(),
-      ])
-    : [{ data: [] as TaskValue[] }, { data: [] as { task_id: string }[] }];
+  // Values, comments and this user's read markers all depend on taskIds.
+  const [{ data: values }, { data: commentRows }, { data: readRows }] =
+    taskIds.length
+      ? await Promise.all([
+          supabase
+            .from("task_values")
+            .select("*")
+            .in("task_id", taskIds)
+            .returns<TaskValue[]>(),
+          supabase
+            .from("comments")
+            .select("task_id, author_id, created_at")
+            .in("task_id", taskIds)
+            .returns<
+              { task_id: string; author_id: string | null; created_at: string }[]
+            >(),
+          supabase
+            .from("task_reads")
+            .select("task_id, last_read_at")
+            .eq("user_id", ctx.userId)
+            .in("task_id", taskIds)
+            .returns<{ task_id: string; last_read_at: string }[]>(),
+        ])
+      : [
+          { data: [] as TaskValue[] },
+          {
+            data: [] as {
+              task_id: string;
+              author_id: string | null;
+              created_at: string;
+            }[],
+          },
+          { data: [] as { task_id: string; last_read_at: string }[] },
+        ];
   const commentCounts: Record<string, number> = {};
+  // Newest comment authored by someone OTHER than the current user, per task.
+  const latestOther: Record<string, string> = {};
   for (const r of commentRows ?? []) {
     commentCounts[r.task_id] = (commentCounts[r.task_id] ?? 0) + 1;
+    if (r.author_id && r.author_id !== ctx.userId) {
+      if (!latestOther[r.task_id] || r.created_at > latestOther[r.task_id]) {
+        latestOther[r.task_id] = r.created_at;
+      }
+    }
   }
+  const lastRead: Record<string, string> = {};
+  for (const r of readRows ?? []) lastRead[r.task_id] = r.last_read_at;
+  // Unread = has a newer comment by someone else than the user last read.
+  const unreadTasks = Object.keys(latestOther).filter(
+    (taskId) => !lastRead[taskId] || lastRead[taskId] < latestOther[taskId],
+  );
 
   // On an internal board, show which customer each task belongs to. Two sources:
   //  - mirrored tasks  -> the origin customer board's name (read-only, "locked")
@@ -263,6 +295,7 @@ export default async function BoardPage({
             values={values ?? []}
             people={people}
             commentCounts={commentCounts}
+            unreadTasks={unreadTasks}
             currentUserId={ctx.userId}
             isEmployee={ctx.profile.role === "employee"}
             showCustomer={showCustomer}

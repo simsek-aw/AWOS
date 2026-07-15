@@ -562,6 +562,22 @@ export async function toggleLike(
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 
+/** Mark a task's update thread as read for the current user (clears the unread
+ * highlight). Fire-and-forget from the client. */
+export async function markTaskRead(taskId: string) {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from("task_reads")
+    .upsert(
+      { user_id: user.id, task_id: taskId, last_read_at: new Date().toISOString() },
+      { onConflict: "user_id,task_id" },
+    );
+}
+
 /** Mark all of the current user's notifications as read. */
 export async function markNotificationsRead() {
   const supabase = await createServerSupabase();
