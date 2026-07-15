@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { syncMirrorForCustomerTask } from "@/lib/agent/mirror";
 import { requireEmployee, requireSession } from "@/lib/auth";
-import { notifyAssignment, notifyMentions } from "@/lib/notifications";
+import {
+  notifyAssignment,
+  notifyMentions,
+  notifyNewInternalTask,
+} from "@/lib/notifications";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 
 const BUCKET = "attachments";
@@ -21,12 +25,23 @@ export async function createTask(
   if (!title) return;
 
   const supabase = await createServerSupabase();
-  await supabase
+  const { data: task } = await supabase
     .from("tasks")
-    .insert({ board_id: boardId, group_id: groupId, title });
+    .insert({ board_id: boardId, group_id: groupId, title })
+    .select("id")
+    .single<{ id: string }>();
 
-  // Note: mirroring is NOT triggered on creation. It fires when the customer
-  // writes a comment (the briefing) — see postComment / addComment.
+  // Notify the internal board's department that a new task landed. (Mirrored
+  // customer tasks are notified from the mirror agent.) Mirroring itself is NOT
+  // triggered on creation — it fires on the customer's first comment.
+  if (task) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    after(() =>
+      notifyNewInternalTask({ boardId, taskId: task.id, actorId: user?.id ?? null }),
+    );
+  }
   revalidatePath(`/boards/${boardId}`);
 }
 
@@ -117,6 +132,56 @@ export async function moveTask(
   revalidatePath(`/boards/${boardId}`);
 }
 
+/**
+ * Duplicate a task within its board. withValues=true copies all column values
+ * (PM, Macher, Status, Deadline, …); false creates a bare copy with just the
+ * title. Comments, attachments and mirror links are never copied.
+ */
+export async function duplicateTask(
+  boardId: string,
+  taskId: string,
+  withValues: boolean,
+) {
+  const supabase = await createServerSupabase();
+
+  const { data: src } = await supabase
+    .from("tasks")
+    .select("title, group_id")
+    .eq("id", taskId)
+    .single<{ title: string; group_id: string | null }>();
+  if (!src) return;
+
+  const { data: copy } = await supabase
+    .from("tasks")
+    .insert({
+      board_id: boardId,
+      group_id: src.group_id,
+      title: `${src.title} (Kopie)`,
+    })
+    .select("id")
+    .single<{ id: string }>();
+  if (!copy) return;
+
+  if (withValues) {
+    const { data: vals } = await supabase
+      .from("task_values")
+      .select("column_id, value")
+      .eq("task_id", taskId)
+      .returns<{ column_id: string; value: unknown }[]>();
+    if (vals && vals.length) {
+      await supabase.from("task_values").insert(
+        vals.map((v) => ({
+          task_id: copy.id,
+          column_id: v.column_id,
+          value: v.value,
+        })),
+      );
+    }
+  }
+
+  revalidatePath(`/boards/${boardId}`);
+}
+
 /** Inline: rename a task (the "Name" column). */
 export async function renameTask(
   boardId: string,
@@ -179,9 +244,10 @@ export async function setPeople(
   const clean = Array.from(new Set(ids.filter(Boolean)));
   const supabase = await createServerSupabase();
 
-  // For "Macher", figure out who is newly added so we only notify them.
+  // For PM and Macher, figure out who is newly added so we only notify them.
+  const notifyRole = columnKey === "macher" || columnKey === "pm";
   let added: string[] = [];
-  if (columnKey === "macher") {
+  if (notifyRole) {
     const { data: existing } = await supabase
       .from("task_values")
       .select("value")
@@ -204,13 +270,20 @@ export async function setPeople(
     );
 
   if (added.length) {
+    const roleLabel = columnKey === "pm" ? "PM" : "Macher";
     const {
       data: { user },
     } = await supabase.auth.getUser();
     after(() =>
       Promise.all(
         added.map((assigneeId) =>
-          notifyAssignment({ boardId, taskId, assigneeId, actorId: user?.id ?? null }),
+          notifyAssignment({
+            boardId,
+            taskId,
+            assigneeId,
+            actorId: user?.id ?? null,
+            roleLabel,
+          }),
         ),
       ),
     );

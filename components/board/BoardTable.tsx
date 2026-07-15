@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   createTask,
   deleteGroup,
@@ -16,7 +16,10 @@ import type {
 } from "@/lib/types";
 import { AvatarStack } from "./Avatar";
 import EditableCell from "./EditableCell";
+import RowMenu from "./RowMenu";
 import TaskDrawer from "./TaskDrawer";
+
+const INTERACTIVE = "input, select, textarea, button, a, [contenteditable='true']";
 
 function accentFor(name: string): string {
   let h = 0;
@@ -35,8 +38,12 @@ export default function BoardTable({
   commentCounts,
   currentUserId,
   isEmployee,
+  groups,
+  showCustomer = false,
+  customerByTask = {},
   onTaskDragStart,
   onGroupDrop,
+  onMoveToGroup,
   dragActive = false,
 }: {
   boardId: string;
@@ -49,8 +56,12 @@ export default function BoardTable({
   commentCounts: Record<string, number>;
   currentUserId: string;
   isEmployee: boolean;
+  groups: Group[];
+  showCustomer?: boolean;
+  customerByTask?: Record<string, string>;
   onTaskDragStart?: (taskId: string) => void;
   onGroupDrop?: (groupId: string) => void;
+  onMoveToGroup?: (taskId: string, groupId: string) => void;
   dragActive?: boolean;
 }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
@@ -58,6 +69,11 @@ export default function BoardTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // When a drag starts on an interactive control (input/checkbox/status/…) we
+  // must NOT hijack it as a row drag — this lets the whole row be draggable
+  // while cell editing still works.
+  const dragBlocked = useRef(false);
 
   const valueMap = useMemo(() => {
     const m = new Map<string, Map<string, unknown>>();
@@ -214,6 +230,7 @@ export default function BoardTable({
                     {c.label}
                   </th>
                 ))}
+                {showCustomer && <th style={th}>Kunde</th>}
               </tr>
             </thead>
 
@@ -221,42 +238,65 @@ export default function BoardTable({
               {tasks.map((t) => {
                 const isSel = selected.has(t.id);
                 const isOpen = openTaskId === t.id;
+                const isHover = hoveredId === t.id;
                 return (
                   <tr
                     key={t.id}
+                    draggable={!!onTaskDragStart}
+                    onMouseDown={(e) => {
+                      // Block row-drag only when the gesture starts on a control.
+                      dragBlocked.current = !!(e.target as HTMLElement).closest(
+                        INTERACTIVE,
+                      );
+                    }}
+                    onDragStart={(e) => {
+                      if (!onTaskDragStart || dragBlocked.current) {
+                        e.preventDefault();
+                        return;
+                      }
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", t.id);
+                      onTaskDragStart(t.id);
+                    }}
+                    onMouseEnter={() => setHoveredId(t.id)}
+                    onMouseLeave={() =>
+                      setHoveredId((cur) => (cur === t.id ? null : cur))
+                    }
                     style={{
                       background: isOpen
                         ? "var(--active)"
                         : isSel
                           ? "var(--surface-2)"
-                          : undefined,
+                          : isHover
+                            ? "var(--surface-2)"
+                            : undefined,
+                      cursor: onTaskDragStart ? "grab" : undefined,
                     }}
                   >
                     <td style={{ ...td, textAlign: "center", whiteSpace: "nowrap" }}>
-                      {onTaskDragStart && (
-                        <span
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.effectAllowed = "move";
-                            e.dataTransfer.setData("text/plain", t.id);
-                            onTaskDragStart(t.id);
-                          }}
-                          title="Ziehen, um in eine andere Gruppe zu verschieben"
-                          style={{
-                            cursor: "grab",
-                            color: "var(--faint)",
-                            marginRight: 4,
-                            fontSize: 13,
-                            userSelect: "none",
-                          }}
-                        >
-                          ⠿
-                        </span>
-                      )}
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 2,
+                          visibility: isHover ? "visible" : "hidden",
+                        }}
+                      >
+                        <RowMenu
+                          boardId={boardId}
+                          taskId={t.id}
+                          taskTitle={t.title}
+                          groups={groups}
+                          currentGroupId={group.id}
+                          onOpenDrawer={() => setOpenTaskId(t.id)}
+                          onMove={(gid) => onMoveToGroup?.(t.id, gid)}
+                        />
+                      </span>
                       <input
                         type="checkbox"
                         checked={isSel}
                         onChange={() => toggleOne(t.id)}
+                        style={{ marginLeft: 2 }}
                       />
                     </td>
                     {columns.map((c) => {
@@ -304,13 +344,21 @@ export default function BoardTable({
                         </td>
                       );
                     })}
+                    {showCustomer && (
+                      <td style={{ ...td, color: "var(--muted)" }}>
+                        {customerByTask[t.id] ?? "—"}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
 
               {tasks.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + 1} style={{ ...td, color: "var(--faint)" }}>
+                  <td
+                    colSpan={columns.length + 1 + (showCustomer ? 1 : 0)}
+                    style={{ ...td, color: "var(--faint)" }}
+                  >
                     Noch keine Tasks.
                   </td>
                 </tr>
@@ -319,7 +367,10 @@ export default function BoardTable({
               {/* Add row */}
               <tr>
                 <td />
-                <td colSpan={columns.length} style={{ ...td, borderRight: "none" }}>
+                <td
+                  colSpan={columns.length + (showCustomer ? 1 : 0)}
+                  style={{ ...td, borderRight: "none" }}
+                >
                   <form action={createTaskBound} style={{ display: "flex", gap: 8 }}>
                     <input
                       type="text"
@@ -358,6 +409,7 @@ export default function BoardTable({
                       />
                     </td>
                   ))}
+                  {showCustomer && <td style={footTd} />}
                 </tr>
               </tfoot>
             )}

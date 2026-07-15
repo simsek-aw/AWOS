@@ -32,7 +32,11 @@ export default function UserRow({
 
   return (
     <li style={rowWrap}>
-      <div style={rowHead}>
+      <div
+        style={{ ...rowHead, cursor: "pointer" }}
+        onClick={() => setOpen((o) => !o)}
+        title="Zum Bearbeiten klicken"
+      >
         <div style={{ display: "flex", flexDirection: "column" }}>
           <span style={{ fontWeight: 600 }}>{profile.full_name ?? "—"}</span>
           {email && (
@@ -45,9 +49,7 @@ export default function UserRow({
               ? `Mitarbeiter${profile.department ? " · " + deptLabel[profile.department] : ""}`
               : `Kunde · ${customerName ?? "?"}`}
           </span>
-          <button onClick={() => setOpen((o) => !o)} style={linkBtn}>
-            {open ? "Schließen" : "Bearbeiten"}
-          </button>
+          <span style={linkBtn}>{open ? "Schließen" : "Bearbeiten"}</span>
         </div>
       </div>
 

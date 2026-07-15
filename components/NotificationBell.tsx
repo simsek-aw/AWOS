@@ -134,7 +134,11 @@ export default function NotificationBell({ userId }: { userId: string }) {
                 >
                   <div style={{ fontSize: 13 }}>{n.body}</div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                    {n.type === "assignment" ? "Zuweisung" : "Erwähnung"}
+                    {n.type === "assignment"
+                      ? "Zuweisung"
+                      : n.type === "new_task"
+                        ? "Neue Aufgabe"
+                        : "Erwähnung"}
                   </div>
                 </a>
               );

@@ -21,6 +21,7 @@
 // agent has no DB access — this module performs the only writes, via a narrow,
 // fixed set of operations using the service client.
 import Anthropic from "@anthropic-ai/sdk";
+import { notifyNewInternalTask } from "@/lib/notifications";
 import { createServiceClient } from "@/lib/supabase/server";
 import type {
   Board,
@@ -211,6 +212,13 @@ export async function syncMirrorForCustomerTask(
         entity_type: "task",
         entity_id: internalTask.id,
         details: { customer_task_id: customerTaskId, department: dept },
+      });
+
+      // Tell the department a new task arrived (actor null = the agent).
+      await notifyNewInternalTask({
+        boardId: internalBoard.id,
+        taskId: internalTask.id,
+        actorId: null,
       });
 
       mirroredBoardIds.add(internalBoard.id);

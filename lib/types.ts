@@ -86,7 +86,7 @@ export interface Person {
 export interface Notification {
   id: string;
   user_id: string;
-  type: "assignment" | "mention";
+  type: "assignment" | "mention" | "new_task";
   task_id: string | null;
   board_id: string | null;
   actor_id: string | null;

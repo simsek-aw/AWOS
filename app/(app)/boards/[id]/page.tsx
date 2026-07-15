@@ -79,6 +79,42 @@ export default async function BoardPage({
     commentCounts[r.task_id] = (commentCounts[r.task_id] ?? 0) + 1;
   }
 
+  // On an internal board, show which customer each (mirrored) task belongs to.
+  // The customer board's name is the company identifier (e.g. "1&1", "GEFU").
+  const showCustomer = board.type === "internal";
+  const customerByTask: Record<string, string> = {};
+  if (showCustomer && taskIds.length) {
+    const { data: links } = await supabase
+      .from("task_links")
+      .select("internal_task_id, customer_task_id")
+      .in("internal_task_id", taskIds)
+      .returns<{ internal_task_id: string; customer_task_id: string }[]>();
+    const custTaskIds = [
+      ...new Set((links ?? []).map((l) => l.customer_task_id)),
+    ];
+    if (custTaskIds.length) {
+      const { data: ctasks } = await supabase
+        .from("tasks")
+        .select("id, board_id")
+        .in("id", custTaskIds)
+        .returns<{ id: string; board_id: string }[]>();
+      const boardIds = [...new Set((ctasks ?? []).map((t) => t.board_id))];
+      const { data: cboards } = await supabase
+        .from("boards")
+        .select("id, name")
+        .in("id", boardIds)
+        .returns<{ id: string; name: string }[]>();
+      const boardName = new Map((cboards ?? []).map((b) => [b.id, b.name]));
+      const taskBoardName = new Map(
+        (ctasks ?? []).map((t) => [t.id, boardName.get(t.board_id)]),
+      );
+      for (const l of links ?? []) {
+        const name = taskBoardName.get(l.customer_task_id);
+        if (name) customerByTask[l.internal_task_id] = name;
+      }
+    }
+  }
+
   let groupList = groups ?? [];
 
   // If the groups query itself errored (most commonly: the `groups` table
@@ -177,6 +213,8 @@ export default async function BoardPage({
             commentCounts={commentCounts}
             currentUserId={ctx.userId}
             isEmployee={ctx.profile.role === "employee"}
+            showCustomer={showCustomer}
+            customerByTask={customerByTask}
           />
         )}
       </div>

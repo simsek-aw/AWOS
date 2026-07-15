@@ -35,6 +35,8 @@ export default function BoardView({
   commentCounts,
   currentUserId,
   isEmployee,
+  showCustomer = false,
+  customerByTask = {},
 }: {
   boardId: string;
   boardName: string;
@@ -46,6 +48,8 @@ export default function BoardView({
   commentCounts: Record<string, number>;
   currentUserId: string;
   isEmployee: boolean;
+  showCustomer?: boolean;
+  customerByTask?: Record<string, string>;
 }) {
   // Local, optimistic copy of tasks so drag & drop moves feel instant. Resynced
   // whenever fresh server data arrives (the prop reference changes on refetch).
@@ -134,17 +138,21 @@ export default function BoardView({
     setDragActive(true);
   };
 
-  const onGroupDrop = (groupId: string) => {
-    const taskId = draggingRef.current;
-    draggingRef.current = null;
-    setDragActive(false);
-    if (!taskId) return;
+  // Optimistically move a task into another group, then persist.
+  const applyMove = (taskId: string, groupId: string) => {
     const t = localTasks.find((x) => x.id === taskId);
     if (!t || t.group_id === groupId) return;
     setLocalTasks((prev) =>
       prev.map((x) => (x.id === taskId ? { ...x, group_id: groupId } : x)),
     );
     startTransition(() => moveTask(boardId, taskId, groupId));
+  };
+
+  const onGroupDrop = (groupId: string) => {
+    const taskId = draggingRef.current;
+    draggingRef.current = null;
+    setDragActive(false);
+    if (taskId) applyMove(taskId, groupId);
   };
 
   const createGroupBound = createGroup.bind(null, boardId);
@@ -240,8 +248,12 @@ export default function BoardView({
           commentCounts={commentCounts}
           currentUserId={currentUserId}
           isEmployee={isEmployee}
+          groups={groups}
+          showCustomer={showCustomer}
+          customerByTask={customerByTask}
           onTaskDragStart={onTaskDragStart}
           onGroupDrop={onGroupDrop}
+          onMoveToGroup={applyMove}
           dragActive={dragActive}
         />
       ))}
