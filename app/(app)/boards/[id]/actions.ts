@@ -289,6 +289,12 @@ export async function setPeople(
     );
   }
 
+  // Tagging a PM/Macher is what routes a customer task to the internal
+  // department board(s). Re-sync the mirror (no-op on internal boards).
+  if (notifyRole) {
+    after(() => syncMirrorForCustomerTask(taskId));
+  }
+
   revalidatePath(`/boards/${boardId}`);
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
@@ -325,11 +331,9 @@ export async function postComment(
     .from("comments")
     .insert({ task_id: taskId, body: b, author_id: ctx.userId });
   after(() => notifyMentions({ boardId, taskId, body: b, actorId: ctx.userId }));
-  // A customer's comment is the briefing → (re)sync the internal mirror. Runs
-  // after the response so commenting stays instant; idempotent per department.
-  if (ctx.profile.role === "customer") {
-    after(() => syncMirrorForCustomerTask(taskId));
-  }
+  // A comment on a customer task is the briefing → (re)sync the internal
+  // mirror. Runs after the response; idempotent and a no-op on internal boards.
+  after(() => syncMirrorForCustomerTask(taskId));
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
   revalidatePath(`/boards/${boardId}`);
 }
@@ -398,9 +402,7 @@ export async function addComment(
     .insert({ task_id: taskId, body, author_id: ctx.userId });
 
   after(() => notifyMentions({ boardId, taskId, body, actorId: ctx.userId }));
-  if (ctx.profile.role === "customer") {
-    after(() => syncMirrorForCustomerTask(taskId));
-  }
+  after(() => syncMirrorForCustomerTask(taskId));
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 

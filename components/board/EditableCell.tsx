@@ -27,10 +27,27 @@ export default function EditableCell({
   // Optimistic override: show the new value immediately, before the server
   // round-trip + refetch lands. Reset whenever fresh server data arrives.
   const [draft, setDraft] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Task-ID: read-only.
+  // Task-ID: click to copy the full id.
   if (column.key === "task_id") {
-    return <code style={{ color: "var(--muted)" }}>{shortId(task.id)}</code>;
+    return (
+      <code
+        onClick={() => {
+          navigator.clipboard?.writeText(task.id);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        }}
+        title="Task-ID kopieren"
+        style={{
+          color: copied ? "var(--ok-text, #00c875)" : "var(--muted)",
+          cursor: "pointer",
+          userSelect: "none",
+        }}
+      >
+        {copied ? "kopiert!" : shortId(task.id)}
+      </code>
+    );
   }
 
   // Person (PM / Macher): multi-select with search.
