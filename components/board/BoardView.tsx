@@ -34,6 +34,9 @@ export default function BoardView({
   isEmployee,
   showCustomer = false,
   customerByTask = {},
+  customerIdByTask = {},
+  lockedCustomerTasks = [],
+  customers = [],
   autoOpenTaskId = null,
   highlightCommentId = null,
 }: {
@@ -49,6 +52,9 @@ export default function BoardView({
   isEmployee: boolean;
   showCustomer?: boolean;
   customerByTask?: Record<string, string>;
+  customerIdByTask?: Record<string, string>;
+  lockedCustomerTasks?: string[];
+  customers?: { id: string; name: string }[];
   autoOpenTaskId?: string | null;
   highlightCommentId?: string | null;
 }) {
@@ -352,6 +358,9 @@ export default function BoardView({
           groups={groups}
           showCustomer={showCustomer}
           customerByTask={customerByTask}
+          customerIdByTask={customerIdByTask}
+          lockedCustomerTasks={lockedCustomerTasks}
+          customers={customers}
           onTaskDragStart={onTaskDragStart}
           onGroupDrop={onGroupDrop}
           onMoveToGroup={applyMove}

@@ -67,6 +67,8 @@ export interface Task {
   title: string;
   position: number;
   created_by: string | null;
+  // Manual customer tag for internally-created tasks (never triggers a mirror).
+  customer_id: string | null;
   created_at: string;
   updated_at: string;
 }

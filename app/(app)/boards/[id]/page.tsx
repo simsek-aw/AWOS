@@ -102,38 +102,66 @@ export default async function BoardPage({
     commentCounts[r.task_id] = (commentCounts[r.task_id] ?? 0) + 1;
   }
 
-  // On an internal board, show which customer each (mirrored) task belongs to.
-  // The customer board's name is the company identifier (e.g. "1&1", "GEFU").
+  // On an internal board, show which customer each task belongs to. Two sources:
+  //  - mirrored tasks  -> the origin customer board's name (read-only, "locked")
+  //  - manual tasks     -> the task's own customer_id tag (editable picker)
   const showCustomer = board.type === "internal";
   const customerByTask: Record<string, string> = {};
-  if (showCustomer && taskIds.length) {
-    const { data: links } = await supabase
-      .from("task_links")
-      .select("internal_task_id, customer_task_id")
-      .in("internal_task_id", taskIds)
-      .returns<{ internal_task_id: string; customer_task_id: string }[]>();
-    const custTaskIds = [
-      ...new Set((links ?? []).map((l) => l.customer_task_id)),
-    ];
-    if (custTaskIds.length) {
-      const { data: ctasks } = await supabase
-        .from("tasks")
-        .select("id, board_id")
-        .in("id", custTaskIds)
-        .returns<{ id: string; board_id: string }[]>();
-      const boardIds = [...new Set((ctasks ?? []).map((t) => t.board_id))];
-      const { data: cboards } = await supabase
-        .from("boards")
-        .select("id, name")
-        .in("id", boardIds)
-        .returns<{ id: string; name: string }[]>();
-      const boardName = new Map((cboards ?? []).map((b) => [b.id, b.name]));
-      const taskBoardName = new Map(
-        (ctasks ?? []).map((t) => [t.id, boardName.get(t.board_id)]),
-      );
-      for (const l of links ?? []) {
-        const name = taskBoardName.get(l.customer_task_id);
-        if (name) customerByTask[l.internal_task_id] = name;
+  const customerIdByTask: Record<string, string> = {};
+  const lockedCustomerTasks: string[] = [];
+  let customers: { id: string; name: string }[] = [];
+  if (showCustomer) {
+    // Customers available for the manual tag picker.
+    const { data: custs } = await supabase
+      .from("customers")
+      .select("id, name")
+      .order("name", { ascending: true })
+      .returns<{ id: string; name: string }[]>();
+    customers = custs ?? [];
+    const custName = new Map(customers.map((c) => [c.id, c.name]));
+
+    // Manual tags on internally-created tasks.
+    for (const t of tasks ?? []) {
+      if (t.customer_id) {
+        customerIdByTask[t.id] = t.customer_id;
+        const n = custName.get(t.customer_id);
+        if (n) customerByTask[t.id] = n;
+      }
+    }
+
+    // Mirror links override + lock the customer (it reflects the origin board).
+    if (taskIds.length) {
+      const { data: links } = await supabase
+        .from("task_links")
+        .select("internal_task_id, customer_task_id")
+        .in("internal_task_id", taskIds)
+        .returns<{ internal_task_id: string; customer_task_id: string }[]>();
+      const custTaskIds = [
+        ...new Set((links ?? []).map((l) => l.customer_task_id)),
+      ];
+      if (custTaskIds.length) {
+        const { data: ctasks } = await supabase
+          .from("tasks")
+          .select("id, board_id")
+          .in("id", custTaskIds)
+          .returns<{ id: string; board_id: string }[]>();
+        const boardIds = [...new Set((ctasks ?? []).map((t) => t.board_id))];
+        const { data: cboards } = await supabase
+          .from("boards")
+          .select("id, name")
+          .in("id", boardIds)
+          .returns<{ id: string; name: string }[]>();
+        const boardName = new Map((cboards ?? []).map((b) => [b.id, b.name]));
+        const taskBoardName = new Map(
+          (ctasks ?? []).map((t) => [t.id, boardName.get(t.board_id)]),
+        );
+        for (const l of links ?? []) {
+          const name = taskBoardName.get(l.customer_task_id);
+          if (name) {
+            customerByTask[l.internal_task_id] = name;
+            lockedCustomerTasks.push(l.internal_task_id);
+          }
+        }
       }
     }
   }
@@ -239,6 +267,9 @@ export default async function BoardPage({
             isEmployee={ctx.profile.role === "employee"}
             showCustomer={showCustomer}
             customerByTask={customerByTask}
+            customerIdByTask={customerIdByTask}
+            lockedCustomerTasks={lockedCustomerTasks}
+            customers={customers}
             autoOpenTaskId={openTaskParam ?? null}
             highlightCommentId={highlightComment ?? null}
           />

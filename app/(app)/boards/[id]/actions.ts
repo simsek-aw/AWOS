@@ -430,6 +430,29 @@ export async function setPeople(
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 
+/**
+ * Employee-only: set (or clear) the manual customer tag on an internally-created
+ * task. Purely organisational — this does NOT mirror the task anywhere or sync
+ * to the customer's board; internal tasks always stay internal.
+ */
+export async function setTaskCustomer(
+  boardId: string,
+  taskId: string,
+  customerId: string | null,
+) {
+  await requireEmployee();
+  const supabase = await createServerSupabase();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ customer_id: customerId })
+    .eq("id", taskId);
+  if (error) {
+    console.error("setTaskCustomer failed", { boardId, taskId, error });
+    throw new Error(`Kunde konnte nicht gesetzt werden: ${error.message}`);
+  }
+  revalidatePath(`/boards/${boardId}`);
+}
+
 /** Employee-only: edit a status column's labels & colors. */
 export async function updateColumnOptions(
   boardId: string,

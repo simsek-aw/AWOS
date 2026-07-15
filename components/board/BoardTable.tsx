@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 import Icon from "@/components/icons";
 import { AvatarStack } from "./Avatar";
+import CustomerCell from "./CustomerCell";
 import EditableCell from "./EditableCell";
 import RowMenu from "./RowMenu";
 import TaskDrawer from "./TaskDrawer";
@@ -57,6 +58,9 @@ export default function BoardTable({
   groups,
   showCustomer = false,
   customerByTask = {},
+  customerIdByTask = {},
+  lockedCustomerTasks = [],
+  customers = [],
   onTaskDragStart,
   onGroupDrop,
   onMoveToGroup,
@@ -77,6 +81,9 @@ export default function BoardTable({
   groups: Group[];
   showCustomer?: boolean;
   customerByTask?: Record<string, string>;
+  customerIdByTask?: Record<string, string>;
+  lockedCustomerTasks?: string[];
+  customers?: { id: string; name: string }[];
   onTaskDragStart?: (taskId: string) => void;
   onGroupDrop?: (groupId: string) => void;
   onMoveToGroup?: (taskId: string, groupId: string) => void;
@@ -107,6 +114,11 @@ export default function BoardTable({
   const peopleById = useMemo(
     () => new Map(people.map((p) => [p.id, p.name])),
     [people],
+  );
+
+  const lockedSet = useMemo(
+    () => new Set(lockedCustomerTasks),
+    [lockedCustomerTasks],
   );
 
   // Open the drawer automatically when arriving from a notification link
@@ -425,8 +437,15 @@ export default function BoardTable({
                           )}
                         </td>
                         {showCustomer && c.key === "task_id" && (
-                          <td style={{ ...td, color: "var(--muted)" }}>
-                            {customerByTask[t.id] ?? "—"}
+                          <td style={td}>
+                            <CustomerCell
+                              boardId={boardId}
+                              taskId={t.id}
+                              customers={customers}
+                              currentId={customerIdByTask[t.id] ?? null}
+                              currentName={customerByTask[t.id] ?? null}
+                              locked={lockedSet.has(t.id)}
+                            />
                           </td>
                         )}
                         </Fragment>
