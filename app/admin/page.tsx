@@ -61,6 +61,20 @@ export default async function AdminPage({
         </a>
         <h1 style={{ fontSize: 24, marginTop: 8 }}>Administration</h1>
 
+        <a
+          href="/admin/import"
+          style={{
+            display: "inline-block",
+            marginTop: 8,
+            marginBottom: 4,
+            fontSize: 14,
+            fontWeight: 600,
+            color: "var(--accent)",
+          }}
+        >
+          ↥ Import aus monday →
+        </a>
+
         {error && <Banner tone="error">{error}</Banner>}
         {ok && <Banner tone="ok">{ok}</Banner>}
 
