@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   createTask,
   deleteGroup,
@@ -45,6 +45,8 @@ export default function BoardTable({
   onGroupDrop,
   onMoveToGroup,
   dragActive = false,
+  autoOpenTaskId = null,
+  highlightCommentId = null,
 }: {
   boardId: string;
   boardName: string;
@@ -63,6 +65,8 @@ export default function BoardTable({
   onGroupDrop?: (groupId: string) => void;
   onMoveToGroup?: (taskId: string, groupId: string) => void;
   dragActive?: boolean;
+  autoOpenTaskId?: string | null;
+  highlightCommentId?: string | null;
 }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -88,6 +92,15 @@ export default function BoardTable({
     () => new Map(people.map((p) => [p.id, p.name])),
     [people],
   );
+
+  // Open the drawer automatically when arriving from a notification link
+  // (?task=…) and the task lives in this group.
+  useEffect(() => {
+    if (autoOpenTaskId && tasks.some((t) => t.id === autoOpenTaskId)) {
+      setOpenTaskId(autoOpenTaskId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenTaskId]);
 
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null;
   const createTaskBound = createTask.bind(null, boardId, group.id);
@@ -435,6 +448,9 @@ export default function BoardTable({
           people={people}
           currentUserId={currentUserId}
           isEmployee={isEmployee}
+          highlightCommentId={
+            openTaskId === autoOpenTaskId ? highlightCommentId : null
+          }
           onClose={() => setOpenTaskId(null)}
         />
       )}

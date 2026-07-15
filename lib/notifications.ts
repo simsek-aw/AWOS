@@ -170,8 +170,9 @@ export async function notifyComment(opts: {
   actorId: string | null;
   body: string;
   parentId?: string | null;
+  commentId?: string | null;
 }) {
-  const { boardId, taskId, actorId, body, parentId } = opts;
+  const { boardId, taskId, actorId, body, parentId, commentId } = opts;
   const svc = createServiceClient();
 
   const [{ data: board }, { data: task }, from] = await Promise.all([
@@ -247,6 +248,7 @@ export async function notifyComment(opts: {
       type: "comment",
       task_id: taskId,
       board_id: boardId,
+      comment_id: commentId ?? null,
       actor_id: actorId,
       body: `${by}${verb} in „${title}": ${preview}`,
     })),
@@ -305,6 +307,7 @@ export async function notifyReaction(opts: {
     type: "reaction",
     task_id: taskId,
     board_id: boardId,
+    comment_id: commentId,
     actor_id: actorId,
     body,
   });
@@ -316,8 +319,9 @@ export async function notifyMentions(opts: {
   taskId: string;
   body: string;
   actorId: string | null;
+  commentId?: string | null;
 }) {
-  const { boardId, taskId, body, actorId } = opts;
+  const { boardId, taskId, body, actorId, commentId } = opts;
   if (!body.includes("@")) return;
 
   const svc = createServiceClient();
@@ -346,6 +350,7 @@ export async function notifyMentions(opts: {
     type: "mention",
     task_id: taskId,
     board_id: boardId,
+    comment_id: commentId ?? null,
     actor_id: actorId,
     body: `Erwähnt${by} in „${title}": ${preview}`,
   }));

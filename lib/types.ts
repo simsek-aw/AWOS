@@ -89,6 +89,7 @@ export interface Notification {
   type: "assignment" | "mention" | "new_task" | "comment" | "reaction";
   task_id: string | null;
   board_id: string | null;
+  comment_id: string | null;
   actor_id: string | null;
   body: string;
   read: boolean;

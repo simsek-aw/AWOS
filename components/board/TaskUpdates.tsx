@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { postComment, toggleLike } from "@/app/(app)/boards/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { Comment, Person, TaskEvent } from "@/lib/types";
@@ -55,14 +62,18 @@ export default function TaskUpdates({
   people,
   currentUserId,
   isEmployee,
+  highlightCommentId = null,
 }: {
   boardId: string;
   taskId: string;
   people: Person[];
   currentUserId: string;
   isEmployee: boolean;
+  highlightCommentId?: string | null;
 }) {
   const [tab, setTab] = useState<"updates" | "activity">("updates");
+  const [flashId, setFlashId] = useState<string | null>(highlightCommentId);
+  const flashRef = useRef<HTMLDivElement | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [likes, setLikes] = useState<Record<string, number>>({});
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set());
@@ -142,22 +153,48 @@ export default function TaskUpdates({
   }, [taskId, currentUserId, isEmployee]);
 
   useEffect(() => {
-    load();
     const supabase = createClient();
-    const ch = supabase.channel(`updates-${taskId}`);
-    for (const table of ["comments", "comment_likes", "task_events"]) {
-      ch.on(
-        "postgres_changes",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        { event: "*", schema: "public", table } as any,
-        () => load(),
-      );
-    }
-    ch.subscribe();
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: s } = await supabase.auth.getSession();
+      if (s.session?.access_token) {
+        supabase.realtime.setAuth(s.session.access_token);
+      }
+      await load();
+      ch = supabase.channel(`updates-${taskId}`);
+      for (const table of ["comments", "comment_likes", "task_events"]) {
+        ch.on(
+          "postgres_changes",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { event: "*", schema: "public", table } as any,
+          () => load(),
+        );
+      }
+      ch.subscribe();
+    })();
     return () => {
-      supabase.removeChannel(ch);
+      if (ch) supabase.removeChannel(ch);
     };
   }, [taskId, load]);
+
+  // Follow a notification link: switch to Updates and flash the comment.
+  useEffect(() => {
+    setFlashId(highlightCommentId);
+    if (highlightCommentId) setTab("updates");
+  }, [highlightCommentId]);
+
+  useEffect(() => {
+    if (!flashId || !comments.some((c) => c.id === flashId)) return;
+    const t1 = setTimeout(
+      () => flashRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      200,
+    );
+    const t2 = setTimeout(() => setFlashId(null), 2600);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [flashId, comments]);
 
   const topLevel = comments.filter((c) => !c.parent_id);
   const repliesOf = (id: string) =>
@@ -210,14 +247,21 @@ export default function TaskUpdates({
   const renderComment = (cm: Comment, isReply = false) => {
     const fromCustomer = cm.task_id === customerTaskId;
     const label = authorLabel(cm);
+    const isFlash = flashId === cm.id;
     return (
       <div
         key={cm.id}
+        ref={isFlash ? flashRef : undefined}
         style={{
           display: "flex",
           gap: 10,
           marginLeft: isReply ? 34 : 0,
           marginTop: isReply ? 10 : 0,
+          padding: 6,
+          borderRadius: 8,
+          background: isFlash ? "rgba(0,115,234,0.12)" : undefined,
+          boxShadow: isFlash ? "0 0 0 2px var(--accent)" : undefined,
+          transition: "background 500ms ease, box-shadow 500ms ease",
         }}
       >
         <Avatar name={label} size={28} />

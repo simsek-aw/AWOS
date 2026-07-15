@@ -23,10 +23,10 @@ export default async function TaskDetail({
   searchParams,
 }: {
   params: Promise<{ id: string; taskId: string }>;
-  searchParams: Promise<{ released?: string; err?: string }>;
+  searchParams: Promise<{ released?: string; err?: string; comment?: string }>;
 }) {
   const { id, taskId } = await params;
-  const { released, err } = await searchParams;
+  const { released, err, comment: highlightComment } = await searchParams;
   const ctx = await requireSession();
   const supabase = await createServerSupabase();
 
@@ -387,6 +387,7 @@ export default async function TaskDetail({
           people={people}
           currentUserId={ctx.userId}
           isEmployee={isEmployee}
+          highlightCommentId={highlightComment ?? null}
         />
       </div>
     </>

@@ -393,15 +393,29 @@ export async function postComment(
   if (!b) return;
   const ctx = await requireSession();
   const supabase = await createServerSupabase();
-  await supabase.from("comments").insert({
-    task_id: taskId,
-    body: b,
-    author_id: ctx.userId,
-    parent_id: parentId ?? null,
-  });
-  after(() => notifyMentions({ boardId, taskId, body: b, actorId: ctx.userId }));
+  const { data: inserted } = await supabase
+    .from("comments")
+    .insert({
+      task_id: taskId,
+      body: b,
+      author_id: ctx.userId,
+      parent_id: parentId ?? null,
+    })
+    .select("id")
+    .single<{ id: string }>();
+  const commentId = inserted?.id ?? null;
   after(() =>
-    notifyComment({ boardId, taskId, actorId: ctx.userId, body: b, parentId }),
+    notifyMentions({ boardId, taskId, body: b, actorId: ctx.userId, commentId }),
+  );
+  after(() =>
+    notifyComment({
+      boardId,
+      taskId,
+      actorId: ctx.userId,
+      body: b,
+      parentId,
+      commentId,
+    }),
   );
   // A comment on a customer task is the briefing → (re)sync the internal
   // mirror. Runs after the response; idempotent and a no-op on internal boards.
@@ -508,12 +522,19 @@ export async function addComment(
   const ctx = await requireSession();
   const supabase = await createServerSupabase();
 
-  await supabase
+  const { data: inserted } = await supabase
     .from("comments")
-    .insert({ task_id: taskId, body, author_id: ctx.userId });
+    .insert({ task_id: taskId, body, author_id: ctx.userId })
+    .select("id")
+    .single<{ id: string }>();
+  const commentId = inserted?.id ?? null;
 
-  after(() => notifyMentions({ boardId, taskId, body, actorId: ctx.userId }));
-  after(() => notifyComment({ boardId, taskId, actorId: ctx.userId, body }));
+  after(() =>
+    notifyMentions({ boardId, taskId, body, actorId: ctx.userId, commentId }),
+  );
+  after(() =>
+    notifyComment({ boardId, taskId, actorId: ctx.userId, body, commentId }),
+  );
   after(() => syncMirrorForCustomerTask(taskId));
   after(() =>
     logTaskEvent(taskId, ctx.userId, "commented", "Kommentar geschrieben"),

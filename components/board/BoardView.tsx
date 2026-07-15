@@ -37,6 +37,8 @@ export default function BoardView({
   isEmployee,
   showCustomer = false,
   customerByTask = {},
+  autoOpenTaskId = null,
+  highlightCommentId = null,
 }: {
   boardId: string;
   boardName: string;
@@ -50,6 +52,8 @@ export default function BoardView({
   isEmployee: boolean;
   showCustomer?: boolean;
   customerByTask?: Record<string, string>;
+  autoOpenTaskId?: string | null;
+  highlightCommentId?: string | null;
 }) {
   // Local, optimistic copy of tasks so drag & drop moves feel instant. Resynced
   // whenever fresh server data arrives (the prop reference changes on refetch).
@@ -255,6 +259,8 @@ export default function BoardView({
           onGroupDrop={onGroupDrop}
           onMoveToGroup={applyMove}
           dragActive={dragActive}
+          autoOpenTaskId={autoOpenTaskId}
+          highlightCommentId={highlightCommentId}
         />
       ))}
 

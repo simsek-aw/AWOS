@@ -16,6 +16,7 @@ export default function TaskDrawer({
   people,
   currentUserId,
   isEmployee,
+  highlightCommentId = null,
   onClose,
 }: {
   boardId: string;
@@ -26,6 +27,7 @@ export default function TaskDrawer({
   people: Person[];
   currentUserId: string;
   isEmployee: boolean;
+  highlightCommentId?: string | null;
   onClose: () => void;
 }) {
   const valueOf = (columnId: string) =>
@@ -124,6 +126,7 @@ export default function TaskDrawer({
             people={people}
             currentUserId={currentUserId}
             isEmployee={isEmployee}
+            highlightCommentId={highlightCommentId}
           />
         </div>
       </div>

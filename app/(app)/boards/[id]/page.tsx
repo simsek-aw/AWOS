@@ -7,10 +7,13 @@ import type { Board, Column, Group, Task, TaskValue } from "@/lib/types";
 
 export default async function BoardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ task?: string; comment?: string }>;
 }) {
   const { id } = await params;
+  const { task: openTaskParam, comment: highlightComment } = await searchParams;
   const ctx = await requireSession();
   const supabase = await createServerSupabase();
 
@@ -227,6 +230,8 @@ export default async function BoardPage({
             isEmployee={ctx.profile.role === "employee"}
             showCustomer={showCustomer}
             customerByTask={customerByTask}
+            autoOpenTaskId={openTaskParam ?? null}
+            highlightCommentId={highlightComment ?? null}
           />
         )}
       </div>

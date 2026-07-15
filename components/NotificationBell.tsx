@@ -29,24 +29,38 @@ export default function NotificationBell({ userId }: { userId: string }) {
         .returns<Notification[]>();
       setItems(data ?? []);
     };
-    load();
 
-    const ch = supabase
-      .channel(`notif-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-        () => load(),
-      )
-      .subscribe();
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    let poll: ReturnType<typeof setInterval> | null = null;
+    (async () => {
+      // Authorize the realtime socket with the user's JWT, otherwise RLS
+      // (user_id = auth.uid()) filters out every event and nothing arrives live.
+      const { data: s } = await supabase.auth.getSession();
+      if (s.session?.access_token) {
+        supabase.realtime.setAuth(s.session.access_token);
+      }
+      await load();
+      ch = supabase
+        .channel(`notif-${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
+          () => load(),
+        )
+        .subscribe();
+      // Safety net: a slow refresh every 30s in case a realtime event is missed.
+      poll = setInterval(load, 30000);
+    })();
+
     return () => {
-      supabase.removeChannel(ch);
+      if (ch) supabase.removeChannel(ch);
+      if (poll) clearInterval(poll);
     };
   }, [userId]);
 
@@ -123,10 +137,14 @@ export default function NotificationBell({ userId }: { userId: string }) {
               </p>
             )}
             {items.map((n) => {
-              const href =
-                n.board_id && n.task_id
-                  ? `/boards/${n.board_id}/tasks/${n.task_id}`
-                  : "#";
+              let href = "#";
+              if (n.board_id && n.task_id) {
+                const q = new URLSearchParams({ task: n.task_id });
+                if (n.comment_id) q.set("comment", n.comment_id);
+                href = `/boards/${n.board_id}?${q.toString()}`;
+              } else if (n.board_id) {
+                href = `/boards/${n.board_id}`;
+              }
               return (
                 <a
                   key={n.id}

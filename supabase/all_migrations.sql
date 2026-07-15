@@ -933,3 +933,13 @@ $$;
 
 revoke all on function seed_default_columns(uuid) from public, anon, authenticated;
 grant execute on function seed_default_columns(uuid) to service_role;
+
+
+-- ============================================================================
+-- AWOS — 0013 notification → comment link
+-- Lets a notification point at the exact comment so the UI can open the task
+-- and flash that comment.
+-- ============================================================================
+
+alter table notifications
+  add column if not exists comment_id uuid references comments (id) on delete set null;

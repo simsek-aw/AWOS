@@ -167,3 +167,7 @@ begin
     end if;
   end loop;
 end $$;
+
+
+-- ---- 0013 notification comment link ----
+alter table notifications add column if not exists comment_id uuid references comments (id) on delete set null;
