@@ -12,10 +12,12 @@ const deptLabel: Record<string, string> = {
 
 export default function Sidebar({
   boards,
+  unreadByBoard = {},
   open = false,
   onClose,
 }: {
   boards: Board[];
+  unreadByBoard?: Record<string, number>;
   open?: boolean;
   onClose?: () => void;
 }) {
@@ -60,12 +62,12 @@ export default function Sidebar({
 
       {customer.length > 0 && <Group title="Kunden" />}
       {customer.map((b) => (
-        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} onNavigate={onClose} />
+        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
       ))}
 
       {internal.length > 0 && <Group title="Intern" />}
       {internal.map((b) => (
-        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} onNavigate={onClose} />
+        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
       ))}
 
       {boards.length === 0 && (
@@ -96,10 +98,12 @@ function Group({ title }: { title: string }) {
 function BoardLink({
   board,
   active,
+  unread = 0,
   onNavigate,
 }: {
   board: Board;
   active: boolean;
+  unread?: number;
   onNavigate?: () => void;
 }) {
   return (
@@ -116,7 +120,7 @@ function BoardLink({
         color: active ? "var(--accent)" : "var(--muted)",
         background: active ? "var(--active)" : "transparent",
         fontSize: 14,
-        fontWeight: active ? 600 : 400,
+        fontWeight: active || unread > 0 ? 600 : 400,
       }}
     >
       <span
@@ -131,10 +135,30 @@ function BoardLink({
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {board.name}
       </span>
-      {board.type === "internal" && board.department && (
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--faint)" }}>
-          {deptLabel[board.department]}
+      {unread > 0 ? (
+        <span
+          title={`${unread} ungelesen`}
+          style={{
+            marginLeft: "auto",
+            flexShrink: 0,
+            background: "var(--accent)",
+            color: "#fff",
+            fontSize: 11,
+            fontWeight: 700,
+            borderRadius: 999,
+            padding: "1px 7px",
+            lineHeight: 1.5,
+          }}
+        >
+          {unread}
         </span>
+      ) : (
+        board.type === "internal" &&
+        board.department && (
+          <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--faint)" }}>
+            {deptLabel[board.department]}
+          </span>
+        )
       )}
     </a>
   );

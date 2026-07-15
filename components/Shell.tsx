@@ -12,10 +12,12 @@ import Sidebar from "./Sidebar";
 export default function Shell({
   ctx,
   boards,
+  unreadByBoard = {},
   children,
 }: {
   ctx: SessionContext;
   boards: Board[];
+  unreadByBoard?: Record<string, number>;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -25,7 +27,12 @@ export default function Shell({
       <AppHeader ctx={ctx} onMenuClick={() => setOpen(true)} />
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <Sidebar boards={boards} open={open} onClose={() => setOpen(false)} />
+        <Sidebar
+          boards={boards}
+          unreadByBoard={unreadByBoard}
+          open={open}
+          onClose={() => setOpen(false)}
+        />
         {open && <div className="app-scrim" onClick={() => setOpen(false)} />}
         <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>{children}</main>
       </div>

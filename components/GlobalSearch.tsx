@@ -254,6 +254,7 @@ export default function GlobalSearch() {
               {res.people.map((p) => (
                 <ResultRow
                   key={p.id}
+                  href={`/people/${p.id}`}
                   icon="user"
                   title={p.name}
                   sub={p.role}
