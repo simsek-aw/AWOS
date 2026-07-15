@@ -76,6 +76,87 @@ export async function createCustomerBoard(formData: FormData) {
   ok("Kunden-Board angelegt");
 }
 
+export async function updateUser(formData: FormData) {
+  await requireEmployee();
+  const userId = String(formData.get("user_id") ?? "");
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const role = String(formData.get("role") ?? "");
+  const customerId = String(formData.get("customer_id") ?? "");
+  const department = String(formData.get("department") ?? "");
+
+  if (!userId) fail("Nutzer fehlt");
+  if (role !== "employee" && role !== "customer") fail("Rolle ungültig");
+  if (role === "customer" && !customerId) fail("Kunde muss zugeordnet werden");
+
+  const svc = createServiceClient();
+  // provision_profile upserts (on conflict do update), so it doubles as an edit.
+  const { error } = await svc.rpc("provision_profile", {
+    p_user_id: userId,
+    p_full_name: fullName,
+    p_role: role,
+    p_customer_id: role === "customer" ? customerId : null,
+    p_department: role === "employee" && department !== "" ? department : null,
+  });
+  if (error) fail("Nutzer konnte nicht aktualisiert werden");
+
+  revalidatePath("/admin");
+  ok("Nutzer aktualisiert");
+}
+
+export async function setUserPassword(formData: FormData) {
+  await requireEmployee();
+  const userId = String(formData.get("user_id") ?? "");
+  const password = String(formData.get("password") ?? "");
+
+  if (!userId) fail("Nutzer fehlt");
+  if (password.length < 8) fail("Passwort muss mindestens 8 Zeichen haben");
+
+  const svc = createServiceClient();
+  // Sets the password directly and marks the email confirmed, so the user can
+  // log in immediately — no recovery email round-trip needed.
+  const { error } = await svc.auth.admin.updateUserById(userId, {
+    password,
+    email_confirm: true,
+  });
+  if (error) fail("Passwort konnte nicht gesetzt werden");
+
+  ok("Passwort gesetzt — der Nutzer kann sich jetzt damit anmelden");
+}
+
+export async function sendPasswordReset(formData: FormData) {
+  await requireEmployee();
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) fail("E-Mail fehlt");
+
+  const svc = createServiceClient();
+  const origin = await siteOrigin();
+  // Routes the recovery link through /auth/confirm (token_hash flow), which
+  // establishes a session and lands on the set-password page. Requires the
+  // Supabase "Reset Password" email template to use {{ .TokenHash }} — see the
+  // note in the admin UI.
+  const { error } = await svc.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/confirm?next=/auth/update-password`,
+  });
+  if (error) fail("Reset-Mail konnte nicht gesendet werden (SMTP/Rate-Limit?)");
+
+  ok(`Passwort-Reset-Link an ${email} gesendet`);
+}
+
+export async function deleteUser(formData: FormData) {
+  const ctx = await requireEmployee();
+  const userId = String(formData.get("user_id") ?? "");
+  if (!userId) fail("Nutzer fehlt");
+  if (userId === ctx.userId) fail("Du kannst dich nicht selbst löschen");
+
+  const svc = createServiceClient();
+  // Deleting the auth user cascades to the profile (FK on delete cascade).
+  const { error } = await svc.auth.admin.deleteUser(userId);
+  if (error) fail("Nutzer konnte nicht gelöscht werden");
+
+  revalidatePath("/admin");
+  ok("Nutzer gelöscht");
+}
+
 export async function inviteUser(formData: FormData) {
   await requireEmployee();
   const email = String(formData.get("email") ?? "").trim();

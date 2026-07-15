@@ -1,6 +1,7 @@
 import AppHeader from "@/components/AppHeader";
+import UserRow from "@/components/admin/UserRow";
 import { requireEmployee } from "@/lib/auth";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 import type { Board, Customer, Profile } from "@/lib/types";
 import {
   createCustomer,
@@ -37,6 +38,19 @@ export default async function AdminPage({
 
   const customerList = customers ?? [];
   const customerName = new Map(customerList.map((c) => [c.id, c.name]));
+
+  // Emails aren't in `profiles`; fetch them from the auth admin API (service
+  // role) so we can show and act on them in the user editor.
+  const emailById = new Map<string, string>();
+  try {
+    const svc = createServiceClient();
+    const { data: authUsers } = await svc.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of authUsers?.users ?? []) {
+      if (u.email) emailById.set(u.id, u.email);
+    }
+  } catch {
+    // Non-fatal: the editor still works without emails shown.
+  }
 
   return (
     <>
@@ -113,14 +127,13 @@ export default async function AdminPage({
         <Section title="Nutzer">
           <ul style={listStyle}>
             {(profiles ?? []).map((p) => (
-              <li key={p.id} style={rowStyle}>
-                <span>{p.full_name ?? "—"}</span>
-                <span style={{ color: "var(--muted)", fontSize: 13 }}>
-                  {p.role === "employee"
-                    ? `Mitarbeiter${p.department ? " · " + deptLabel[p.department] : ""}`
-                    : `Kunde · ${p.customer_id ? customerName.get(p.customer_id) : "?"}`}
-                </span>
-              </li>
+              <UserRow
+                key={p.id}
+                profile={p}
+                email={emailById.get(p.id) ?? null}
+                customers={customerList}
+                isSelf={p.id === ctx.userId}
+              />
             ))}
           </ul>
 
@@ -153,7 +166,17 @@ export default async function AdminPage({
           </form>
           <p style={{ color: "var(--muted)", fontSize: 13 }}>
             Der Eingeladene erhält eine E-Mail, bestätigt den Link und setzt sein eigenes
-            Passwort. Kunden sehen nur ihr eigenes Board, Mitarbeiter alle.
+            Passwort. Kunden sehen nur ihr eigenes Board, Mitarbeiter alle. Passwörter
+            lassen sich pro Nutzer über „Bearbeiten" auch direkt setzen (ohne E-Mail).
+          </p>
+          <p style={{ color: "var(--faint)", fontSize: 12 }}>
+            Hinweis zum Reset-Link per E-Mail: Damit dieser nicht auf der
+            Login-Seite landet, muss in Supabase unter Authentication → Email
+            Templates → „Reset Password" der Link auf{" "}
+            <code>
+              {"{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/auth/update-password"}
+            </code>{" "}
+            zeigen. Der direkte Weg „Passwort setzen" umgeht das komplett.
           </p>
         </Section>
       </main>
