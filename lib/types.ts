@@ -128,6 +128,15 @@ export interface Comment {
   released_at: string | null;
 }
 
+export interface TaskSuggestion {
+  task_id: string;
+  department: string | null;
+  priority: string | null;
+  assignee_id: string | null;
+  reasoning: string | null;
+  updated_at: string;
+}
+
 export interface TaskEvent {
   id: string;
   task_id: string;

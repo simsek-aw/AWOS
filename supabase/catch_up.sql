@@ -203,3 +203,23 @@ alter table task_reminders enable row level security;
 alter table task_reminders force row level security;
 alter table tasks add column if not exists archived_at timestamptz;
 create index if not exists tasks_archived_idx on tasks (board_id, archived_at);
+
+
+-- ---- 0016 task_suggestions ----
+create table if not exists task_suggestions (
+  task_id uuid primary key references tasks (id) on delete cascade,
+  department text,
+  priority text,
+  assignee_id uuid references profiles (id) on delete set null,
+  reasoning text,
+  updated_at timestamptz not null default now()
+);
+alter table task_suggestions enable row level security;
+alter table task_suggestions force row level security;
+drop policy if exists task_suggestions_select on task_suggestions;
+create policy task_suggestions_select on task_suggestions for select to authenticated using (is_employee());
+do $$ begin
+  execute 'alter table public.task_suggestions replica identity full';
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='task_suggestions') then
+    execute 'alter publication supabase_realtime add table public.task_suggestions'; end if;
+end $$;

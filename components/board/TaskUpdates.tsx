@@ -10,7 +10,7 @@ import {
 } from "react";
 import { postComment, toggleLike } from "@/app/(app)/boards/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
-import type { Comment, Person, TaskEvent } from "@/lib/types";
+import type { Comment, Person, TaskEvent, TaskSuggestion } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import MentionTextarea from "./MentionTextarea";
 
@@ -74,6 +74,7 @@ export default function TaskUpdates({
   const [tab, setTab] = useState<"updates" | "activity">("updates");
   const [flashId, setFlashId] = useState<string | null>(highlightCommentId);
   const [summary, setSummary] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<TaskSuggestion | null>(null);
   const flashRef = useRef<HTMLDivElement | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [likes, setLikes] = useState<Record<string, number>>({});
@@ -150,6 +151,15 @@ export default function TaskUpdates({
     setSummary(sum?.summary ?? null);
 
     if (isEmployee) {
+      const { data: sug } = await supabase
+        .from("task_suggestions")
+        .select("*")
+        .eq("task_id", taskId)
+        .maybeSingle<TaskSuggestion>();
+      setSuggestion(sug ?? null);
+    }
+
+    if (isEmployee) {
       const { data: evs } = await supabase
         .from("task_events")
         .select("*")
@@ -175,6 +185,7 @@ export default function TaskUpdates({
         "comment_likes",
         "task_events",
         "task_summaries",
+        "task_suggestions",
       ]) {
         ch.on(
           "postgres_changes",
@@ -340,8 +351,67 @@ export default function TaskUpdates({
     );
   };
 
+  const deptLabel: Record<string, string> = {
+    marketing: "Marketing",
+    content: "Content",
+    grafik: "Grafik",
+  };
+  const prioColor: Record<string, string> = {
+    niedrig: "#9e9e9e",
+    mittel: "#579bfc",
+    hoch: "#fdab3d",
+    dringend: "#e2445c",
+  };
+
   return (
     <section style={{ marginTop: 32 }}>
+      {suggestion && (suggestion.department || suggestion.priority) && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 10,
+            background: "var(--surface-2)",
+            border: "1px dashed var(--border)",
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
+          <span style={{ fontWeight: 700 }}>🤖 Triage-Vorschlag</span>
+          {suggestion.department && (
+            <span>
+              Abteilung: <strong>{deptLabel[suggestion.department] ?? suggestion.department}</strong>
+            </span>
+          )}
+          {suggestion.priority && (
+            <span
+              style={{
+                background: prioColor[suggestion.priority] ?? "var(--muted)",
+                color: "#fff",
+                borderRadius: 6,
+                padding: "1px 8px",
+                fontWeight: 600,
+              }}
+            >
+              {suggestion.priority}
+            </span>
+          )}
+          {suggestion.assignee_id && peopleName.get(suggestion.assignee_id) && (
+            <span>
+              Macher: <strong>{peopleName.get(suggestion.assignee_id)}</strong>
+            </span>
+          )}
+          {suggestion.reasoning && (
+            <span style={{ color: "var(--muted)", flexBasis: "100%" }}>
+              {suggestion.reasoning}
+            </span>
+          )}
+        </div>
+      )}
+
       {summary && (
         <div
           style={{
