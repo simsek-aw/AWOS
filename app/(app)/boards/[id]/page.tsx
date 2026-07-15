@@ -170,6 +170,7 @@ export default async function BoardPage({
         ]}
       />
       <div
+        className="page-pad"
         style={{
           padding: "24px 28px",
           display: "flex",

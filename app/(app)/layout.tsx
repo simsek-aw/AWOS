@@ -1,6 +1,4 @@
-import AppHeader from "@/components/AppHeader";
-import NotificationBell from "@/components/NotificationBell";
-import Sidebar from "@/components/Sidebar";
+import Shell from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Board } from "@/lib/types";
@@ -20,26 +18,8 @@ export default async function AppLayout({
     .returns<Board[]>();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <div
-        style={{
-          height: 36,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          padding: "0 18px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--topbar-bg)",
-          flexShrink: 0,
-        }}
-      >
-        <NotificationBell userId={ctx.userId} />
-      </div>
-      <AppHeader ctx={ctx} />
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <Sidebar boards={boards ?? []} />
-        <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>{children}</main>
-      </div>
-    </div>
+    <Shell ctx={ctx} boards={boards ?? []}>
+      {children}
+    </Shell>
   );
 }

@@ -48,3 +48,36 @@ textarea,
 button {
   font-family: inherit;
 }
+
+/* -------- Responsive: off-canvas sidebar + mobile tweaks -------- */
+.app-hamburger { display: none; }
+
+@media (max-width: 768px) {
+  .app-hamburger { display: inline-flex; }
+
+  /* The left board menu slides in from the edge instead of taking a column. */
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  }
+  .app-sidebar.open { transform: translateX(0); }
+
+  .app-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 55;
+  }
+
+  /* Long "Name · Rolle" text would crowd the small header. */
+  .app-user-meta { display: none; }
+
+  /* Slightly tighter page padding on phones. */
+  .page-pad { padding: 16px 12px !important; }
+}

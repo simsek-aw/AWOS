@@ -9,7 +9,15 @@ const deptLabel: Record<string, string> = {
   grafik: "Grafik",
 };
 
-export default function Sidebar({ boards }: { boards: Board[] }) {
+export default function Sidebar({
+  boards,
+  open = false,
+  onClose,
+}: {
+  boards: Board[];
+  open?: boolean;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
   const customer = boards.filter((b) => b.type === "customer");
   const internal = boards.filter((b) => b.type === "internal");
@@ -18,6 +26,7 @@ export default function Sidebar({ boards }: { boards: Board[] }) {
 
   return (
     <aside
+      className={`app-sidebar${open ? " open" : ""}`}
       style={{
         width: 240,
         flexShrink: 0,
@@ -29,12 +38,12 @@ export default function Sidebar({ boards }: { boards: Board[] }) {
     >
       {customer.length > 0 && <Group title="Kunden" />}
       {customer.map((b) => (
-        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} />
+        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} onNavigate={onClose} />
       ))}
 
       {internal.length > 0 && <Group title="Intern" />}
       {internal.map((b) => (
-        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} />
+        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} onNavigate={onClose} />
       ))}
 
       {boards.length === 0 && (
@@ -62,10 +71,19 @@ function Group({ title }: { title: string }) {
   );
 }
 
-function BoardLink({ board, active }: { board: Board; active: boolean }) {
+function BoardLink({
+  board,
+  active,
+  onNavigate,
+}: {
+  board: Board;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
   return (
     <a
       href={`/boards/${board.id}`}
+      onClick={onNavigate}
       style={{
         display: "flex",
         alignItems: "center",

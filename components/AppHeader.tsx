@@ -1,3 +1,5 @@
+"use client";
+
 import type { SessionContext } from "@/lib/auth";
 
 const roleLabel: Record<string, string> = {
@@ -5,7 +7,13 @@ const roleLabel: Record<string, string> = {
   customer: "Kunde",
 };
 
-export default function AppHeader({ ctx }: { ctx: SessionContext }) {
+export default function AppHeader({
+  ctx,
+  onMenuClick,
+}: {
+  ctx: SessionContext;
+  onMenuClick?: () => void;
+}) {
   return (
     <header
       style={{
@@ -16,19 +24,41 @@ export default function AppHeader({ ctx }: { ctx: SessionContext }) {
         borderBottom: "1px solid var(--border)",
       }}
     >
-      <a
-        href="/"
-        style={{ fontWeight: 700, fontSize: 18, color: "var(--text)", textDecoration: "none" }}
-      >
-        AWOS
-      </a>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {onMenuClick && (
+          <button
+            className="app-hamburger"
+            onClick={onMenuClick}
+            title="Menü"
+            aria-label="Menü öffnen"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--text)",
+              cursor: "pointer",
+              fontSize: 20,
+              lineHeight: 1,
+              padding: 0,
+              alignItems: "center",
+            }}
+          >
+            ☰
+          </button>
+        )}
+        <a
+          href="/"
+          style={{ fontWeight: 700, fontSize: 18, color: "var(--text)", textDecoration: "none" }}
+        >
+          AWOS
+        </a>
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         {ctx.profile.role === "employee" && (
           <a href="/admin" style={{ color: "var(--muted)", fontSize: 14 }}>
             Admin
           </a>
         )}
-        <span style={{ color: "var(--muted)", fontSize: 14 }}>
+        <span className="app-user-meta" style={{ color: "var(--muted)", fontSize: 14 }}>
           {ctx.profile.full_name ?? ctx.email} ·{" "}
           {roleLabel[ctx.profile.role] ?? ctx.profile.role}
         </span>

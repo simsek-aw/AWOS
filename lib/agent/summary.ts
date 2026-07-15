@@ -48,7 +48,10 @@ export async function refreshTaskSummary(taskId: string): Promise<void> {
       .order("created_at", { ascending: true })
       .returns<{ body: string }[]>();
 
-    if (!comments || comments.length === 0) {
+    // Only summarise once a thread has real substance — below the threshold the
+    // updates are easy to read directly and an AI call isn't worth it.
+    const MIN_UPDATES = 10;
+    if (!comments || comments.length < MIN_UPDATES) {
       await svc.from("task_summaries").delete().eq("task_id", taskId);
       return;
     }
