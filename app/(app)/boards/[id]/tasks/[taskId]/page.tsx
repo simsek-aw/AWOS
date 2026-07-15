@@ -8,6 +8,7 @@ import type {
   Board,
   Column,
   Comment,
+  Person,
   Task,
   TaskValue,
 } from "@/lib/types";
@@ -59,6 +60,15 @@ export default async function TaskDetail({
     .select("*")
     .eq("task_id", taskId)
     .returns<TaskValue[]>();
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .returns<{ id: string; full_name: string | null }[]>();
+  const people: Person[] = (profiles ?? []).map((p) => ({
+    id: p.id,
+    name: p.full_name ?? p.id.slice(0, 8),
+  }));
 
   const { data: comments } = await supabase
     .from("comments")
@@ -242,7 +252,7 @@ export default async function TaskDetail({
           {editable.map((c) => (
             <label key={c.id} style={labelStyle}>
               {c.label}
-              <ColumnInput column={c} value={valueByColumn.get(c.id)} />
+              <ColumnInput column={c} value={valueByColumn.get(c.id)} people={people} />
             </label>
           ))}
 
@@ -414,7 +424,15 @@ export default async function TaskDetail({
   );
 }
 
-function ColumnInput({ column, value }: { column: Column; value: unknown }) {
+function ColumnInput({
+  column,
+  value,
+  people,
+}: {
+  column: Column;
+  value: unknown;
+  people: Person[];
+}) {
   const name = `col_${column.id}`;
   const current = value == null ? "" : String(value);
 
@@ -426,6 +444,19 @@ function ColumnInput({ column, value }: { column: Column; value: unknown }) {
         {options.map((o) => (
           <option key={o.label} value={o.label}>
             {o.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (column.type === "person") {
+    return (
+      <select name={name} defaultValue={current} style={inputStyle}>
+        <option value="">—</option>
+        {people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
           </option>
         ))}
       </select>

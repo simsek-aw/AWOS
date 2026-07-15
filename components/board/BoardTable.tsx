@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { createTask } from "@/app/(app)/boards/[id]/actions";
 import EditableCell from "./EditableCell";
 import TaskDrawer from "./TaskDrawer";
-import type { Column, Task, TaskValue } from "@/lib/types";
+import type { Column, Person, Task, TaskValue } from "@/lib/types";
 
 export default function BoardTable({
   boardId,
@@ -12,6 +12,7 @@ export default function BoardTable({
   columns,
   tasks,
   values,
+  people,
   currentUserId,
 }: {
   boardId: string;
@@ -19,6 +20,7 @@ export default function BoardTable({
   columns: Column[];
   tasks: Task[];
   values: TaskValue[];
+  people: Person[];
   currentUserId: string;
 }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export default function BoardTable({
                       task={t}
                       column={c}
                       value={valueMap.get(t.id)?.get(c.id) ?? null}
+                      people={people}
                     />
                   </td>
                 ))}
@@ -113,6 +116,7 @@ export default function BoardTable({
           columns={columns}
           task={openTask}
           values={values.filter((v) => v.task_id === openTask.id)}
+          people={people}
           currentUserId={currentUserId}
           onClose={() => setOpenTaskId(null)}
         />

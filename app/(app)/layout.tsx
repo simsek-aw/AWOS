@@ -1,4 +1,5 @@
 import AppHeader from "@/components/AppHeader";
+import NotificationBell from "@/components/NotificationBell";
 import Sidebar from "@/components/Sidebar";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -20,6 +21,20 @@ export default async function AppLayout({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div
+        style={{
+          height: 36,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          padding: "0 18px",
+          borderBottom: "1px solid #1a1f28",
+          background: "#0b0d11",
+          flexShrink: 0,
+        }}
+      >
+        <NotificationBell userId={ctx.userId} />
+      </div>
       <AppHeader ctx={ctx} />
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Sidebar boards={boards ?? []} />

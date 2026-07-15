@@ -1,0 +1,147 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { markNotificationsRead } from "@/app/(app)/boards/[id]/actions";
+import { createClient } from "@/lib/supabase/client";
+import type { Notification } from "@/lib/types";
+
+export default function NotificationBell({ userId }: { userId: string }) {
+  const [items, setItems] = useState<Notification[]>([]);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const load = async () => {
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(30)
+        .returns<Notification[]>();
+      setItems(data ?? []);
+    };
+    load();
+
+    const ch = supabase
+      .channel(`notif-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+        () => load(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [userId]);
+
+  const unread = items.filter((i) => !i.read).length;
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && unread > 0) {
+      await markNotificationsRead();
+      setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={toggle}
+        title="Benachrichtigungen"
+        style={{
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontSize: 16,
+          position: "relative",
+          padding: 4,
+        }}
+      >
+        🔔
+        {unread > 0 && (
+          <span
+            style={{
+              position: "absolute",
+              top: -2,
+              right: -4,
+              background: "#e2445c",
+              color: "#fff",
+              borderRadius: 10,
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "1px 5px",
+              lineHeight: 1.4,
+            }}
+          >
+            {unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 49 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "140%",
+              width: 320,
+              maxHeight: 400,
+              overflowY: "auto",
+              background: "#12151c",
+              border: "1px solid #222834",
+              borderRadius: 10,
+              zIndex: 50,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+            }}
+          >
+            {items.length === 0 && (
+              <p style={{ color: "#5b6472", fontSize: 14, padding: 16, margin: 0 }}>
+                Keine Benachrichtigungen.
+              </p>
+            )}
+            {items.map((n) => {
+              const href =
+                n.board_id && n.task_id
+                  ? `/boards/${n.board_id}/tasks/${n.task_id}`
+                  : "#";
+              return (
+                <a
+                  key={n.id}
+                  href={href}
+                  style={{
+                    display: "block",
+                    padding: "10px 14px",
+                    borderBottom: "1px solid #1a1f28",
+                    textDecoration: "none",
+                    color: "var(--text)",
+                    background: n.read ? "transparent" : "#141d2a",
+                  }}
+                >
+                  <div style={{ fontSize: 13 }}>{n.body}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                    {n.type === "assignment" ? "Zuweisung" : "Erwähnung"}
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

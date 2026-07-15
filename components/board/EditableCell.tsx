@@ -6,18 +6,20 @@ import {
   setCellValue,
 } from "@/app/(app)/boards/[id]/actions";
 import { shortId } from "@/components/columns";
-import type { Column, StatusOption, Task } from "@/lib/types";
+import type { Column, Person, StatusOption, Task } from "@/lib/types";
 
 export default function EditableCell({
   boardId,
   task,
   column,
   value,
+  people = [],
 }: {
   boardId: string;
   task: Task;
   column: Column;
   value: unknown;
+  people?: Person[];
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -34,11 +36,40 @@ export default function EditableCell({
     if (next === current) return;
     startTransition(async () => {
       if (isName) await renameTask(boardId, task.id, next);
-      else await setCellValue(boardId, task.id, column.id, next);
+      else await setCellValue(boardId, task.id, column.id, column.key, next);
     });
   };
 
   const dim = pending ? 0.5 : 1;
+
+  // Person (PM / Macher): pick a user.
+  if (column.type === "person") {
+    return (
+      <select
+        value={current}
+        disabled={pending}
+        onChange={(e) => save(e.target.value)}
+        style={{
+          opacity: dim,
+          background: "#0f1115",
+          color: current ? "var(--text)" : "var(--muted)",
+          border: "1px solid #2a2f3a",
+          borderRadius: 6,
+          padding: "4px 8px",
+          fontSize: 13,
+          cursor: "pointer",
+          maxWidth: 160,
+        }}
+      >
+        <option value="">—</option>
+        {people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    );
+  }
 
   // Status: always a dropdown (click → choose).
   if (column.type === "status") {

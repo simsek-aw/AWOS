@@ -69,6 +69,23 @@ export interface TaskValue {
   value: unknown;
 }
 
+export interface Person {
+  id: string;
+  name: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: "assignment" | "mention";
+  task_id: string | null;
+  board_id: string | null;
+  actor_id: string | null;
+  body: string;
+  read: boolean;
+  created_at: string;
+}
+
 export interface Attachment {
   id: string;
   task_id: string;

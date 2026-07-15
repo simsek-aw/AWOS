@@ -45,6 +45,17 @@ export default async function BoardPage({
         .returns<TaskValue[]>()
     : { data: [] as TaskValue[] };
 
+  // Users selectable as PM/Macher (RLS-scoped: employees see all, a customer
+  // sees only themselves).
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .returns<{ id: string; full_name: string | null }[]>();
+  const people = (profiles ?? []).map((p) => ({
+    id: p.id,
+    name: p.full_name ?? p.id.slice(0, 8),
+  }));
+
   return (
     <>
       <RealtimeRefresh
@@ -62,6 +73,7 @@ export default async function BoardPage({
           columns={columns ?? []}
           tasks={tasks ?? []}
           values={values ?? []}
+          people={people}
           currentUserId={ctx.userId}
         />
       </div>

@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { postComment } from "@/app/(app)/boards/[id]/actions";
 import { shortId } from "@/components/columns";
 import { createClient } from "@/lib/supabase/client";
-import type { Column, Comment, Task, TaskValue } from "@/lib/types";
+import type { Column, Comment, Person, Task, TaskValue } from "@/lib/types";
 import EditableCell from "./EditableCell";
 
 const ROW_BOUND = new Set(["task_id"]);
@@ -15,6 +15,7 @@ export default function TaskDrawer({
   columns,
   task,
   values,
+  people,
   currentUserId,
   onClose,
 }: {
@@ -23,6 +24,7 @@ export default function TaskDrawer({
   columns: Column[];
   task: Task;
   values: TaskValue[];
+  people: Person[];
   currentUserId: string;
   onClose: () => void;
 }) {
@@ -115,6 +117,7 @@ export default function TaskDrawer({
                 task={task}
                 column={nameColumn}
                 value={task.title}
+                people={people}
               />
             ) : (
               task.title
@@ -131,6 +134,7 @@ export default function TaskDrawer({
                   task={task}
                   column={c}
                   value={valueOf(c.id)}
+                  people={people}
                 />
               </div>
             ))}

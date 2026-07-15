@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { mirrorCustomerTask } from "@/lib/agent/mirror";
 import { requireEmployee, requireSession } from "@/lib/auth";
+import { notifyAssignment, notifyMentions } from "@/lib/notifications";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 
 const BUCKET = "attachments";
@@ -51,6 +52,7 @@ export async function setCellValue(
   boardId: string,
   taskId: string,
   columnId: string,
+  columnKey: string,
   value: string,
 ) {
   const v = value.trim() === "" ? null : value;
@@ -61,6 +63,23 @@ export async function setCellValue(
       { task_id: taskId, column_id: columnId, value: v },
       { onConflict: "task_id,column_id" },
     );
+
+  // Notify the newly assigned "Macher" (person column). RLS-safe: notifyAssignment
+  // only notifies users who can access this board.
+  if (columnKey === "macher" && v) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    after(() =>
+      notifyAssignment({
+        boardId,
+        taskId,
+        assigneeId: v,
+        actorId: user?.id ?? null,
+      }),
+    );
+  }
+
   revalidatePath(`/boards/${boardId}`);
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
@@ -80,8 +99,23 @@ export async function postComment(
   await supabase
     .from("comments")
     .insert({ task_id: taskId, body: b, author_id: user?.id ?? null });
+  after(() => notifyMentions({ boardId, taskId, body: b, actorId: user?.id ?? null }));
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
   revalidatePath(`/boards/${boardId}`);
+}
+
+/** Mark all of the current user's notifications as read. */
+export async function markNotificationsRead() {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from("notifications")
+    .update({ read: true })
+    .eq("user_id", user.id)
+    .eq("read", false);
 }
 
 /** Save a task's title and its column values (upsert into task_values). */
@@ -135,6 +169,7 @@ export async function addComment(
     .from("comments")
     .insert({ task_id: taskId, body, author_id: user?.id ?? null });
 
+  after(() => notifyMentions({ boardId, taskId, body, actorId: user?.id ?? null }));
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 
