@@ -25,12 +25,14 @@ export default function MentionTextarea({
   const setText = (t: string) => (onChange ? onChange(t) : setInternal(t));
 
   const [menu, setMenu] = useState<{ start: number; query: string } | null>(null);
+  const [active, setActive] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const update = (v: string, caret: number) => {
     setText(v);
     const m = v.slice(0, caret).match(/@([^\s@]*)$/);
     setMenu(m ? { start: caret - m[1].length - 1, query: m[1].toLowerCase() } : null);
+    setActive(0);
   };
 
   const matches = menu
@@ -61,12 +63,31 @@ export default function MentionTextarea({
         value={text}
         placeholder={placeholder}
         onChange={(e) => update(e.target.value, e.target.selectionStart)}
-        onKeyUp={(e) =>
+        onKeyUp={(e) => {
+          // Don't recompute the menu on the navigation keys.
+          if (["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"].includes(e.key))
+            return;
           update(
             (e.target as HTMLTextAreaElement).value,
             (e.target as HTMLTextAreaElement).selectionStart,
-          )
-        }
+          );
+        }}
+        onKeyDown={(e) => {
+          if (!menu || matches.length === 0) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActive((i) => (i + 1) % matches.length);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActive((i) => (i - 1 + matches.length) % matches.length);
+          } else if (e.key === "Enter" || e.key === "Tab") {
+            e.preventDefault();
+            pick(matches[active] ?? matches[0]);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            setMenu(null);
+          }
+        }}
         onBlur={() => setTimeout(() => setMenu(null), 120)}
         style={{
           width: "100%",
@@ -96,17 +117,19 @@ export default function MentionTextarea({
             overflow: "hidden",
           }}
         >
-          {matches.map((p) => (
+          {matches.map((p, i) => (
             <div
               key={p.id}
               onMouseDown={(e) => {
                 e.preventDefault();
                 pick(p);
               }}
+              onMouseEnter={() => setActive(i)}
               style={{
                 padding: "8px 12px",
                 cursor: "pointer",
                 fontSize: 14,
+                background: i === active ? "var(--active)" : "transparent",
               }}
             >
               @{p.name}
