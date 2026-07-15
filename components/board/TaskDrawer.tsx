@@ -18,6 +18,7 @@ export default function TaskDrawer({
   values,
   people,
   currentUserId,
+  isEmployee,
   onClose,
 }: {
   boardId: string;
@@ -27,6 +28,7 @@ export default function TaskDrawer({
   values: TaskValue[];
   people: Person[];
   currentUserId: string;
+  isEmployee: boolean;
   onClose: () => void;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
@@ -136,6 +138,7 @@ export default function TaskDrawer({
                   column={c}
                   value={valueOf(c.id)}
                   people={people}
+                  canEditLabels={isEmployee}
                 />
               </div>
             ))}

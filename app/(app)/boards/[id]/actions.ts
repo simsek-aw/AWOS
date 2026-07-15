@@ -84,6 +84,76 @@ export async function setCellValue(
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 
+/** Inline: set the assigned people (array) on a person column (PM/Macher). */
+export async function setPeople(
+  boardId: string,
+  taskId: string,
+  columnId: string,
+  columnKey: string,
+  ids: string[],
+) {
+  const clean = Array.from(new Set(ids.filter(Boolean)));
+  const supabase = await createServerSupabase();
+
+  // For "Macher", figure out who is newly added so we only notify them.
+  let added: string[] = [];
+  if (columnKey === "macher") {
+    const { data: existing } = await supabase
+      .from("task_values")
+      .select("value")
+      .eq("task_id", taskId)
+      .eq("column_id", columnId)
+      .maybeSingle<{ value: unknown }>();
+    const old = Array.isArray(existing?.value)
+      ? existing!.value.map(String)
+      : existing?.value
+        ? [String(existing.value)]
+        : [];
+    added = clean.filter((id) => !old.includes(id));
+  }
+
+  await supabase
+    .from("task_values")
+    .upsert(
+      { task_id: taskId, column_id: columnId, value: clean.length ? clean : null },
+      { onConflict: "task_id,column_id" },
+    );
+
+  if (added.length) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    after(() =>
+      Promise.all(
+        added.map((assigneeId) =>
+          notifyAssignment({ boardId, taskId, assigneeId, actorId: user?.id ?? null }),
+        ),
+      ),
+    );
+  }
+
+  revalidatePath(`/boards/${boardId}`);
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+}
+
+/** Employee-only: edit a status column's labels & colors. */
+export async function updateColumnOptions(
+  boardId: string,
+  columnId: string,
+  options: { label: string; color: string }[],
+) {
+  await requireEmployee();
+  const clean = options
+    .map((o) => ({ label: o.label.trim(), color: o.color }))
+    .filter((o) => o.label.length > 0);
+  const supabase = await createServerSupabase();
+  await supabase
+    .from("columns")
+    .update({ options: { options: clean } })
+    .eq("id", columnId);
+  revalidatePath(`/boards/${boardId}`, "layout");
+}
+
 /** Panel: post a comment (plain-args variant for client components). */
 export async function postComment(
   boardId: string,

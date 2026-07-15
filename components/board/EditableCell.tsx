@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  renameTask,
-  setCellValue,
-} from "@/app/(app)/boards/[id]/actions";
+import { renameTask, setCellValue } from "@/app/(app)/boards/[id]/actions";
 import { shortId } from "@/components/columns";
-import type { Column, Person, StatusOption, Task } from "@/lib/types";
-import { Avatar, EmptyAvatar } from "./Avatar";
+import type { Column, Person, Task } from "@/lib/types";
+import PersonCell from "./PersonCell";
+import StatusCell from "./StatusCell";
 
 export default function EditableCell({
   boardId,
@@ -15,12 +13,14 @@ export default function EditableCell({
   column,
   value,
   people = [],
+  canEditLabels = false,
 }: {
   boardId: string;
   task: Task;
   column: Column;
   value: unknown;
   people?: Person[];
+  canEditLabels?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -28,6 +28,33 @@ export default function EditableCell({
   // Task-ID: read-only.
   if (column.key === "task_id") {
     return <code style={{ color: "var(--muted)" }}>{shortId(task.id)}</code>;
+  }
+
+  // Person (PM / Macher): multi-select with search.
+  if (column.type === "person") {
+    return (
+      <PersonCell
+        boardId={boardId}
+        taskId={task.id}
+        columnId={column.id}
+        columnKey={column.key}
+        value={value}
+        people={people}
+      />
+    );
+  }
+
+  // Status: colored grid picker (+ label editor for employees).
+  if (column.type === "status") {
+    return (
+      <StatusCell
+        boardId={boardId}
+        taskId={task.id}
+        column={column}
+        value={value}
+        canEditLabels={canEditLabels}
+      />
+    );
   }
 
   const isName = column.key === "name";
@@ -43,93 +70,7 @@ export default function EditableCell({
 
   const dim = pending ? 0.5 : 1;
 
-  // Person (PM / Macher): avatar bubble; click to pick.
-  if (column.type === "person") {
-    if (editing) {
-      return (
-        <select
-          autoFocus
-          value={current}
-          disabled={pending}
-          onChange={(e) => {
-            save(e.target.value);
-            setEditing(false);
-          }}
-          onBlur={() => setEditing(false)}
-          style={{
-            background: "var(--input-bg)",
-            color: "var(--text)",
-            border: "1px solid var(--accent)",
-            borderRadius: 6,
-            padding: "4px 8px",
-            fontSize: 13,
-            cursor: "pointer",
-            maxWidth: 170,
-          }}
-        >
-          <option value="">—</option>
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    const person = people.find((p) => p.id === current);
-    return (
-      <span
-        onClick={() => setEditing(true)}
-        title={person ? person.name : "Zuweisen"}
-        style={{
-          display: "inline-flex",
-          cursor: "pointer",
-          opacity: dim,
-        }}
-      >
-        {person ? <Avatar name={person.name} /> : <EmptyAvatar />}
-      </span>
-    );
-  }
-
-  // Status: full-cell colored dropdown (monday-style).
-  if (column.type === "status") {
-    const options: StatusOption[] = column.options.options ?? [];
-    const color =
-      options.find((o) => o.label === current)?.color ?? "transparent";
-    return (
-      <select
-        value={current}
-        disabled={pending}
-        onChange={(e) => save(e.target.value)}
-        style={{
-          opacity: dim,
-          appearance: "none",
-          WebkitAppearance: "none",
-          display: "block",
-          width: "100%",
-          height: 40,
-          textAlign: "center",
-          textAlignLast: "center",
-          background: current ? color : "transparent",
-          color: current ? "#fff" : "var(--muted)",
-          border: "none",
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
-      >
-        <option value="">—</option>
-        {options.map((o) => (
-          <option key={o.label} value={o.label}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  // Everything else: click to edit an input of the right type.
+  // Text / date / number / link: click to edit.
   if (editing) {
     const inputType =
       column.type === "date"

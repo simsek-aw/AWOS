@@ -1,24 +1,24 @@
 :root {
-  /* Light "monday-like" palette */
-  --bg: #f6f7fb; /* app canvas */
-  --surface: #ffffff; /* panels, cards, drawer, rows */
-  --panel: #ffffff; /* legacy alias of surface */
-  --surface-2: #eef0f5; /* subtle alternate surface */
-  --active: #d9ecff; /* selected / highlighted (light blue) */
-  --border: #e2e4ee;
-  --text: #1f2129;
-  --muted: #676879; /* secondary text */
-  --faint: #a3a7b5; /* placeholders, em-dashes */
-  --input-bg: #ffffff;
-  --sidebar-bg: #ffffff;
-  --topbar-bg: #ffffff;
+  /* Dark "monday-like" palette */
+  --bg: #12151f; /* app canvas */
+  --surface: #1c2030; /* panels, cards, drawer, rows */
+  --panel: #1c2030; /* legacy alias of surface */
+  --surface-2: #262b3d; /* subtle alternate surface */
+  --active: #2b3350; /* selected / highlighted */
+  --border: #2c3142;
+  --text: #e8eaf0;
+  --muted: #9aa1b8; /* secondary text */
+  --faint: #6b7189; /* placeholders, em-dashes */
+  --input-bg: #12151f;
+  --sidebar-bg: #12151f;
+  --topbar-bg: #0e111a;
   --accent: #0073ea; /* monday blue */
-  --danger: #d0364c;
-  --danger-bg: #fdeaed;
+  --danger: #e2445c;
+  --danger-bg: #3a1f28;
   --ok: #00c875;
-  --ok-text: #0b7a45;
-  --ok-bg: #e7f8ef;
-  --shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+  --ok-text: #7ee2b0;
+  --ok-bg: #163a2a;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
 
 * {

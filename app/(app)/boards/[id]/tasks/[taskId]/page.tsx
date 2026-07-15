@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import EditableCell from "@/components/board/EditableCell";
 import MentionTextarea from "@/components/board/MentionTextarea";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
@@ -18,7 +19,6 @@ import {
   deleteAttachment,
   deleteTask,
   releaseToCustomer,
-  saveTask,
   uploadAttachment,
 } from "../../actions";
 
@@ -170,12 +170,7 @@ export default async function TaskDetail({
     ? releaseToCustomer.bind(null, id, taskId)
     : null;
 
-  const save = saveTask.bind(
-    null,
-    id,
-    taskId,
-    editable.map((c) => c.id),
-  );
+  const nameColumn = (columns ?? []).find((c) => c.key === "name");
   const comment = addComment.bind(null, id, taskId);
   const remove = deleteTask.bind(null, id, taskId);
 
@@ -238,29 +233,38 @@ export default async function TaskDetail({
           </p>
         )}
 
-        <form action={save} style={{ display: "grid", gap: 14, marginTop: 12 }}>
-          <label style={labelStyle}>
-            Name
-            <input
-              type="text"
-              name="title"
-              defaultValue={task.title}
-              required
-              style={inputStyle}
-            />
-          </label>
+        <div style={{ marginTop: 12, marginBottom: 4 }}>
+          <div style={{ fontSize: 20, fontWeight: 600 }}>
+            {nameColumn ? (
+              <EditableCell
+                boardId={id}
+                task={task}
+                column={nameColumn}
+                value={task.title}
+                people={people}
+                canEditLabels={isEmployee}
+              />
+            ) : (
+              task.title
+            )}
+          </div>
+        </div>
 
+        <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
           {editable.map((c) => (
-            <label key={c.id} style={labelStyle}>
-              {c.label}
-              <ColumnInput column={c} value={valueByColumn.get(c.id)} people={people} />
-            </label>
+            <div key={c.id} style={{ display: "grid", gap: 4 }}>
+              <label style={{ fontSize: 12, color: "var(--muted)" }}>{c.label}</label>
+              <EditableCell
+                boardId={id}
+                task={task}
+                column={c}
+                value={valueByColumn.get(c.id)}
+                people={people}
+                canEditLabels={isEmployee}
+              />
+            </div>
           ))}
-
-          <button type="submit" style={primaryButton}>
-            Speichern
-          </button>
-        </form>
+        </div>
 
         {isEmployee && (
           <form action={remove} style={{ marginTop: 12 }}>
@@ -423,56 +427,6 @@ export default async function TaskDetail({
   );
 }
 
-function ColumnInput({
-  column,
-  value,
-  people,
-}: {
-  column: Column;
-  value: unknown;
-  people: Person[];
-}) {
-  const name = `col_${column.id}`;
-  const current = value == null ? "" : String(value);
-
-  if (column.type === "status") {
-    const options = column.options.options ?? [];
-    return (
-      <select name={name} defaultValue={current} style={inputStyle}>
-        <option value="">—</option>
-        {options.map((o) => (
-          <option key={o.label} value={o.label}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  if (column.type === "person") {
-    return (
-      <select name={name} defaultValue={current} style={inputStyle}>
-        <option value="">—</option>
-        {people.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  const type =
-    column.type === "date"
-      ? "date"
-      : column.type === "link"
-        ? "url"
-        : column.type === "number"
-          ? "number"
-          : "text";
-
-  return <input type={type} name={name} defaultValue={current} style={inputStyle} />;
-}
 
 const labelStyle: React.CSSProperties = {
   display: "grid",

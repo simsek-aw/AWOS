@@ -89,6 +89,7 @@ export default async function BoardPage({
           people={people}
           commentCounts={commentCounts}
           currentUserId={ctx.userId}
+          isEmployee={ctx.profile.role === "employee"}
         />
       </div>
     </>

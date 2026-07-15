@@ -22,6 +22,7 @@ export default function BoardTable({
   people,
   commentCounts,
   currentUserId,
+  isEmployee,
 }: {
   boardId: string;
   boardName: string;
@@ -31,6 +32,7 @@ export default function BoardTable({
   people: Person[];
   commentCounts: Record<string, number>;
   currentUserId: string;
+  isEmployee: boolean;
 }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -162,30 +164,23 @@ export default function BoardTable({
                         >
                           {c.key === "name" ? (
                             <div
+                              onClick={() => setOpenTaskId(t.id)}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "space-between",
                                 gap: 8,
+                                cursor: "pointer",
                               }}
+                              title="Task öffnen"
                             >
-                              <EditableCell
-                                boardId={boardId}
-                                task={t}
-                                column={c}
-                                value={t.title}
-                                people={people}
-                              />
-                              <button
-                                onClick={() => setOpenTaskId(t.id)}
-                                title="Öffnen / Kommentare"
-                                style={commentBtn}
-                              >
+                              <span style={{ fontWeight: 500 }}>{t.title}</span>
+                              <span style={commentBtn}>
                                 💬
                                 {commentCounts[t.id] ? (
                                   <span style={countBadge}>{commentCounts[t.id]}</span>
                                 ) : null}
-                              </button>
+                              </span>
                             </div>
                           ) : (
                             <EditableCell
@@ -194,6 +189,7 @@ export default function BoardTable({
                               column={c}
                               value={valueOf(t.id, c.id)}
                               people={people}
+                              canEditLabels={isEmployee}
                             />
                           )}
                         </td>
@@ -269,6 +265,7 @@ export default function BoardTable({
           values={values.filter((v) => v.task_id === openTask.id)}
           people={people}
           currentUserId={currentUserId}
+          isEmployee={isEmployee}
           onClose={() => setOpenTaskId(null)}
         />
       )}
@@ -329,9 +326,11 @@ function FooterCell({
     const seen = new Set<string>();
     for (const t of tasks) {
       const v = valueOf(t.id, column.id);
-      if (v && !seen.has(String(v))) {
-        seen.add(String(v));
-        const name = peopleById.get(String(v));
+      const idList = Array.isArray(v) ? v.map(String) : v ? [String(v)] : [];
+      for (const id of idList) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const name = peopleById.get(id);
         if (name) names.push(name);
       }
     }
