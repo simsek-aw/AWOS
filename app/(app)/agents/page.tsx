@@ -25,10 +25,11 @@ export default async function AgentsPage() {
           cta="Chat öffnen"
         />
         <AgentCard
+          href="/agents/creative"
           icon="sparkles"
           title="Creative-Agent"
-          desc={'Ad-Ideen (Headlines, Sublines, CTAs) – direkt im Task über „Creative-Ideen".'}
-          note="Im Task verfügbar"
+          desc="Ad-Ideen entwickeln und iterativ nachschärfen: Headlines, Sublines, CTAs, Visual-Ideen."
+          cta="Chat öffnen"
         />
       </div>
 

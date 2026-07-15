@@ -1,18 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { askAwosAssistant } from "@/app/(app)/agents/actions";
 import Icon from "@/components/icons";
 import type { ChatMessage } from "@/lib/agent/assistant";
 
-const EXAMPLES = [
-  "Was ist diese Woche überfällig?",
-  "Welche Aufgaben haben keine Deadline?",
-  "Wer hat aktuell die meisten offenen Aufgaben?",
-  "Fasse die offenen Aufgaben pro Board zusammen.",
-];
-
-export default function AssistantChat() {
+// Generic agent chat UI. The server action is passed in, so the same component
+// backs the AWOS assistant, the creative agent, etc.
+export default function AgentChat({
+  action,
+  examples,
+  intro,
+  placeholder = "Nachricht schreiben…",
+}: {
+  action: (history: ChatMessage[]) => Promise<string>;
+  examples: string[];
+  intro: string;
+  placeholder?: string;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,7 +34,7 @@ export default function AssistantChat() {
     setInput("");
     setBusy(true);
     try {
-      const reply = await askAwosAssistant(next);
+      const reply = await action(next);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch {
       setMessages((prev) => [
@@ -58,11 +62,9 @@ export default function AssistantChat() {
       <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
         {messages.length === 0 && (
           <div style={{ color: "var(--muted)", fontSize: 14 }}>
-            <p style={{ marginTop: 0 }}>
-              Frag mich etwas zu deinen Boards und Aufgaben. Zum Beispiel:
-            </p>
+            <p style={{ marginTop: 0 }}>{intro}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {EXAMPLES.map((ex) => (
+              {examples.map((ex) => (
                 <button
                   key={ex}
                   onClick={() => send(ex)}
@@ -74,6 +76,7 @@ export default function AssistantChat() {
                     color: "var(--text)",
                     fontSize: 13,
                     cursor: "pointer",
+                    textAlign: "left",
                   }}
                 >
                   {ex}
@@ -103,8 +106,7 @@ export default function AssistantChat() {
                   background:
                     m.role === "user" ? "var(--accent)" : "var(--surface-2)",
                   color: m.role === "user" ? "#fff" : "var(--text)",
-                  border:
-                    m.role === "user" ? "none" : "1px solid var(--border)",
+                  border: m.role === "user" ? "none" : "1px solid var(--border)",
                 }}
               >
                 {m.content}
@@ -113,7 +115,7 @@ export default function AssistantChat() {
           ))}
           {busy && (
             <div style={{ color: "var(--faint)", fontSize: 13 }}>
-              Assistent denkt nach …
+              Denkt nach …
             </div>
           )}
           <div ref={endRef} />
@@ -135,7 +137,7 @@ export default function AssistantChat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Frage stellen…"
+          placeholder={placeholder}
           disabled={busy}
           style={{
             flex: 1,

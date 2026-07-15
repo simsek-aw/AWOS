@@ -1,4 +1,4 @@
-import { askAwosAssistant } from "@/app/(app)/agents/actions";
+import { askCreativeAgent } from "@/app/(app)/agents/actions";
 import AgentChat from "@/components/agents/AgentChat";
 import Icon from "@/components/icons";
 import { requireEmployee } from "@/lib/auth";
@@ -6,13 +6,13 @@ import { requireEmployee } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const EXAMPLES = [
-  "Was ist diese Woche überfällig?",
-  "Welche Aufgaben haben keine Deadline?",
-  "Wer hat aktuell die meisten offenen Aufgaben?",
-  "Fasse die offenen Aufgaben pro Board zusammen.",
+  "Sommer-Landingpage für einen Reiseanbieter – gib mir Headlines.",
+  "5 CTAs für eine B2B-Softwarekampagne.",
+  "Instagram-Captions für eine neue Grafik-Serie, locker und jung.",
+  "Claim-Ideen für einen regionalen Handwerksbetrieb.",
 ];
 
-export default async function AssistantPage() {
+export default async function CreativePage() {
   await requireEmployee();
 
   return (
@@ -33,13 +33,13 @@ export default async function AssistantPage() {
           gap: 8,
         }}
       >
-        <Icon name="sparkles" size={20} /> AWOS-Assistent
+        <Icon name="sparkles" size={20} /> Creative-Agent
       </h1>
       <AgentChat
-        action={askAwosAssistant}
+        action={askCreativeAgent}
         examples={EXAMPLES}
-        intro="Frag mich etwas zu deinen Boards und Aufgaben. Zum Beispiel:"
-        placeholder="Frage stellen…"
+        intro="Beschreib das Produkt oder die Kampagne – ich liefere Ideen, die du dann nachschärfen kannst. Zum Beispiel:"
+        placeholder="Briefing oder Feedback…"
       />
     </div>
   );
