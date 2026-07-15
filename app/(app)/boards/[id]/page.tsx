@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { createGroup } from "./actions";
-import BoardTable from "@/components/board/BoardTable";
+import BoardView from "@/components/board/BoardView";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -108,23 +107,6 @@ export default async function BoardPage({
     if (created) groupList = [created];
   }
 
-  const allTasks = tasks ?? [];
-
-  // Group tasks by group_id. Any task whose group is missing/null falls into
-  // the first group so nothing is ever hidden.
-  const firstGroupId = groupList[0]?.id ?? null;
-  const tasksByGroup = new Map<string, Task[]>();
-  for (const g of groupList) tasksByGroup.set(g.id, []);
-  for (const t of allTasks) {
-    const key =
-      t.group_id && tasksByGroup.has(t.group_id)
-        ? t.group_id
-        : firstGroupId;
-    if (key) tasksByGroup.get(key)!.push(t);
-  }
-
-  const createGroupBound = createGroup.bind(null, id);
-
   return (
     <>
       <RealtimeRefresh
@@ -183,44 +165,19 @@ export default async function BoardPage({
           </div>
         )}
 
-        {groupList.map((g) => (
-          <BoardTable
-            key={g.id}
+        {!groupsProblem && (
+          <BoardView
             boardId={id}
             boardName={board.name}
-            group={g}
             columns={columns ?? []}
-            tasks={tasksByGroup.get(g.id) ?? []}
+            groups={groupList}
+            tasks={tasks ?? []}
             values={values ?? []}
             people={people}
             commentCounts={commentCounts}
             currentUserId={ctx.userId}
             isEmployee={ctx.profile.role === "employee"}
           />
-        ))}
-
-        {!groupsProblem && (
-          <form action={createGroupBound}>
-            <button
-              type="submit"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                padding: "10px 16px",
-                color: "var(--text)",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-              Neue Gruppe hinzufügen
-            </button>
-          </form>
         )}
       </div>
     </>

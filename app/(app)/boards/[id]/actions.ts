@@ -106,6 +106,24 @@ export async function deleteGroup(boardId: string, groupId: string) {
   revalidatePath(`/boards/${boardId}`);
 }
 
+/** Move a task to another group (drag & drop between groups). */
+export async function moveTask(
+  boardId: string,
+  taskId: string,
+  groupId: string,
+) {
+  const supabase = await createServerSupabase();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ group_id: groupId })
+    .eq("id", taskId);
+  if (error) {
+    console.error("moveTask failed", { boardId, taskId, groupId, error });
+    throw new Error(`Task konnte nicht verschoben werden: ${error.message}`);
+  }
+  revalidatePath(`/boards/${boardId}`);
+}
+
 /** Inline: rename a task (the "Name" column). */
 export async function renameTask(
   boardId: string,

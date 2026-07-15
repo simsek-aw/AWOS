@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { renameTask, setCellValue } from "@/app/(app)/boards/[id]/actions";
 import { shortId } from "@/components/columns";
 import type { Column, Person, Task } from "@/lib/types";
@@ -23,7 +23,10 @@ export default function EditableCell({
   canEditLabels?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  // Optimistic override: show the new value immediately, before the server
+  // round-trip + refetch lands. Reset whenever fresh server data arrives.
+  const [draft, setDraft] = useState<string | null>(null);
 
   // Task-ID: read-only.
   if (column.key === "task_id") {
@@ -58,17 +61,23 @@ export default function EditableCell({
   }
 
   const isName = column.key === "name";
-  const current = isName ? task.title : value == null ? "" : String(value);
+  const serverValue = isName ? task.title : value == null ? "" : String(value);
+  const current = draft ?? serverValue;
+
+  // When the server value changes (a refetch landed), drop the optimistic
+  // draft so we display the confirmed truth.
+  useEffect(() => {
+    setDraft(null);
+  }, [serverValue]);
 
   const save = (next: string) => {
     if (next === current) return;
+    setDraft(next); // instant UI update
     startTransition(async () => {
       if (isName) await renameTask(boardId, task.id, next);
       else await setCellValue(boardId, task.id, column.id, column.key, next);
     });
   };
-
-  const dim = pending ? 0.5 : 1;
 
   // Text / date / number / link: click to edit.
   if (editing) {
@@ -115,7 +124,6 @@ export default function EditableCell({
         minWidth: 60,
         minHeight: 20,
         cursor: "text",
-        opacity: dim,
         color: current ? "var(--text)" : "var(--faint)",
       }}
       title="Zum Bearbeiten klicken"

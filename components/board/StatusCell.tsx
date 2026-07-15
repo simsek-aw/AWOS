@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { setCellValue, updateColumnOptions } from "@/app/(app)/boards/[id]/actions";
 import type { Column, StatusOption } from "@/lib/types";
 import Popover from "./Popover";
@@ -25,13 +25,21 @@ export default function StatusCell({
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const options: StatusOption[] = column.options.options ?? [];
-  const current = value == null ? "" : String(value);
+  const serverValue = value == null ? "" : String(value);
+  const current = draft ?? serverValue;
   const color = options.find((o) => o.label === current)?.color ?? "transparent";
+
+  // Drop the optimistic value once the server round-trip refetch lands.
+  useEffect(() => {
+    setDraft(null);
+  }, [serverValue]);
 
   const pick = (label: string) => {
     setRect(null);
+    setDraft(label); // instant UI update
     setCellValue(boardId, taskId, column.id, column.key, label);
   };
 

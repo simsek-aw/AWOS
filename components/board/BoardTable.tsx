@@ -35,6 +35,9 @@ export default function BoardTable({
   commentCounts,
   currentUserId,
   isEmployee,
+  onTaskDragStart,
+  onGroupDrop,
+  dragActive = false,
 }: {
   boardId: string;
   boardName: string;
@@ -46,11 +49,15 @@ export default function BoardTable({
   commentCounts: Record<string, number>;
   currentUserId: string;
   isEmployee: boolean;
+  onTaskDragStart?: (taskId: string) => void;
+  onGroupDrop?: (groupId: string) => void;
+  dragActive?: boolean;
 }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const valueMap = useMemo(() => {
     const m = new Map<string, Map<string, unknown>>();
@@ -83,15 +90,37 @@ export default function BoardTable({
   const valueOf = (taskId: string, columnId: string) =>
     valueMap.get(taskId)?.get(columnId) ?? null;
 
+  const isDropTarget = dragActive && dragOver;
+
   return (
     <div
+      onDragOver={(e) => {
+        if (!onGroupDrop) return;
+        e.preventDefault();
+        if (!dragOver) setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        // Only clear when the pointer actually leaves the container.
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDragOver(false);
+      }}
+      onDrop={(e) => {
+        if (!onGroupDrop) return;
+        e.preventDefault();
+        setDragOver(false);
+        onGroupDrop(group.id);
+      }}
       style={{
         borderLeft: `4px solid ${accent}`,
         borderRadius: 6,
         overflow: "hidden",
         background: "var(--surface)",
-        border: "1px solid var(--border)",
+        border: `1px solid ${isDropTarget ? "var(--accent)" : "var(--border)"}`,
         borderLeftWidth: 4,
+        boxShadow: isDropTarget
+          ? "0 0 0 2px var(--accent) inset"
+          : undefined,
+        transition: "box-shadow 120ms, border-color 120ms",
       }}
     >
       {/* Group header */}
@@ -203,7 +232,27 @@ export default function BoardTable({
                           : undefined,
                     }}
                   >
-                    <td style={{ ...td, textAlign: "center" }}>
+                    <td style={{ ...td, textAlign: "center", whiteSpace: "nowrap" }}>
+                      {onTaskDragStart && (
+                        <span
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", t.id);
+                            onTaskDragStart(t.id);
+                          }}
+                          title="Ziehen, um in eine andere Gruppe zu verschieben"
+                          style={{
+                            cursor: "grab",
+                            color: "var(--faint)",
+                            marginRight: 4,
+                            fontSize: 13,
+                            userSelect: "none",
+                          }}
+                        >
+                          ⠿
+                        </span>
+                      )}
                       <input
                         type="checkbox"
                         checked={isSel}

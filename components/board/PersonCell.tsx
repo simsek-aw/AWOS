@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { setPeople } from "@/app/(app)/boards/[id]/actions";
 import type { Person } from "@/lib/types";
 import { Avatar, AvatarStack, EmptyAvatar } from "./Avatar";
@@ -31,6 +31,14 @@ export default function PersonCell({
   const [q, setQ] = useState("");
   const [ids, setIds] = useState<string[]>(() => toIds(value));
   const triggerRef = useRef<HTMLSpanElement>(null);
+
+  // Keep local (optimistic) selection in sync when fresh server data arrives,
+  // e.g. after a realtime refresh or an edit made elsewhere.
+  const serverIdsKey = toIds(value).join(",");
+  useEffect(() => {
+    setIds(toIds(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverIdsKey]);
 
   const selected = people.filter((p) => ids.includes(p.id));
   const filtered = people.filter((p) =>
