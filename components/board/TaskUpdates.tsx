@@ -10,6 +10,7 @@ import {
 } from "react";
 import { postComment, toggleLike } from "@/app/(app)/boards/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
+import Icon from "@/components/icons";
 import type { Comment, Person, TaskEvent, TaskSuggestion } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import MentionTextarea from "./MentionTextarea";
@@ -309,19 +310,23 @@ export default function TaskUpdates({
               onClick={() => like(cm.id)}
               style={{
                 ...linkBtn,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
                 color: myLikes.has(cm.id) ? "var(--accent)" : "var(--muted)",
               }}
             >
-              👍 Liken{likes[cm.id] ? ` (${likes[cm.id]})` : ""}
+              <Icon name="like" size={15} /> Liken
+              {likes[cm.id] ? ` (${likes[cm.id]})` : ""}
             </button>
             {!isReply && (
               <button
                 onClick={() =>
                   setReplyTo((r) => (r === cm.id ? null : cm.id))
                 }
-                style={linkBtn}
+                style={{ ...linkBtn, display: "inline-flex", alignItems: "center", gap: 5 }}
               >
-                ↩ Antworten
+                <Icon name="reply" size={15} /> Antworten
               </button>
             )}
           </div>
@@ -380,7 +385,11 @@ export default function TaskUpdates({
             fontSize: 13,
           }}
         >
-          <span style={{ fontWeight: 700 }}>🤖 Triage-Vorschlag</span>
+          <span
+            style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <Icon name="sparkles" size={16} /> Triage-Vorschlag
+          </span>
           {suggestion.department && (
             <span>
               Abteilung: <strong>{deptLabel[suggestion.department] ?? suggestion.department}</strong>
@@ -425,7 +434,9 @@ export default function TaskUpdates({
             marginBottom: 16,
           }}
         >
-          <span style={{ fontSize: 16, lineHeight: 1.4 }}>🤖</span>
+          <span style={{ color: "var(--accent)", display: "inline-flex", paddingTop: 1 }}>
+            <Icon name="sparkles" size={16} />
+          </span>
           <div>
             <div
               style={{

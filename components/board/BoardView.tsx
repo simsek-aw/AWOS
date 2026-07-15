@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { createGroup, moveTask } from "@/app/(app)/boards/[id]/actions";
-import type {
-  Column,
-  Group,
-  Person,
-  Task,
-  TaskValue,
-} from "@/lib/types";
+import { createGroup, createTask, moveTask } from "@/app/(app)/boards/[id]/actions";
+import Icon, { type IconName } from "@/components/icons";
+import type { Column, Group, Person, Task, TaskValue } from "@/lib/types";
+import { Avatar } from "./Avatar";
 import BoardTable from "./BoardTable";
+import Popover from "./Popover";
 
 type DeadlineFilter = "all" | "overdue" | "today" | "week" | "none";
 
@@ -55,8 +52,6 @@ export default function BoardView({
   autoOpenTaskId?: string | null;
   highlightCommentId?: string | null;
 }) {
-  // Local, optimistic copy of tasks so drag & drop moves feel instant. Resynced
-  // whenever fresh server data arrives (the prop reference changes on refetch).
   const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
   useEffect(() => {
     setLocalTasks(tasks);
@@ -64,16 +59,17 @@ export default function BoardView({
 
   const [, startTransition] = useTransition();
 
-  // --- Filters -------------------------------------------------------------
-  const [pmFilter, setPmFilter] = useState("");
-  const [macherFilter, setMacherFilter] = useState("");
+  // --- Toolbar state -------------------------------------------------------
+  const [search, setSearch] = useState("");
+  const [personFilter, setPersonFilter] = useState("");
   const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("all");
+  const [sortColId, setSortColId] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const pmCol = columns.find((c) => c.key === "pm");
   const macherCol = columns.find((c) => c.key === "macher");
   const deadlineCol = columns.find((c) => c.key === "deadline");
 
-  // task_id -> (column_id -> value)
   const valueMap = useMemo(() => {
     const m = new Map<string, Map<string, unknown>>();
     for (const v of values) {
@@ -83,8 +79,8 @@ export default function BoardView({
     return m;
   }, [values]);
 
-  const filtersActive =
-    !!pmFilter || !!macherFilter || deadlineFilter !== "all";
+  const activeFilterCount =
+    (personFilter ? 1 : 0) + (deadlineFilter !== "all" ? 1 : 0);
 
   const { todayS, weekEndS } = useMemo(() => {
     const now = new Date();
@@ -95,11 +91,13 @@ export default function BoardView({
 
   const passesFilter = (t: Task): boolean => {
     const vals = valueMap.get(t.id);
-    if (pmFilter && pmCol) {
-      if (!toIds(vals?.get(pmCol.id)).includes(pmFilter)) return false;
-    }
-    if (macherFilter && macherCol) {
-      if (!toIds(vals?.get(macherCol.id)).includes(macherFilter)) return false;
+    if (search && !t.title.toLowerCase().includes(search.toLowerCase()))
+      return false;
+    if (personFilter) {
+      const inPm = pmCol && toIds(vals?.get(pmCol.id)).includes(personFilter);
+      const inMa =
+        macherCol && toIds(vals?.get(macherCol.id)).includes(personFilter);
+      if (!inPm && !inMa) return false;
     }
     if (deadlineFilter !== "all" && deadlineCol) {
       const raw = vals?.get(deadlineCol.id);
@@ -119,6 +117,16 @@ export default function BoardView({
     return true;
   };
 
+  const sortValue = (t: Task): string => {
+    if (!sortColId) return "";
+    const col = columns.find((c) => c.id === sortColId);
+    if (!col) return "";
+    if (col.key === "name") return t.title;
+    if (col.key === "task_id") return t.id;
+    const v = valueMap.get(t.id)?.get(sortColId);
+    return Array.isArray(v) ? v.map(String).join(",") : v ? String(v) : "";
+  };
+
   const firstGroupId = groups[0]?.id ?? null;
   const tasksByGroup = useMemo(() => {
     const filtered = localTasks.filter(passesFilter);
@@ -129,9 +137,28 @@ export default function BoardView({
         t.group_id && byGroup.has(t.group_id) ? t.group_id : firstGroupId;
       if (key) byGroup.get(key)!.push(t);
     }
+    if (sortColId) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      for (const list of byGroup.values()) {
+        list.sort(
+          (a, b) =>
+            sortValue(a).localeCompare(sortValue(b), "de", { numeric: true }) *
+            dir,
+        );
+      }
+    }
     return byGroup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localTasks, groups, pmFilter, macherFilter, deadlineFilter, valueMap]);
+  }, [
+    localTasks,
+    groups,
+    search,
+    personFilter,
+    deadlineFilter,
+    sortColId,
+    sortDir,
+    valueMap,
+  ]);
 
   // --- Drag & drop between groups -----------------------------------------
   const draggingRef = useRef<string | null>(null);
@@ -142,7 +169,6 @@ export default function BoardView({
     setDragActive(true);
   };
 
-  // Optimistically move a task into another group, then persist.
   const applyMove = (taskId: string, groupId: string) => {
     const t = localTasks.find((x) => x.id === taskId);
     if (!t || t.group_id === groupId) return;
@@ -161,6 +187,19 @@ export default function BoardView({
 
   const createGroupBound = createGroup.bind(null, boardId);
 
+  const newTask = () => {
+    if (!firstGroupId) return;
+    const fd = new FormData();
+    fd.set("title", "Neue Aufgabe");
+    startTransition(() => createTask(boardId, firstGroupId, fd));
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setPersonFilter("");
+    setDeadlineFilter("all");
+  };
+
   return (
     <div
       onDragEnd={() => {
@@ -169,72 +208,130 @@ export default function BoardView({
       }}
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      {/* Filter bar */}
+      {/* Toolbar */}
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
           alignItems: "center",
-          gap: 10,
+          gap: 8,
         }}
       >
-        <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>
-          Filter:
-        </span>
-        {pmCol && (
-          <FilterSelect
-            label={pmCol.label}
-            value={pmFilter}
-            onChange={setPmFilter}
-            options={[
-              { value: "", label: `Alle (${pmCol.label})` },
-              ...people.map((p) => ({ value: p.id, label: p.name })),
-            ]}
-          />
-        )}
-        {macherCol && (
-          <FilterSelect
-            label={macherCol.label}
-            value={macherFilter}
-            onChange={setMacherFilter}
-            options={[
-              { value: "", label: `Alle (${macherCol.label})` },
-              ...people.map((p) => ({ value: p.id, label: p.name })),
-            ]}
-          />
-        )}
-        {deadlineCol && (
-          <FilterSelect
-            label={deadlineCol.label}
-            value={deadlineFilter}
-            onChange={(v) => setDeadlineFilter(v as DeadlineFilter)}
-            options={[
-              { value: "all", label: `Alle (${deadlineCol.label})` },
-              { value: "overdue", label: "Überfällig" },
-              { value: "today", label: "Heute" },
-              { value: "week", label: "Nächste 7 Tage" },
-              { value: "none", label: "Ohne Datum" },
-            ]}
-          />
-        )}
-        {filtersActive && (
-          <button
-            onClick={() => {
-              setPmFilter("");
-              setMacherFilter("");
-              setDeadlineFilter("all");
-            }}
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "6px 12px",
-              color: "var(--muted)",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            Filter zurücksetzen
+        <button onClick={newTask} style={primaryBtn}>
+          <Icon name="plus" size={16} /> Neu: Task
+        </button>
+
+        <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 4px" }} />
+
+        <ToolbarMenu icon="search" label="Suchen" active={!!search} width={280}>
+          {() => (
+            <div style={{ padding: 10 }}>
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Nach Titel suchen…"
+                style={inputStyle}
+              />
+            </div>
+          )}
+        </ToolbarMenu>
+
+        <ToolbarMenu icon="user" label="Person" active={!!personFilter} width={260}>
+          {(close) => (
+            <PersonPicker
+              people={people}
+              value={personFilter}
+              onPick={(id) => {
+                setPersonFilter(id);
+                close();
+              }}
+            />
+          )}
+        </ToolbarMenu>
+
+        <ToolbarMenu
+          icon="filter"
+          label="Filter"
+          badge={activeFilterCount}
+          active={activeFilterCount > 0}
+          width={240}
+        >
+          {(close) => (
+            <div style={{ padding: 10, display: "grid", gap: 4 }}>
+              <div style={menuHead}>{deadlineCol?.label ?? "Deadline"}</div>
+              {(
+                [
+                  ["all", "Alle"],
+                  ["overdue", "Überfällig"],
+                  ["today", "Heute"],
+                  ["week", "Nächste 7 Tage"],
+                  ["none", "Ohne Datum"],
+                ] as [DeadlineFilter, string][]
+              ).map(([val, lbl]) => (
+                <button
+                  key={val}
+                  onClick={() => {
+                    setDeadlineFilter(val);
+                    close();
+                  }}
+                  style={{
+                    ...menuItem,
+                    color: deadlineFilter === val ? "var(--accent)" : "var(--text)",
+                    fontWeight: deadlineFilter === val ? 600 : 400,
+                  }}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          )}
+        </ToolbarMenu>
+
+        <ToolbarMenu icon="sort" label="Sortieren" active={!!sortColId} width={260}>
+          {() => (
+            <div style={{ padding: 10, display: "grid", gap: 8 }}>
+              <select
+                value={sortColId}
+                onChange={(e) => setSortColId(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Standard (Reihenfolge)</option>
+                {columns
+                  .filter((c) => c.key !== "task_id")
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+              </select>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["asc", "desc"] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setSortDir(d)}
+                    disabled={!sortColId}
+                    style={{
+                      ...menuItem,
+                      flex: 1,
+                      textAlign: "center",
+                      border: "1px solid var(--border)",
+                      background:
+                        sortDir === d ? "var(--active)" : "transparent",
+                      color: sortColId ? "var(--text)" : "var(--faint)",
+                    }}
+                  >
+                    {d === "asc" ? "Aufsteigend" : "Absteigend"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </ToolbarMenu>
+
+        {(activeFilterCount > 0 || search) && (
+          <button onClick={resetFilters} style={ghostBtn}>
+            <Icon name="x" size={14} /> Zurücksetzen
           </button>
         )}
       </div>
@@ -265,64 +362,182 @@ export default function BoardView({
       ))}
 
       <form action={createGroupBound}>
-        <button
-          type="submit"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "10px 16px",
-            color: "var(--text)",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-          Neue Gruppe hinzufügen
+        <button type="submit" style={ghostBtn}>
+          <Icon name="plus" size={16} /> Neue Gruppe hinzufügen
         </button>
       </form>
     </div>
   );
 }
 
-function FilterSelect({
+function ToolbarMenu({
+  icon,
   label,
-  value,
-  onChange,
-  options,
+  active,
+  badge,
+  width = 240,
+  children,
 }: {
+  icon: IconName;
   label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  active?: boolean;
+  badge?: number;
+  width?: number;
+  children: (close: () => void) => React.ReactNode;
 }) {
-  const active = value !== "" && value !== "all";
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const ref = useRef<HTMLButtonElement>(null);
   return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        background: "var(--input-bg)",
-        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-        borderRadius: 8,
-        padding: "6px 10px",
-        color: active ? "var(--text)" : "var(--muted)",
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: "pointer",
-        maxWidth: 200,
-      }}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <>
+      <button
+        ref={ref}
+        onClick={() =>
+          setRect(ref.current?.getBoundingClientRect() ?? null)
+        }
+        style={{
+          ...toolBtn,
+          borderColor: active ? "var(--accent)" : "var(--border)",
+          color: active ? "var(--text)" : "var(--muted)",
+        }}
+      >
+        <Icon name={icon} size={16} />
+        {label}
+        {badge ? ` / ${badge}` : ""}
+        <Icon name="chevron-down" size={13} style={{ opacity: 0.7 }} />
+      </button>
+      {rect && (
+        <Popover rect={rect} width={width} onClose={() => setRect(null)}>
+          {children(() => setRect(null))}
+        </Popover>
+      )}
+    </>
   );
 }
+
+function PersonPicker({
+  people,
+  value,
+  onPick,
+}: {
+  people: Person[];
+  value: string;
+  onPick: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const filtered = people.filter((p) =>
+    p.name.toLowerCase().includes(q.toLowerCase()),
+  );
+  return (
+    <div style={{ padding: 8 }}>
+      <input
+        autoFocus
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Suchen…"
+        style={inputStyle}
+      />
+      <div style={{ marginTop: 6, maxHeight: 240, overflowY: "auto" }}>
+        <button
+          onClick={() => onPick("")}
+          style={{ ...menuItem, color: value ? "var(--muted)" : "var(--accent)" }}
+        >
+          Alle Personen
+        </button>
+        {filtered.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => onPick(p.id)}
+            style={{
+              ...menuItem,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: value === p.id ? "var(--active)" : "transparent",
+            }}
+          >
+            <Avatar name={p.name} size={22} />
+            <span>{p.name}</span>
+          </button>
+        ))}
+        {filtered.length === 0 && (
+          <div style={{ padding: 8, color: "var(--faint)", fontSize: 13 }}>
+            Keine Treffer.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const primaryBtn: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "var(--accent)",
+  color: "#fff",
+  border: "none",
+  borderRadius: 8,
+  padding: "8px 14px",
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const toolBtn: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "transparent",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "7px 12px",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const ghostBtn: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "8px 14px",
+  color: "var(--muted)",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  background: "var(--input-bg)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "8px 10px",
+  color: "var(--text)",
+  fontSize: 14,
+};
+
+const menuItem: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  textAlign: "left",
+  background: "transparent",
+  border: "none",
+  borderRadius: 6,
+  padding: "8px 10px",
+  color: "var(--text)",
+  fontSize: 14,
+  cursor: "pointer",
+};
+
+const menuHead: React.CSSProperties = {
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+  color: "var(--faint)",
+  padding: "2px 10px 4px",
+  fontWeight: 700,
+};

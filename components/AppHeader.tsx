@@ -1,6 +1,7 @@
 "use client";
 
 import type { SessionContext } from "@/lib/auth";
+import Icon from "./icons";
 
 const roleLabel: Record<string, string> = {
   employee: "Mitarbeiter",
@@ -42,7 +43,7 @@ export default function AppHeader({
               alignItems: "center",
             }}
           >
-            ☰
+            <Icon name="menu" size={22} />
           </button>
         )}
         <a

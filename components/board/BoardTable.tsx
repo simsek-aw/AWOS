@@ -14,6 +14,7 @@ import type {
   Task,
   TaskValue,
 } from "@/lib/types";
+import Icon from "@/components/icons";
 import { AvatarStack } from "./Avatar";
 import EditableCell from "./EditableCell";
 import RowMenu from "./RowMenu";
@@ -341,7 +342,7 @@ export default function BoardTable({
                             >
                               <span style={{ fontWeight: 500 }}>{t.title}</span>
                               <span style={commentBtn}>
-                                💬
+                                <Icon name="message" size={15} />
                                 {commentCounts[t.id] ? (
                                   <span style={countBadge}>{commentCounts[t.id]}</span>
                                 ) : null}

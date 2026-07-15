@@ -25,10 +25,11 @@ export default function Shell({
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <div
         style={{
-          height: 36,
+          height: 40,
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
+          gap: 16,
           padding: "0 18px",
           borderBottom: "1px solid var(--border)",
           background: "var(--topbar-bg)",
@@ -36,6 +37,17 @@ export default function Shell({
         }}
       >
         <NotificationBell userId={ctx.userId} />
+        {/* Agency logo (white). Drop the file at public/logo.png (or .svg);
+            it hides itself if the asset is missing. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.png"
+          alt=""
+          style={{ height: 22, width: "auto", objectFit: "contain" }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
       </div>
 
       <AppHeader ctx={ctx} onMenuClick={() => setOpen(true)} />

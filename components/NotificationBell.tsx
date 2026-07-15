@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { markNotificationsRead } from "@/app/(app)/boards/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { Notification } from "@/lib/types";
+import Icon from "./icons";
 
 const LABELS: Record<string, string> = {
   assignment: "Zuweisung",
@@ -92,9 +93,12 @@ export default function NotificationBell({ userId }: { userId: string }) {
           fontSize: 16,
           position: "relative",
           padding: 4,
+          display: "inline-flex",
+          alignItems: "center",
+          color: "var(--text)",
         }}
       >
-        🔔
+        <Icon name="bell" size={18} />
         {unread > 0 && (
           <span
             style={{

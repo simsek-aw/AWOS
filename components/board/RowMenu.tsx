@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { deleteTask, duplicateTask } from "@/app/(app)/boards/[id]/actions";
+import Icon, { type IconName } from "@/components/icons";
 import type { Group } from "@/lib/types";
 import Popover from "./Popover";
 
@@ -51,9 +52,11 @@ export default function RowMenu({
           fontSize: 16,
           lineHeight: 1,
           padding: "0 2px",
+          display: "inline-flex",
+          alignItems: "center",
         }}
       >
-        ⋯
+        <Icon name="more" size={18} />
       </button>
 
       {rect && (
@@ -62,7 +65,7 @@ export default function RowMenu({
             {view === "root" && (
               <>
                 <Item
-                  icon="⤢"
+                  icon="open"
                   label="Task öffnen"
                   onClick={() => {
                     close();
@@ -70,7 +73,7 @@ export default function RowMenu({
                   }}
                 />
                 <Item
-                  icon="↗"
+                  icon="external"
                   label="In neuem Tab öffnen"
                   onClick={() => {
                     close();
@@ -78,7 +81,7 @@ export default function RowMenu({
                   }}
                 />
                 <Item
-                  icon="🔗"
+                  icon="link"
                   label="Task-Link kopieren"
                   onClick={() => {
                     close();
@@ -89,20 +92,20 @@ export default function RowMenu({
                 />
                 <Divider />
                 <Item
-                  icon="→"
+                  icon="arrow-right"
                   label="Verschieben nach"
                   chevron
                   onClick={() => setView("move")}
                 />
                 <Item
-                  icon="⧉"
+                  icon="copy"
                   label="Duplizieren"
                   chevron
                   onClick={() => setView("dup")}
                 />
                 <Divider />
                 <Item
-                  icon="🗑"
+                  icon="trash"
                   label="Löschen"
                   danger
                   onClick={() => {
@@ -121,7 +124,7 @@ export default function RowMenu({
                 {groups.map((g) => (
                   <Item
                     key={g.id}
-                    icon={g.id === currentGroupId ? "•" : "◦"}
+                    icon={g.id === currentGroupId ? "check" : "group"}
                     label={g.name}
                     disabled={g.id === currentGroupId}
                     onClick={() => {
@@ -137,7 +140,7 @@ export default function RowMenu({
               <>
                 <BackRow onBack={() => setView("root")} label="Duplizieren" />
                 <Item
-                  icon="⧉"
+                  icon="copy"
                   label="Mit Inhalten"
                   onClick={() => {
                     close();
@@ -145,7 +148,7 @@ export default function RowMenu({
                   }}
                 />
                 <Item
-                  icon="⌬"
+                  icon="plus"
                   label="Nur Titel"
                   onClick={() => {
                     close();
@@ -169,7 +172,7 @@ function Item({
   chevron,
   disabled,
 }: {
-  icon: string;
+  icon: IconName;
   label: string;
   onClick: () => void;
   danger?: boolean;
@@ -208,9 +211,18 @@ function Item({
         e.currentTarget.style.background = "transparent";
       }}
     >
-      <span style={{ width: 18, textAlign: "center", opacity: 0.8 }}>{icon}</span>
+      <span
+        style={{
+          width: 18,
+          display: "inline-flex",
+          justifyContent: "center",
+          opacity: 0.85,
+        }}
+      >
+        <Icon name={icon} size={16} />
+      </span>
       <span style={{ flex: 1 }}>{label}</span>
-      {chevron && <span style={{ color: "var(--faint)" }}>›</span>}
+      {chevron && <Icon name="chevron-right" size={14} style={{ opacity: 0.6 }} />}
     </button>
   );
 }
@@ -238,7 +250,7 @@ function BackRow({ onBack, label }: { onBack: () => void; label: string }) {
         marginBottom: 4,
       }}
     >
-      ‹ {label}
+      <Icon name="chevron-left" size={14} /> {label}
     </button>
   );
 }
