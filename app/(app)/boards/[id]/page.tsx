@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
+import { createGroup } from "./actions";
 import BoardTable from "@/components/board/BoardTable";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { Board, Column, Task, TaskValue } from "@/lib/types";
+import type { Board, Column, Group, Task, TaskValue } from "@/lib/types";
 
 export default async function BoardPage({
   params,
@@ -28,6 +29,13 @@ export default async function BoardPage({
     .eq("board_id", id)
     .order("position", { ascending: true })
     .returns<Column[]>();
+
+  const { data: groups } = await supabase
+    .from("groups")
+    .select("*")
+    .eq("board_id", id)
+    .order("position", { ascending: true })
+    .returns<Group[]>();
 
   const { data: tasks } = await supabase
     .from("tasks")
@@ -69,6 +77,24 @@ export default async function BoardPage({
     commentCounts[r.task_id] = (commentCounts[r.task_id] ?? 0) + 1;
   }
 
+  const groupList = groups ?? [];
+  const allTasks = tasks ?? [];
+
+  // Group tasks by group_id. Any task whose group is missing/null falls into
+  // the first group so nothing is ever hidden.
+  const firstGroupId = groupList[0]?.id ?? null;
+  const tasksByGroup = new Map<string, Task[]>();
+  for (const g of groupList) tasksByGroup.set(g.id, []);
+  for (const t of allTasks) {
+    const key =
+      t.group_id && tasksByGroup.has(t.group_id)
+        ? t.group_id
+        : firstGroupId;
+    if (key) tasksByGroup.get(key)!.push(t);
+  }
+
+  const createGroupBound = createGroup.bind(null, id);
+
   return (
     <>
       <RealtimeRefresh
@@ -77,20 +103,55 @@ export default async function BoardPage({
           { table: "tasks", filter: `board_id=eq.${id}` },
           { table: "task_values" },
           { table: "comments" },
+          { table: "groups", filter: `board_id=eq.${id}` },
         ]}
       />
-      <div style={{ padding: "24px 28px" }}>
-        <BoardTable
-          boardId={id}
-          boardName={board.name}
-          columns={columns ?? []}
-          tasks={tasks ?? []}
-          values={values ?? []}
-          people={people}
-          commentCounts={commentCounts}
-          currentUserId={ctx.userId}
-          isEmployee={ctx.profile.role === "employee"}
-        />
+      <div
+        style={{
+          padding: "24px 28px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+          {board.name}
+        </h1>
+
+        {groupList.map((g) => (
+          <BoardTable
+            key={g.id}
+            boardId={id}
+            boardName={board.name}
+            group={g}
+            columns={columns ?? []}
+            tasks={tasksByGroup.get(g.id) ?? []}
+            values={values ?? []}
+            people={people}
+            commentCounts={commentCounts}
+            currentUserId={ctx.userId}
+            isEmployee={ctx.profile.role === "employee"}
+          />
+        ))}
+
+        <form action={createGroupBound}>
+          <input
+            type="text"
+            name="name"
+            placeholder="+ Gruppe hinzufügen…"
+            style={{
+              background: "var(--surface)",
+              border: "1px dashed var(--border)",
+              borderRadius: 8,
+              padding: "10px 14px",
+              color: "var(--text)",
+              fontSize: 14,
+              fontWeight: 600,
+              outline: "none",
+              width: 260,
+            }}
+          />
+        </form>
       </div>
     </>
   );

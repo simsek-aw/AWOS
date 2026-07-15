@@ -1,8 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createTask } from "@/app/(app)/boards/[id]/actions";
-import type { Column, Person, StatusOption, Task, TaskValue } from "@/lib/types";
+import {
+  createTask,
+  deleteGroup,
+  renameGroup,
+} from "@/app/(app)/boards/[id]/actions";
+import type {
+  Column,
+  Group,
+  Person,
+  StatusOption,
+  Task,
+  TaskValue,
+} from "@/lib/types";
 import { AvatarStack } from "./Avatar";
 import EditableCell from "./EditableCell";
 import TaskDrawer from "./TaskDrawer";
@@ -16,6 +27,7 @@ function accentFor(name: string): string {
 export default function BoardTable({
   boardId,
   boardName,
+  group,
   columns,
   tasks,
   values,
@@ -26,6 +38,7 @@ export default function BoardTable({
 }: {
   boardId: string;
   boardName: string;
+  group: Group;
   columns: Column[];
   tasks: Task[];
   values: TaskValue[];
@@ -37,6 +50,7 @@ export default function BoardTable({
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [renaming, setRenaming] = useState(false);
 
   const valueMap = useMemo(() => {
     const m = new Map<string, Map<string, unknown>>();
@@ -53,8 +67,8 @@ export default function BoardTable({
   );
 
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null;
-  const createTaskBound = createTask.bind(null, boardId);
-  const accent = accentFor(boardName);
+  const createTaskBound = createTask.bind(null, boardId, group.id);
+  const accent = accentFor(group.name);
 
   const allSelected = tasks.length > 0 && selected.size === tasks.length;
   const toggleAll = () =>
@@ -82,25 +96,71 @@ export default function BoardTable({
     >
       {/* Group header */}
       <div
-        onClick={() => setCollapsed((c) => !c)}
         style={{
           display: "flex",
           alignItems: "center",
           gap: 8,
           padding: "12px 14px",
-          cursor: "pointer",
           userSelect: "none",
         }}
       >
-        <span style={{ color: accent, fontSize: 13 }}>
+        <span
+          onClick={() => setCollapsed((c) => !c)}
+          style={{ color: accent, fontSize: 13, cursor: "pointer" }}
+        >
           {collapsed ? "▸" : "▾"}
         </span>
-        <span style={{ color: accent, fontWeight: 700, fontSize: 18 }}>
-          {boardName}
-        </span>
+        {renaming ? (
+          <input
+            autoFocus
+            defaultValue={group.name}
+            onBlur={(e) => {
+              setRenaming(false);
+              renameGroup(boardId, group.id, e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") setRenaming(false);
+            }}
+            style={{
+              color: accent,
+              fontWeight: 700,
+              fontSize: 18,
+              background: "var(--input-bg)",
+              border: `1px solid ${accent}`,
+              borderRadius: 6,
+              padding: "2px 8px",
+            }}
+          />
+        ) : (
+          <span
+            onClick={() => setRenaming(true)}
+            title="Zum Umbenennen klicken"
+            style={{ color: accent, fontWeight: 700, fontSize: 18, cursor: "text" }}
+          >
+            {group.name}
+          </span>
+        )}
         <span style={{ color: "var(--muted)", fontSize: 13, marginLeft: 6 }}>
           {tasks.length}
         </span>
+        <button
+          onClick={() => {
+            if (confirm(`Gruppe „${group.name}" löschen? Tasks wandern in eine andere Gruppe.`))
+              deleteGroup(boardId, group.id);
+          }}
+          title="Gruppe löschen"
+          style={{
+            marginLeft: "auto",
+            background: "transparent",
+            border: "none",
+            color: "var(--faint)",
+            cursor: "pointer",
+            fontSize: 15,
+          }}
+        >
+          ×
+        </button>
       </div>
 
       {!collapsed && (

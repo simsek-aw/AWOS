@@ -11,15 +11,19 @@ import { createServerSupabase, createServiceClient } from "@/lib/supabase/server
 const BUCKET = "attachments";
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-/** Create a task on a board. RLS ensures the caller may write to this board. */
-export async function createTask(boardId: string, formData: FormData) {
+/** Create a task in a group. RLS ensures the caller may write to this board. */
+export async function createTask(
+  boardId: string,
+  groupId: string,
+  formData: FormData,
+) {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
 
   const supabase = await createServerSupabase();
   const { data: task } = await supabase
     .from("tasks")
-    .insert({ board_id: boardId, title })
+    .insert({ board_id: boardId, group_id: groupId, title })
     .select("id")
     .single<{ id: string }>();
 
@@ -30,6 +34,54 @@ export async function createTask(boardId: string, formData: FormData) {
     after(() => mirrorCustomerTask(task.id));
   }
 
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Create a new group on a board. */
+export async function createGroup(boardId: string, formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim() || "Neue Gruppe";
+  const supabase = await createServerSupabase();
+  const { data: last } = await supabase
+    .from("groups")
+    .select("position")
+    .eq("board_id", boardId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ position: number }>();
+  const position = (last?.position ?? -1) + 1;
+  await supabase.from("groups").insert({ board_id: boardId, name, position });
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Rename a group (one-click edit). */
+export async function renameGroup(
+  boardId: string,
+  groupId: string,
+  name: string,
+) {
+  const n = name.trim();
+  if (!n) return;
+  const supabase = await createServerSupabase();
+  await supabase.from("groups").update({ name: n }).eq("id", groupId);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Delete a group; its tasks move to another group (never orphaned). */
+export async function deleteGroup(boardId: string, groupId: string) {
+  const supabase = await createServerSupabase();
+  const { data: others } = await supabase
+    .from("groups")
+    .select("id")
+    .eq("board_id", boardId)
+    .neq("id", groupId)
+    .order("position", { ascending: true })
+    .returns<{ id: string }[]>();
+  if (!others || others.length === 0) return; // never delete the last group
+  await supabase
+    .from("tasks")
+    .update({ group_id: others[0].id })
+    .eq("group_id", groupId);
+  await supabase.from("groups").delete().eq("id", groupId);
   revalidatePath(`/boards/${boardId}`);
 }
 

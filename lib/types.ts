@@ -52,9 +52,18 @@ export interface Column {
   created_at: string;
 }
 
+export interface Group {
+  id: string;
+  board_id: string;
+  name: string;
+  position: number;
+  created_at: string;
+}
+
 export interface Task {
   id: string;
   board_id: string;
+  group_id: string | null;
   title: string;
   position: number;
   created_by: string | null;

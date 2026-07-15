@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { setCellValue, updateColumnOptions } from "@/app/(app)/boards/[id]/actions";
 import type { Column, StatusOption } from "@/lib/types";
+import Popover from "./Popover";
 
 const PALETTE = [
   "#00c875", "#579bfc", "#a25ddc", "#e2445c", "#fdab3d", "#ff642e",
@@ -22,22 +23,25 @@ export default function StatusCell({
   value: unknown;
   canEditLabels: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
   const [editing, setEditing] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const options: StatusOption[] = column.options.options ?? [];
   const current = value == null ? "" : String(value);
   const color = options.find((o) => o.label === current)?.color ?? "transparent";
 
   const pick = (label: string) => {
-    setOpen(false);
+    setRect(null);
     setCellValue(boardId, taskId, column.id, column.key, label);
   };
 
   return (
     <div style={{ position: "relative" }}>
       <button
+        ref={triggerRef}
         onClick={() => {
-          setOpen(true);
+          if (triggerRef.current)
+            setRect(triggerRef.current.getBoundingClientRect());
           setEditing(false);
         }}
         style={{
@@ -54,27 +58,14 @@ export default function StatusCell({
         {current || "—"}
       </button>
 
-      {open && (
-        <>
-          <div
-            onClick={() => setOpen(false)}
-            style={{ position: "fixed", inset: 0, zIndex: 49 }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 50,
-              width: 320,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              boxShadow: "var(--shadow)",
-              padding: 12,
-            }}
-          >
+      {rect && (
+        <Popover
+          rect={rect}
+          width={320}
+          align="center"
+          onClose={() => setRect(null)}
+        >
+          <div style={{ padding: 12 }}>
             {!editing ? (
               <>
                 <div
@@ -144,12 +135,12 @@ export default function StatusCell({
                 options={options}
                 onDone={() => {
                   setEditing(false);
-                  setOpen(false);
+                  setRect(null);
                 }}
               />
             )}
           </div>
-        </>
+        </Popover>
       )}
     </div>
   );

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { setPeople } from "@/app/(app)/boards/[id]/actions";
 import type { Person } from "@/lib/types";
 import { Avatar, AvatarStack, EmptyAvatar } from "./Avatar";
+import Popover from "./Popover";
 
 function toIds(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String);
@@ -26,27 +27,32 @@ export default function PersonCell({
   value: unknown;
   people: Person[];
 }) {
-  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
   const [q, setQ] = useState("");
   const [ids, setIds] = useState<string[]>(() => toIds(value));
+  const triggerRef = useRef<HTMLSpanElement>(null);
 
   const selected = people.filter((p) => ids.includes(p.id));
   const filtered = people.filter((p) =>
     p.name.toLowerCase().includes(q.toLowerCase()),
   );
 
+  const open = () => {
+    if (triggerRef.current) setRect(triggerRef.current.getBoundingClientRect());
+    setQ("");
+  };
+
   const toggle = (id: string) => {
-    const next = ids.includes(id)
-      ? ids.filter((x) => x !== id)
-      : [...ids, id];
+    const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
     setIds(next);
     setPeople(boardId, taskId, columnId, columnKey, next);
   };
 
   return (
-    <span style={{ position: "relative", display: "inline-flex" }}>
+    <>
       <span
-        onClick={() => setOpen(true)}
+        ref={triggerRef}
+        onClick={open}
         style={{ cursor: "pointer", display: "inline-flex" }}
         title="Zuweisen"
       >
@@ -57,27 +63,9 @@ export default function PersonCell({
         )}
       </span>
 
-      {open && (
-        <>
-          <div
-            onClick={() => setOpen(false)}
-            style={{ position: "fixed", inset: 0, zIndex: 49 }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "110%",
-              left: 0,
-              zIndex: 50,
-              width: 280,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              boxShadow: "var(--shadow)",
-              padding: 8,
-              textAlign: "left",
-            }}
-          >
+      {rect && (
+        <Popover rect={rect} width={280} onClose={() => setRect(null)}>
+          <div style={{ padding: 8 }}>
             <input
               autoFocus
               value={q}
@@ -93,7 +81,7 @@ export default function PersonCell({
                 fontSize: 14,
               }}
             />
-            <div style={{ maxHeight: 240, overflowY: "auto", marginTop: 6 }}>
+            <div style={{ marginTop: 6 }}>
               {filtered.map((p) => {
                 const on = ids.includes(p.id);
                 return (
@@ -123,8 +111,8 @@ export default function PersonCell({
               )}
             </div>
           </div>
-        </>
+        </Popover>
       )}
-    </span>
+    </>
   );
 }
