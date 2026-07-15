@@ -25,11 +25,7 @@ export function deadlineUrgency(
 ): { label: string; tone: "red" | "amber" } | null {
   const d = daysUntil(iso);
   if (d == null) return null;
-  if (d < 0)
-    return {
-      label: d === -1 ? "1 Tag überfällig" : `${Math.abs(d)} Tage überfällig`,
-      tone: "red",
-    };
+  if (d < 0) return { label: "Überfällig", tone: "red" };
   if (d === 0) return { label: "Heute fällig", tone: "red" };
   if (d === 1) return { label: "Noch 1 Tag", tone: "red" };
   if (d <= 3) return { label: `Noch ${d} Tage`, tone: "amber" };

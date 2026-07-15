@@ -29,6 +29,19 @@ function accentFor(name: string): string {
   return `hsl(${h % 360} 70% 55%)`;
 }
 
+// Fixed per-column widths so the layout is stable and columns don't resize with
+// their content (a long task name no longer widens the Name column).
+const CHECKBOX_W = 40;
+const CUSTOMER_W = 140;
+function colWidth(c: Column): number {
+  if (c.key === "task_id") return 96;
+  if (c.key === "name") return 300;
+  if (c.type === "person") return 140;
+  if (c.type === "status") return 170;
+  if (c.type === "date") return 190;
+  return 170; // link / text / number
+}
+
 export default function BoardTable({
   boardId,
   boardName,
@@ -246,7 +259,28 @@ export default function BoardTable({
 
       {!collapsed && (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <table
+            style={{
+              borderCollapse: "collapse",
+              width: "100%",
+              tableLayout: "fixed",
+              minWidth:
+                CHECKBOX_W +
+                columns.reduce((sum, c) => sum + colWidth(c), 0) +
+                (showCustomer ? CUSTOMER_W : 0),
+            }}
+          >
+            <colgroup>
+              <col style={{ width: CHECKBOX_W }} />
+              {columns.map((c) => (
+                <Fragment key={c.id}>
+                  <col style={{ width: colWidth(c) }} />
+                  {showCustomer && c.key === "task_id" && (
+                    <col style={{ width: CUSTOMER_W }} />
+                  )}
+                </Fragment>
+              ))}
+            </colgroup>
             <thead>
               <tr>
                 <th style={{ ...th, width: 40, textAlign: "center" }}>
@@ -359,10 +393,21 @@ export default function BoardTable({
                                 justifyContent: "space-between",
                                 gap: 8,
                                 cursor: "pointer",
+                                minWidth: 0,
                               }}
-                              title="Task öffnen"
+                              title={t.title}
                             >
-                              <span style={{ fontWeight: 500 }}>{t.title}</span>
+                              <span
+                                style={{
+                                  fontWeight: 500,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  minWidth: 0,
+                                }}
+                              >
+                                {t.title}
+                              </span>
                               <span style={commentBtn}>
                                 <Icon name="message" size={15} />
                                 {commentCounts[t.id] ? (
@@ -378,6 +423,7 @@ export default function BoardTable({
                               value={valueOf(t.id, c.id)}
                               people={people}
                               canEditLabels={isEmployee}
+                              fullWidthStatus
                             />
                           )}
                         </td>

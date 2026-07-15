@@ -17,12 +17,14 @@ export default function StatusCell({
   column,
   value,
   canEditLabels,
+  fullWidth = false,
 }: {
   boardId: string;
   taskId: string;
   column: Column;
   value: unknown;
   canEditLabels: boolean;
+  fullWidth?: boolean;
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [editing, setEditing] = useState(false);
@@ -65,9 +67,23 @@ export default function StatusCell({
         }}
       >
         {current ? (
-          <span style={statusPillStyle(color)}>{current}</span>
+          <span
+            style={
+              fullWidth
+                ? { ...statusPillStyle(color), width: "100%" }
+                : statusPillStyle(color)
+            }
+          >
+            {current}
+          </span>
         ) : (
-          <span style={emptyPillStyle}>—</span>
+          <span
+            style={
+              fullWidth ? { ...emptyPillStyle, width: "100%" } : emptyPillStyle
+            }
+          >
+            —
+          </span>
         )}
       </button>
 

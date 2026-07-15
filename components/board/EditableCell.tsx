@@ -16,6 +16,7 @@ export default function EditableCell({
   value,
   people = [],
   canEditLabels = false,
+  fullWidthStatus = false,
 }: {
   boardId: string;
   task: Task;
@@ -23,6 +24,7 @@ export default function EditableCell({
   value: unknown;
   people?: Person[];
   canEditLabels?: boolean;
+  fullWidthStatus?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [, startTransition] = useTransition();
@@ -75,6 +77,7 @@ export default function EditableCell({
         column={column}
         value={value}
         canEditLabels={canEditLabels}
+        fullWidth={fullWidthStatus}
       />
     );
   }
