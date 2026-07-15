@@ -11,6 +11,11 @@ const LABELS: Record<string, string> = {
   new_task: "Neue Aufgabe",
   comment: "Kommentar",
   reaction: "Reaktion",
+  due_soon: "Bald fällig",
+  overdue: "Überfällig",
+  stale: "Inaktiv",
+  status: "Status",
+  digest: "Tagesüberblick",
 };
 
 export default function NotificationBell({ userId }: { userId: string }) {

@@ -4,7 +4,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/auth"];
+// /api/cron is protected by its own CRON_SECRET check, not the session.
+const PUBLIC_PREFIXES = ["/login", "/auth", "/api/cron"];
 
 // Build the CSP. In production, scripts are locked to a per-request nonce +
 // strict-dynamic (no inline/eval). In development we relax script-src so

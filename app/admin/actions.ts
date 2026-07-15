@@ -30,11 +30,24 @@ export async function createCustomer(formData: FormData) {
   if (!name) fail("Kundenname fehlt");
 
   const svc = createServiceClient();
-  const { error } = await svc.from("customers").insert({ name });
-  if (error) fail("Kunde konnte nicht angelegt werden");
+  const { data: customer, error } = await svc
+    .from("customers")
+    .insert({ name })
+    .select("id")
+    .single<{ id: string }>();
+  if (error || !customer) fail("Kunde konnte nicht angelegt werden");
+
+  // Onboarding: every new customer gets a board straight away (seeded columns
+  // + default group), so there's somewhere to work immediately.
+  await svc.rpc("create_board", {
+    p_name: name,
+    p_type: "customer",
+    p_customer_id: customer.id,
+    p_department: null,
+  });
 
   revalidatePath("/admin");
-  ok("Kunde angelegt");
+  ok("Kunde + Board angelegt");
 }
 
 export async function createInternalBoard(formData: FormData) {

@@ -189,3 +189,17 @@ do $$ begin
   if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='task_summaries') then
     execute 'alter publication supabase_realtime add table public.task_summaries'; end if;
 end $$;
+
+
+-- ---- 0015 automations ----
+create table if not exists task_reminders (
+  task_id uuid not null references tasks (id) on delete cascade,
+  kind text not null,
+  ref text not null,
+  created_at timestamptz not null default now(),
+  primary key (task_id, kind)
+);
+alter table task_reminders enable row level security;
+alter table task_reminders force row level security;
+alter table tasks add column if not exists archived_at timestamptz;
+create index if not exists tasks_archived_idx on tasks (board_id, archived_at);

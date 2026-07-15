@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { syncMirrorForCustomerTask } from "@/lib/agent/mirror";
+import { draftCustomerReply } from "@/lib/agent/reply";
 import { refreshGroupSummaries } from "@/lib/agent/summary";
 import { requireEmployee, requireSession } from "@/lib/auth";
 import {
@@ -12,6 +13,7 @@ import {
   notifyMentions,
   notifyNewInternalTask,
   notifyReaction,
+  notifyStatusChange,
 } from "@/lib/notifications";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 
@@ -258,22 +260,43 @@ export async function setCellValue(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const actorId = user?.id ?? null;
   // Notify the newly assigned "Macher" (person column). RLS-safe: notifyAssignment
   // only notifies users who can access this board.
   if (columnKey === "macher" && v) {
     after(() =>
-      notifyAssignment({
-        boardId,
-        taskId,
-        assigneeId: v,
-        actorId: user?.id ?? null,
-      }),
+      notifyAssignment({ boardId, taskId, assigneeId: v, actorId }),
     );
   }
+
+  // Status automations: notify the task's PM/Macher, auto-move a finished task
+  // into a "Done"/"Fertig" group if the board has one, and (for a mirrored
+  // internal task marked done) draft a customer reply for review.
+  if (columnKey === "status" && v) {
+    after(() => notifyStatusChange({ boardId, taskId, actorId, status: v }));
+    if (v === "Fertig") {
+      const { data: doneGroup } = await supabase
+        .from("groups")
+        .select("id, name")
+        .eq("board_id", boardId)
+        .returns<{ id: string; name: string }[]>();
+      const target = (doneGroup ?? []).find((g) =>
+        /fertig|done|erledigt|archiv/i.test(g.name),
+      );
+      if (target) {
+        await supabase
+          .from("tasks")
+          .update({ group_id: target.id })
+          .eq("id", taskId);
+      }
+      after(() => draftCustomerReply(taskId));
+    }
+  }
+
   after(() =>
     logTaskEvent(
       taskId,
-      user?.id ?? null,
+      actorId,
       "changed",
       v ? `„${columnKey}" auf „${v}" gesetzt` : `„${columnKey}" geleert`,
     ),

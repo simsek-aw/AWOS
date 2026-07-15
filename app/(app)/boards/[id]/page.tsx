@@ -46,6 +46,7 @@ export default async function BoardPage({
     .from("tasks")
     .select("*")
     .eq("board_id", id)
+    .is("archived_at", null)
     .order("created_at", { ascending: true })
     .returns<Task[]>();
 
