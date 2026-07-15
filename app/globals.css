@@ -85,6 +85,10 @@ button {
   .page-pad { padding: 16px 12px !important; }
 }
 
+/* Global search result rows */
+.search-result:hover { background: var(--active); }
+.header-admin:hover { color: var(--text) !important; }
+
 /* Bell swing when there are unread notifications */
 @keyframes awos-bell {
   0%, 50%, 100% { transform: rotate(0deg); }

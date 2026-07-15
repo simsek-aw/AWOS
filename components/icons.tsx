@@ -27,7 +27,9 @@ export type IconName =
   | "copy"
   | "trash"
   | "check"
-  | "group";
+  | "group"
+  | "shield"
+  | "logout";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   menu: <path d="M3 6h18M3 12h18M3 18h18" />,
@@ -115,6 +117,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <rect x="3" y="4" width="18" height="6" rx="1" />
       <rect x="3" y="14" width="18" height="6" rx="1" />
+    </>
+  ),
+  shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
+  logout: (
+    <>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
     </>
   ),
 };
