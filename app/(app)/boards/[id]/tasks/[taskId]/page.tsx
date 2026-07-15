@@ -63,14 +63,26 @@ export default async function TaskDetail({
     .eq("task_id", taskId)
     .returns<TaskValue[]>();
 
+  // Scope selectable/mentionable users to this board (see boards/[id]/page.tsx):
+  // employees always; customers only those of this customer board's company.
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name")
-    .returns<{ id: string; full_name: string | null }[]>();
-  const people: Person[] = (profiles ?? []).map((p) => ({
-    id: p.id,
-    name: p.full_name ?? p.id.slice(0, 8),
-  }));
+    .select("id, full_name, role, customer_id")
+    .returns<
+      {
+        id: string;
+        full_name: string | null;
+        role: "employee" | "customer";
+        customer_id: string | null;
+      }[]
+    >();
+  const people: Person[] = (profiles ?? [])
+    .filter((p) =>
+      p.role === "employee"
+        ? true
+        : board.type === "customer" && p.customer_id === board.customer_id,
+    )
+    .map((p) => ({ id: p.id, name: p.full_name ?? p.id.slice(0, 8) }));
 
   const { data: attachments } = await supabase
     .from("attachments")

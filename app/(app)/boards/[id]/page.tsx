@@ -55,16 +55,28 @@ export default async function BoardPage({
         .returns<TaskValue[]>()
     : { data: [] as TaskValue[] };
 
-  // Users selectable as PM/Macher (RLS-scoped: employees see all, a customer
-  // sees only themselves).
+  // Users selectable as PM/Macher. Scope them to the board so a customer of
+  // one company is never taggable on another company's board:
+  //  - customer board  -> employees + customers of THIS board's customer
+  //  - internal board   -> employees only
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name")
-    .returns<{ id: string; full_name: string | null }[]>();
-  const people = (profiles ?? []).map((p) => ({
-    id: p.id,
-    name: p.full_name ?? p.id.slice(0, 8),
-  }));
+    .select("id, full_name, role, customer_id")
+    .returns<
+      {
+        id: string;
+        full_name: string | null;
+        role: "employee" | "customer";
+        customer_id: string | null;
+      }[]
+    >();
+  const people = (profiles ?? [])
+    .filter((p) =>
+      p.role === "employee"
+        ? true
+        : board.type === "customer" && p.customer_id === board.customer_id,
+    )
+    .map((p) => ({ id: p.id, name: p.full_name ?? p.id.slice(0, 8) }));
 
   // Comment counts per task (RLS-scoped) for the 💬 badge in the name cell.
   const { data: commentRows } = taskIds.length
