@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setAutomation } from "@/app/(app)/agents/actions";
+import { toast } from "@/components/toast";
 import type { AutomationKey } from "@/lib/agent/settings";
 
 // A pill switch that enables/disables one automatic agent.
@@ -18,7 +19,11 @@ export default function AutomationToggle({
   const toggle = () => {
     const next = !on;
     setOn(next); // optimistic
-    start(() => setAutomation(agentKey, next).catch(() => setOn(!next)));
+    start(() =>
+      setAutomation(agentKey, next)
+        .then(() => toast(next ? "Automation aktiviert" : "Automation deaktiviert"))
+        .catch(() => setOn(!next)),
+    );
   };
 
   return (

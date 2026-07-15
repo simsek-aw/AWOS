@@ -1,6 +1,6 @@
+import ProfileNameForm from "@/components/ProfileNameForm";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { updateOwnName } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -37,18 +37,7 @@ export default async function ProfilePage() {
       {/* Name (editable) */}
       <section style={card}>
         <h2 style={cardH}>Name</h2>
-        <form action={updateOwnName} style={{ display: "flex", gap: 8 }}>
-          <input
-            name="full_name"
-            defaultValue={ctx.profile.full_name ?? ""}
-            placeholder="Vor- und Nachname"
-            required
-            style={input}
-          />
-          <button type="submit" style={button}>
-            Speichern
-          </button>
-        </form>
+        <ProfileNameForm initial={ctx.profile.full_name ?? ""} />
       </section>
 
       {/* Account info (read-only) */}
@@ -120,22 +109,3 @@ const card: React.CSSProperties = {
   marginBottom: 16,
 };
 const cardH: React.CSSProperties = { fontSize: 15, margin: "0 0 10px" };
-const input: React.CSSProperties = {
-  flex: 1,
-  background: "var(--input-bg)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  padding: "9px 12px",
-  color: "var(--text)",
-  fontSize: 14,
-};
-const button: React.CSSProperties = {
-  background: "var(--accent)",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "9px 16px",
-  fontWeight: 600,
-  fontSize: 14,
-  cursor: "pointer",
-};

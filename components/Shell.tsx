@@ -5,6 +5,7 @@ import type { SessionContext } from "@/lib/auth";
 import type { Board } from "@/lib/types";
 import AppHeader from "./AppHeader";
 import Sidebar from "./Sidebar";
+import Toaster from "./Toaster";
 
 // App chrome: top bar + header + off-canvas-capable sidebar + main. The sidebar
 // is a static column on desktop and a slide-in drawer (toggled by the header
@@ -37,6 +38,7 @@ export default function Shell({
         {open && <div className="app-scrim" onClick={() => setOpen(false)} />}
         <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>{children}</main>
       </div>
+      <Toaster />
     </div>
   );
 }

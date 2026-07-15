@@ -10,6 +10,7 @@ import {
 } from "@/app/(app)/boards/[id]/actions";
 import Icon, { type IconName } from "@/components/icons";
 import type { Column, Group, Person, Task, TaskValue } from "@/lib/types";
+import { toast } from "@/components/toast";
 import { Avatar } from "./Avatar";
 import BoardTable from "./BoardTable";
 import ColumnsManager from "./ColumnsManager";
@@ -294,7 +295,10 @@ export default function BoardView({
   const saveCurrentView = () => {
     const name = window.prompt("Name der Ansicht?");
     if (name?.trim()) {
-      startTransition(() => saveBoardView(boardId, name.trim(), currentConfig()));
+      startTransition(async () => {
+        await saveBoardView(boardId, name.trim(), currentConfig());
+        toast("Ansicht gespeichert");
+      });
     }
   };
 

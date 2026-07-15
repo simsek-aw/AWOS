@@ -8,6 +8,7 @@ import {
   renameColumn,
 } from "@/app/(app)/boards/[id]/actions";
 import Icon from "@/components/icons";
+import { toast } from "@/components/toast";
 import type { Column } from "@/lib/types";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -85,7 +86,10 @@ export default function ColumnsManager({
             <button
               onClick={() => {
                 if (confirm(`Spalte „${c.label}" löschen? Werte gehen verloren.`))
-                  start(() => deleteColumn(boardId, c.id));
+                  start(async () => {
+                    await deleteColumn(boardId, c.id);
+                    toast("Spalte gelöscht");
+                  });
               }}
               disabled={PROTECTED.has(c.key)}
               title={PROTECTED.has(c.key) ? "Kernspalte" : "Löschen"}
@@ -105,7 +109,10 @@ export default function ColumnsManager({
             onChange={(e) => setNewLabel(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && newLabel.trim()) {
-                start(() => addColumn(boardId, newLabel, newType));
+                start(async () => {
+                  await addColumn(boardId, newLabel, newType);
+                  toast("Spalte hinzugefügt");
+                });
                 setNewLabel("");
               }
             }}
@@ -143,7 +150,10 @@ export default function ColumnsManager({
         <button
           onClick={() => {
             if (newLabel.trim()) {
-              start(() => addColumn(boardId, newLabel, newType));
+              start(async () => {
+                await addColumn(boardId, newLabel, newType);
+                toast("Spalte hinzugefügt");
+              });
               setNewLabel("");
             }
           }}

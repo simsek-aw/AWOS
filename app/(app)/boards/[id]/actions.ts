@@ -739,6 +739,7 @@ export async function markNotificationsRead() {
     .update({ read: true })
     .eq("user_id", user.id)
     .eq("read", false);
+  revalidatePath("/notifications");
 }
 
 /** Save a task's title and its column values (upsert into task_values). */

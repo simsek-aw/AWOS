@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SessionContext } from "@/lib/auth";
 import GlobalSearch from "./GlobalSearch";
 import Icon from "./icons";
@@ -16,6 +16,18 @@ export default function AppHeader({
 }) {
   const isEmployee = ctx.profile.role === "employee";
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Cmd/Ctrl+K opens the search overlay from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <header

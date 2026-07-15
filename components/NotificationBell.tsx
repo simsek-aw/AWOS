@@ -155,6 +155,25 @@ export default function NotificationBell({ userId }: { userId: string }) {
                 Keine Benachrichtigungen.
               </p>
             )}
+            <a
+              href="/notifications"
+              onClick={() => setOpen(false)}
+              style={{
+                display: "block",
+                position: "sticky",
+                top: 0,
+                textAlign: "center",
+                padding: "8px 14px",
+                borderBottom: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--accent)",
+                fontSize: 13,
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              Alle ansehen
+            </a>
             {items.map((n) => {
               let href = "#";
               if (n.board_id && n.task_id) {
