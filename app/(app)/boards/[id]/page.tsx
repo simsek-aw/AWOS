@@ -77,7 +77,21 @@ export default async function BoardPage({
     commentCounts[r.task_id] = (commentCounts[r.task_id] ?? 0) + 1;
   }
 
-  const groupList = groups ?? [];
+  let groupList = groups ?? [];
+
+  // Safety net: a board should never render with zero groups. Normally
+  // create_board() seeds one and 0009_groups.sql backfilled existing boards,
+  // but if one ever ends up empty (edge case, manual DB edit, …) provision a
+  // default group on the fly instead of showing a blank board.
+  if (groupList.length === 0) {
+    const { data: created } = await supabase
+      .from("groups")
+      .insert({ board_id: id, name: "Aufgaben", position: 0 })
+      .select("*")
+      .single<Group>();
+    if (created) groupList = [created];
+  }
+
   const allTasks = tasks ?? [];
 
   // Group tasks by group_id. Any task whose group is missing/null falls into
@@ -135,22 +149,25 @@ export default async function BoardPage({
         ))}
 
         <form action={createGroupBound}>
-          <input
-            type="text"
-            name="name"
-            placeholder="+ Gruppe hinzufügen…"
+          <button
+            type="submit"
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
               background: "var(--surface)",
-              border: "1px dashed var(--border)",
+              border: "1px solid var(--border)",
               borderRadius: 8,
-              padding: "10px 14px",
+              padding: "10px 16px",
               color: "var(--text)",
               fontSize: 14,
               fontWeight: 600,
-              outline: "none",
-              width: 260,
+              cursor: "pointer",
             }}
-          />
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+            Neue Gruppe hinzufügen
+          </button>
         </form>
       </div>
     </>
