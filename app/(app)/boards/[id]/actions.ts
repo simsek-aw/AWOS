@@ -52,6 +52,7 @@ export async function createTask(
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
 
+  const ctx = await requireSession();
   const supabase = await createServerSupabase();
   const { data: task } = await supabase
     .from("tasks")
@@ -59,22 +60,34 @@ export async function createTask(
     .select("id")
     .single<{ id: string }>();
 
-  // A new task should never have an empty status — default it to the status
-  // column's first option (usually "Offen").
+  // Seed default column values on the new task.
   if (task) {
-    const { data: statusCol } = await supabase
+    const { data: cols } = await supabase
       .from("columns")
-      .select("id, options")
+      .select("id, key, options")
       .eq("board_id", boardId)
-      .eq("key", "status")
-      .maybeSingle<{ id: string; options: { options?: { label: string }[] } }>();
-    const firstLabel = statusCol?.options?.options?.[0]?.label ?? "Offen";
+      .in("key", ["status", "pm"])
+      .returns<
+        { id: string; key: string; options: { options?: { label: string }[] } }[]
+      >();
+    const statusCol = cols?.find((c) => c.key === "status");
+    const pmCol = cols?.find((c) => c.key === "pm");
+
+    const seedRows: { task_id: string; column_id: string; value: unknown }[] = [];
+    // A new task should never have an empty status — default it to the status
+    // column's first option (usually "Offen").
     if (statusCol) {
-      await supabase.from("task_values").insert({
-        task_id: task.id,
-        column_id: statusCol.id,
-        value: firstLabel,
-      });
+      const firstLabel = statusCol.options?.options?.[0]?.label ?? "Offen";
+      seedRows.push({ task_id: task.id, column_id: statusCol.id, value: firstLabel });
+    }
+    // Pre-select the creator as PM (saves a click). Only for employees — a PM
+    // is an agency project manager, so a customer creating a task is left
+    // unassigned for the team to pick up.
+    if (pmCol && ctx.profile.role === "employee") {
+      seedRows.push({ task_id: task.id, column_id: pmCol.id, value: [ctx.userId] });
+    }
+    if (seedRows.length) {
+      await supabase.from("task_values").insert(seedRows);
     }
   }
 
@@ -82,10 +95,7 @@ export async function createTask(
   // customer tasks are notified from the mirror agent.) Mirroring itself is NOT
   // triggered on creation — it fires on the customer's first comment.
   if (task) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const actorId = user?.id ?? null;
+    const actorId = ctx.userId;
     after(() => notifyNewInternalTask({ boardId, taskId: task.id, actorId }));
     after(() => logTaskEvent(task.id, actorId, "created", "Task erstellt"));
   }

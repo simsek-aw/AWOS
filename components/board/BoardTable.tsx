@@ -33,6 +33,7 @@ function accentFor(name: string): string {
 // their content (a long task name no longer widens the Name column).
 const CHECKBOX_W = 40;
 const CUSTOMER_W = 140;
+const COMMENT_W = 56;
 function colWidth(c: Column): number {
   if (c.key === "task_id") return 96;
   if (c.key === "name") return 300;
@@ -267,7 +268,8 @@ export default function BoardTable({
               minWidth:
                 CHECKBOX_W +
                 columns.reduce((sum, c) => sum + colWidth(c), 0) +
-                (showCustomer ? CUSTOMER_W : 0),
+                (showCustomer ? CUSTOMER_W : 0) +
+                COMMENT_W,
             }}
           >
             <colgroup>
@@ -280,6 +282,7 @@ export default function BoardTable({
                   )}
                 </Fragment>
               ))}
+              <col style={{ width: COMMENT_W }} />
             </colgroup>
             <thead>
               <tr>
@@ -304,6 +307,7 @@ export default function BoardTable({
                     )}
                   </Fragment>
                 ))}
+                <th style={{ ...th, borderRight: "none", textAlign: "center" }} />
               </tr>
             </thead>
 
@@ -390,7 +394,6 @@ export default function BoardTable({
                               style={{
                                 display: "flex",
                                 alignItems: "center",
-                                justifyContent: "space-between",
                                 gap: 8,
                                 cursor: "pointer",
                                 minWidth: 0,
@@ -407,12 +410,6 @@ export default function BoardTable({
                                 }}
                               >
                                 {t.title}
-                              </span>
-                              <span style={commentBtn}>
-                                <Icon name="message" size={15} />
-                                {commentCounts[t.id] ? (
-                                  <span style={countBadge}>{commentCounts[t.id]}</span>
-                                ) : null}
                               </span>
                             </div>
                           ) : (
@@ -435,6 +432,32 @@ export default function BoardTable({
                         </Fragment>
                       );
                     })}
+                    {/* Updates bubble — set apart from the columns on the right. */}
+                    <td
+                      onClick={() => setOpenTaskId(t.id)}
+                      style={{
+                        ...td,
+                        borderRight: "none",
+                        borderLeft: "2px solid var(--border)",
+                        textAlign: "center",
+                        cursor: "pointer",
+                      }}
+                      title="Updates öffnen"
+                    >
+                      <span
+                        style={{
+                          ...commentBtn,
+                          color: commentCounts[t.id]
+                            ? "var(--accent)"
+                            : "var(--faint)",
+                        }}
+                      >
+                        <Icon name="message" size={16} />
+                        {commentCounts[t.id] ? (
+                          <span style={countBadge}>{commentCounts[t.id]}</span>
+                        ) : null}
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
@@ -442,7 +465,7 @@ export default function BoardTable({
               {tasks.length === 0 && (
                 <tr>
                   <td
-                    colSpan={columns.length + 1 + (showCustomer ? 1 : 0)}
+                    colSpan={columns.length + 2 + (showCustomer ? 1 : 0)}
                     style={{ ...td, color: "var(--faint)" }}
                   >
                     Noch keine Tasks.
@@ -450,35 +473,10 @@ export default function BoardTable({
                 </tr>
               )}
 
-              {/* Add row */}
-              <tr>
-                <td />
-                <td
-                  colSpan={columns.length + (showCustomer ? 1 : 0)}
-                  style={{ ...td, borderRight: "none" }}
-                >
-                  <form action={createTaskBound} style={{ display: "flex", gap: 8 }}>
-                    <input
-                      type="text"
-                      name="title"
-                      placeholder="+ Element hinzufügen…"
-                      required
-                      style={{
-                        flex: 1,
-                        maxWidth: 360,
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--text)",
-                        fontSize: 14,
-                        outline: "none",
-                      }}
-                    />
-                    <button type="submit" style={addBtn}>
-                      Hinzufügen
-                    </button>
-                  </form>
-                </td>
-              </tr>
+              <AddTaskRow
+                action={createTaskBound}
+                colSpan={columns.length + (showCustomer ? 1 : 0) + 1}
+              />
             </tbody>
 
             {tasks.length > 0 && (
@@ -500,6 +498,7 @@ export default function BoardTable({
                       )}
                     </Fragment>
                   ))}
+                  <td style={{ ...footTd, borderRight: "none" }} />
                 </tr>
               </tfoot>
             )}
@@ -524,6 +523,62 @@ export default function BoardTable({
         />
       )}
     </div>
+  );
+}
+
+/** Monday-style add row: a subtle inline input with an Enter hint on focus. */
+function AddTaskRow({
+  action,
+  colSpan,
+}: {
+  action: (fd: FormData) => void;
+  colSpan: number;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <>
+      <tr>
+        <td style={{ borderRight: "none" }} />
+        <td colSpan={colSpan} style={{ ...td, borderRight: "none", padding: 6 }}>
+          <form action={action}>
+            <input
+              type="text"
+              name="title"
+              placeholder="+ Task hinzufügen"
+              required
+              autoComplete="off"
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              style={{
+                width: "100%",
+                maxWidth: 420,
+                background: focused ? "var(--input-bg)" : "transparent",
+                border: `1px solid ${focused ? "var(--accent)" : "transparent"}`,
+                borderRadius: 6,
+                padding: "9px 12px",
+                color: "var(--text)",
+                fontSize: 14,
+                outline: "none",
+              }}
+            />
+          </form>
+        </td>
+      </tr>
+      {focused && (
+        <tr>
+          <td style={{ borderRight: "none" }} />
+          <td
+            colSpan={colSpan}
+            style={{ padding: "0 12px 8px", borderRight: "none" }}
+          >
+            <span style={{ color: "var(--faint)", fontSize: 12 }}>
+              <strong style={{ color: "var(--muted)" }}>Enter</strong> drücken um
+              Task zu erstellen
+            </span>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
