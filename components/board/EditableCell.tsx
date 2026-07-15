@@ -81,6 +81,11 @@ export default function EditableCell({
   const serverValue = isName ? task.title : value == null ? "" : String(value);
   const current = draft ?? serverValue;
 
+  // Dates are stored as ISO (YYYY-MM-DD) — the format <input type="date">
+  // needs — but shown to the user as TT.MM.JJJJ.
+  const displayValue =
+    column.type === "date" ? formatDate(current) : current;
+
   // When the server value changes (a refetch landed), drop the optimistic
   // draft so we display the confirmed truth.
   useEffect(() => {
@@ -146,7 +151,13 @@ export default function EditableCell({
       title="Zum Bearbeiten klicken"
     >
       {column.type === "link" && current ? "🔗 " : ""}
-      {current || "—"}
+      {displayValue || "—"}
     </span>
   );
+}
+
+/** ISO date (YYYY-MM-DD) → TT.MM.JJJJ. Passes anything else through. */
+function formatDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
 }

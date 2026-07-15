@@ -175,13 +175,15 @@ export async function syncMirrorForCustomerTask(
       if (!internalBoard) continue; // no board configured for this department
       if (mirroredBoardIds.has(internalBoard.id)) continue; // already mirrored
 
-      const note = await buildNote(context, dept);
-
+      // Create the copy first (title from the customer task) and immediately
+      // seed its fields — BEFORE the slow AI note. Otherwise a slow/failed
+      // Anthropic call can eat the serverless after() budget and leave the copy
+      // created but with an empty Status/Deadline/PM/Macher.
       const { data: internalTask } = await svc
         .from("tasks")
         .insert({
           board_id: internalBoard.id,
-          title: note.internal_title || task.title,
+          title: task.title,
         })
         .select("id")
         .single<{ id: string }>();
@@ -201,11 +203,10 @@ export async function syncMirrorForCustomerTask(
         continue;
       }
 
-      await svc.from("comments").insert({
-        task_id: internalTask.id,
-        is_agent: true,
-        body: `Automatisch gespiegelt aus Kunden-Board „${board.name}" (Abteilung ${dept}).\n\n${note.internal_note}`,
-      });
+      // Seed the fresh copy with the customer task's current PM/Macher/
+      // Deadline/Status/Output so it starts out in sync. Done up-front so it
+      // never depends on the AI call below completing.
+      await copyFields(svc, customerTaskId, [internalTask.id], SYNC_KEYS);
 
       await svc.from("audit_log").insert({
         action: "agent.mirror",
@@ -213,10 +214,6 @@ export async function syncMirrorForCustomerTask(
         entity_id: internalTask.id,
         details: { customer_task_id: customerTaskId, department: dept },
       });
-
-      // Seed the fresh copy with the customer task's current PM/Macher/
-      // Deadline/Status so it starts out in sync.
-      await copyFields(svc, customerTaskId, [internalTask.id], SYNC_KEYS);
 
       // Tell the department a new task arrived (actor null = the agent).
       await notifyNewInternalTask({
@@ -226,7 +223,29 @@ export async function syncMirrorForCustomerTask(
       });
 
       mirroredBoardIds.add(internalBoard.id);
+
+      // Now the (slow, best-effort) AI work order: write a proper internal
+      // title + note. If this stalls or fails, the copy above is already
+      // complete and in sync.
+      const note = await buildNote(context, dept);
+      if (note.internal_title && note.internal_title !== task.title) {
+        await svc
+          .from("tasks")
+          .update({ title: note.internal_title })
+          .eq("id", internalTask.id);
+      }
+      await svc.from("comments").insert({
+        task_id: internalTask.id,
+        is_agent: true,
+        body: `Automatisch gespiegelt aus Kunden-Board „${board.name}" (Abteilung ${dept}).\n\n${note.internal_note}`,
+      });
     }
+
+    // Self-heal: backfill any SYNC field still empty on an existing internal
+    // copy from the customer task. Covers copies created before seeding existed
+    // or when a slow AI note cut the seed short. Never overwrites a non-empty
+    // internal value, so deliberate internal edits are preserved.
+    await backfillEmptyFields(svc, customerTaskId);
   } catch (err) {
     // Never break commenting because mirroring failed.
     console.error("syncMirrorForCustomerTask failed:", err);
@@ -350,6 +369,106 @@ export async function propagateTitleAcrossMirror(
     await svc.from("tasks").update({ title }).in("id", targetIds);
   } catch (err) {
     console.error("propagateTitleAcrossMirror failed:", err);
+  }
+}
+
+function isEmpty(v: unknown): boolean {
+  if (v == null) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === "string") return v.trim() === "";
+  return false;
+}
+
+/**
+ * Fill SYNC fields that are currently empty on any existing internal copy with
+ * the customer task's value. Only touches empty targets, so it never clobbers a
+ * deliberate internal change — it just repairs copies that never got seeded.
+ */
+async function backfillEmptyFields(
+  svc: ReturnType<typeof createServiceClient>,
+  customerTaskId: string,
+): Promise<void> {
+  const { data: links } = await svc
+    .from("task_links")
+    .select("internal_task_id")
+    .eq("customer_task_id", customerTaskId)
+    .returns<{ internal_task_id: string }[]>();
+  const internalIds = (links ?? []).map((l) => l.internal_task_id);
+  if (!internalIds.length) return;
+
+  // Customer-side values by key.
+  const { data: cTask } = await svc
+    .from("tasks")
+    .select("board_id")
+    .eq("id", customerTaskId)
+    .maybeSingle<{ board_id: string }>();
+  if (!cTask) return;
+  const { data: cCols } = await svc
+    .from("columns")
+    .select("id, key")
+    .eq("board_id", cTask.board_id)
+    .in("key", SYNC_KEYS as unknown as string[])
+    .returns<{ id: string; key: string }[]>();
+  const cKeyById = new Map((cCols ?? []).map((c) => [c.id, c.key]));
+  const { data: cVals } = (cCols ?? []).length
+    ? await svc
+        .from("task_values")
+        .select("column_id, value")
+        .eq("task_id", customerTaskId)
+        .in(
+          "column_id",
+          (cCols ?? []).map((c) => c.id),
+        )
+        .returns<{ column_id: string; value: unknown }[]>()
+    : { data: [] as { column_id: string; value: unknown }[] };
+  const valByKey = new Map<string, unknown>();
+  for (const v of cVals ?? []) {
+    const k = cKeyById.get(v.column_id);
+    if (k && !isEmpty(v.value)) valByKey.set(k, v.value);
+  }
+  if (valByKey.size === 0) return;
+
+  // Internal copies + their SYNC columns + current values.
+  const { data: iTasks } = await svc
+    .from("tasks")
+    .select("id, board_id")
+    .in("id", internalIds)
+    .returns<{ id: string; board_id: string }[]>();
+  const iBoardIds = [...new Set((iTasks ?? []).map((t) => t.board_id))];
+  const { data: iCols } = iBoardIds.length
+    ? await svc
+        .from("columns")
+        .select("id, board_id, key")
+        .in("board_id", iBoardIds)
+        .in("key", SYNC_KEYS as unknown as string[])
+        .returns<{ id: string; board_id: string; key: string }[]>()
+    : { data: [] as { id: string; board_id: string; key: string }[] };
+  const iColBy = new Map<string, string>(); // `${board}:${key}` -> columnId
+  for (const c of iCols ?? []) iColBy.set(`${c.board_id}:${c.key}`, c.id);
+
+  const { data: iVals } = internalIds.length
+    ? await svc
+        .from("task_values")
+        .select("task_id, column_id, value")
+        .in("task_id", internalIds)
+        .returns<{ task_id: string; column_id: string; value: unknown }[]>()
+    : { data: [] as { task_id: string; column_id: string; value: unknown }[] };
+  const curVal = new Map<string, unknown>();
+  for (const v of iVals ?? []) curVal.set(`${v.task_id}:${v.column_id}`, v.value);
+
+  const rows: { task_id: string; column_id: string; value: unknown }[] = [];
+  for (const it of iTasks ?? []) {
+    for (const [key, value] of valByKey) {
+      const colId = iColBy.get(`${it.board_id}:${key}`);
+      if (!colId) continue;
+      if (!isEmpty(curVal.get(`${it.id}:${colId}`))) continue; // keep existing
+      rows.push({ task_id: it.id, column_id: colId, value });
+    }
+  }
+  if (rows.length) {
+    await svc
+      .from("task_values")
+      .upsert(rows, { onConflict: "task_id,column_id" });
   }
 }
 

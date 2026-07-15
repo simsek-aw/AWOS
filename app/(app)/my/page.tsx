@@ -104,6 +104,10 @@ export default async function MyTasksPage() {
     });
 
   const today = new Date().toISOString().slice(0, 10);
+  const fmtDate = (iso: string) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
+  };
 
   return (
     <div className="page-pad" style={{ padding: "24px 28px", maxWidth: 880 }}>
@@ -161,7 +165,7 @@ export default async function MyTasksPage() {
                 )}
                 {t.deadline && (
                   <span style={{ color: overdue ? "var(--danger)" : "var(--muted)" }}>
-                    {t.deadline}
+                    {fmtDate(t.deadline)}
                   </span>
                 )}
               </div>
