@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { generateCreatives } from "@/lib/agent/creative";
-import { syncMirrorForCustomerTask } from "@/lib/agent/mirror";
+import {
+  propagateFieldsToMirror,
+  syncMirrorForCustomerTask,
+} from "@/lib/agent/mirror";
 import { draftCustomerReply } from "@/lib/agent/reply";
 import { refreshGroupSummaries } from "@/lib/agent/summary";
 import { suggestTriage } from "@/lib/agent/triage";
@@ -314,6 +317,11 @@ export async function setCellValue(
     }
   }
 
+  // Keep the mirrored internal copies in sync (customer → internal, one-way).
+  if (columnKey === "status" || columnKey === "deadline") {
+    after(() => propagateFieldsToMirror(taskId, [columnKey]));
+  }
+
   after(() =>
     logTaskEvent(
       taskId,
@@ -384,9 +392,11 @@ export async function setPeople(
   }
 
   // Tagging a PM/Macher is what routes a customer task to the internal
-  // department board(s). Re-sync the mirror (no-op on internal boards).
+  // department board(s). Re-sync the mirror (no-op on internal boards) and
+  // push the new assignment down to existing internal copies.
   if (notifyRole) {
     after(() => syncMirrorForCustomerTask(taskId));
+    after(() => propagateFieldsToMirror(taskId, [columnKey]));
   }
 
   {

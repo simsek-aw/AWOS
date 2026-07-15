@@ -214,6 +214,10 @@ export async function syncMirrorForCustomerTask(
         details: { customer_task_id: customerTaskId, department: dept },
       });
 
+      // Seed the fresh copy with the customer task's current PM/Macher/
+      // Deadline/Status so it starts out in sync.
+      await copyFields(svc, customerTaskId, [internalTask.id], SYNC_KEYS);
+
       // Tell the department a new task arrived (actor null = the agent).
       await notifyNewInternalTask({
         boardId: internalBoard.id,
@@ -226,6 +230,104 @@ export async function syncMirrorForCustomerTask(
   } catch (err) {
     // Never break commenting because mirroring failed.
     console.error("syncMirrorForCustomerTask failed:", err);
+  }
+}
+
+// Fields kept in sync from the customer task down to its internal copies.
+export const SYNC_KEYS = ["pm", "macher", "deadline", "status"] as const;
+
+/** Copy the given column keys' values from a customer task to internal copies. */
+async function copyFields(
+  svc: ReturnType<typeof createServiceClient>,
+  customerTaskId: string,
+  internalTaskIds: string[],
+  keys: readonly string[],
+): Promise<void> {
+  if (!internalTaskIds.length || !keys.length) return;
+
+  const { data: cTask } = await svc
+    .from("tasks")
+    .select("board_id")
+    .eq("id", customerTaskId)
+    .maybeSingle<{ board_id: string }>();
+  if (!cTask) return;
+
+  const { data: cCols } = await svc
+    .from("columns")
+    .select("id, key")
+    .eq("board_id", cTask.board_id)
+    .in("key", keys as string[])
+    .returns<{ id: string; key: string }[]>();
+  const keyByCCol = new Map((cCols ?? []).map((c) => [c.id, c.key]));
+  const cColIds = (cCols ?? []).map((c) => c.id);
+
+  const { data: cVals } = cColIds.length
+    ? await svc
+        .from("task_values")
+        .select("column_id, value")
+        .eq("task_id", customerTaskId)
+        .in("column_id", cColIds)
+        .returns<{ column_id: string; value: unknown }[]>()
+    : { data: [] as { column_id: string; value: unknown }[] };
+  const valByKey = new Map<string, unknown>();
+  for (const v of cVals ?? []) {
+    const k = keyByCCol.get(v.column_id);
+    if (k) valByKey.set(k, v.value);
+  }
+
+  const { data: iTasks } = await svc
+    .from("tasks")
+    .select("id, board_id")
+    .in("id", internalTaskIds)
+    .returns<{ id: string; board_id: string }[]>();
+  const boardIds = [...new Set((iTasks ?? []).map((t) => t.board_id))];
+  const { data: iCols } = boardIds.length
+    ? await svc
+        .from("columns")
+        .select("id, board_id, key")
+        .in("board_id", boardIds)
+        .in("key", keys as string[])
+        .returns<{ id: string; board_id: string; key: string }[]>()
+    : { data: [] as { id: string; board_id: string; key: string }[] };
+  const iColBy = new Map<string, string>();
+  for (const c of iCols ?? []) iColBy.set(`${c.board_id}:${c.key}`, c.id);
+
+  const rows: { task_id: string; column_id: string; value: unknown }[] = [];
+  for (const it of iTasks ?? []) {
+    for (const k of keys) {
+      const colId = iColBy.get(`${it.board_id}:${k}`);
+      if (!colId) continue;
+      rows.push({ task_id: it.id, column_id: colId, value: valByKey.get(k) ?? null });
+    }
+  }
+  if (rows.length) {
+    await svc
+      .from("task_values")
+      .upsert(rows, { onConflict: "task_id,column_id" });
+  }
+}
+
+/**
+ * Push edited field(s) from a customer task to all its internal copies. Called
+ * after PM/Macher/Deadline/Status change on a customer board. No-op for tasks
+ * that aren't mirrored. One-way only (customer → internal).
+ */
+export async function propagateFieldsToMirror(
+  customerTaskId: string,
+  keys: readonly string[],
+): Promise<void> {
+  try {
+    const svc = createServiceClient();
+    const { data: links } = await svc
+      .from("task_links")
+      .select("internal_task_id")
+      .eq("customer_task_id", customerTaskId)
+      .returns<{ internal_task_id: string }[]>();
+    const ids = (links ?? []).map((l) => l.internal_task_id);
+    if (!ids.length) return;
+    await copyFields(svc, customerTaskId, ids, keys);
+  } catch (err) {
+    console.error("propagateFieldsToMirror failed:", err);
   }
 }
 
