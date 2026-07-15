@@ -114,6 +114,10 @@ export default function UserMenu({ ctx }: { ctx: SessionContext }) {
             </div>
           </div>
 
+          <a href="/profile" style={menuItem}>
+            <Icon name="user" size={16} />
+            Mein Profil
+          </a>
           {isEmployee && (
             <a href="/admin" style={menuItem}>
               <Icon name="shield" size={16} />
