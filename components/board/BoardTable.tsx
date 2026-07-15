@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import {
   createTask,
   deleteGroup,
@@ -217,20 +217,23 @@ export default function BoardTable({
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} />
                 </th>
                 {columns.map((c) => (
-                  <th
-                    key={c.id}
-                    style={{
-                      ...th,
-                      textAlign:
-                        c.type === "status" || c.type === "person"
-                          ? "center"
-                          : "left",
-                    }}
-                  >
-                    {c.label}
-                  </th>
+                  <Fragment key={c.id}>
+                    <th
+                      style={{
+                        ...th,
+                        textAlign:
+                          c.type === "status" || c.type === "person"
+                            ? "center"
+                            : "left",
+                      }}
+                    >
+                      {c.label}
+                    </th>
+                    {showCustomer && c.key === "task_id" && (
+                      <th style={th}>Kunde</th>
+                    )}
+                  </Fragment>
                 ))}
-                {showCustomer && <th style={th}>Kunde</th>}
               </tr>
             </thead>
 
@@ -303,8 +306,8 @@ export default function BoardTable({
                       const isStatus = c.type === "status";
                       const isPerson = c.type === "person";
                       return (
+                        <Fragment key={c.id}>
                         <td
-                          key={c.id}
                           style={{
                             ...td,
                             padding: isStatus ? 0 : td.padding,
@@ -342,13 +345,14 @@ export default function BoardTable({
                             />
                           )}
                         </td>
+                        {showCustomer && c.key === "task_id" && (
+                          <td style={{ ...td, color: "var(--muted)" }}>
+                            {customerByTask[t.id] ?? "—"}
+                          </td>
+                        )}
+                        </Fragment>
                       );
                     })}
-                    {showCustomer && (
-                      <td style={{ ...td, color: "var(--muted)" }}>
-                        {customerByTask[t.id] ?? "—"}
-                      </td>
-                    )}
                   </tr>
                 );
               })}
@@ -400,16 +404,20 @@ export default function BoardTable({
                 <tr>
                   <td style={footTd} />
                   {columns.map((c) => (
-                    <td key={c.id} style={{ ...footTd, textAlign: "center" }}>
-                      <FooterCell
-                        column={c}
-                        tasks={tasks}
-                        valueOf={valueOf}
-                        peopleById={peopleById}
-                      />
-                    </td>
+                    <Fragment key={c.id}>
+                      <td style={{ ...footTd, textAlign: "center" }}>
+                        <FooterCell
+                          column={c}
+                          tasks={tasks}
+                          valueOf={valueOf}
+                          peopleById={peopleById}
+                        />
+                      </td>
+                      {showCustomer && c.key === "task_id" && (
+                        <td style={footTd} />
+                      )}
+                    </Fragment>
                   ))}
-                  {showCustomer && <td style={footTd} />}
                 </tr>
               </tfoot>
             )}

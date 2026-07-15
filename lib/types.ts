@@ -109,9 +109,19 @@ export interface Attachment {
 export interface Comment {
   id: string;
   task_id: string;
+  parent_id: string | null;
   author_id: string | null;
   is_agent: boolean;
   body: string;
   created_at: string;
   released_at: string | null;
+}
+
+export interface TaskEvent {
+  id: string;
+  task_id: string;
+  actor_id: string | null;
+  kind: "created" | "renamed" | "changed" | "assigned" | "moved" | "commented" | "mirrored";
+  summary: string;
+  created_at: string;
 }

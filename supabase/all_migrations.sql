@@ -820,3 +820,116 @@ update task_links
 
 create unique index if not exists task_links_customer_board_uidx
   on task_links (customer_task_id, internal_board_id);
+
+
+-- ============================================================================
+-- AWOS — 0011 updates: comment replies, likes, and a per-task activity log
+-- ============================================================================
+
+-- Threaded replies: a comment may answer another comment.
+alter table comments add column parent_id uuid references comments (id) on delete cascade;
+create index comments_parent_idx on comments (parent_id);
+
+-- Likes on comments.
+create table comment_likes (
+  comment_id uuid not null references comments (id) on delete cascade,
+  user_id    uuid not null references profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);
+
+alter table comment_likes enable row level security;
+alter table comment_likes force row level security;
+
+create policy comment_likes_select on comment_likes for select to authenticated
+  using (exists (
+    select 1 from comments c join tasks t on t.id = c.task_id
+    where c.id = comment_likes.comment_id and can_access_board(t.board_id)
+  ));
+
+create policy comment_likes_insert on comment_likes for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from comments c join tasks t on t.id = c.task_id
+      where c.id = comment_likes.comment_id and can_access_board(t.board_id)
+    )
+  );
+
+create policy comment_likes_delete on comment_likes for delete to authenticated
+  using (user_id = auth.uid());
+
+-- Per-task activity log. Written server-side (service role); readable by
+-- employees only — it's an internal view of what happened on a task.
+create table task_events (
+  id         uuid primary key default gen_random_uuid(),
+  task_id    uuid not null references tasks (id) on delete cascade,
+  actor_id   uuid references profiles (id) on delete set null,
+  kind       text not null,      -- created | renamed | changed | assigned | moved | commented | mirrored
+  summary    text not null,
+  created_at timestamptz not null default now()
+);
+create index task_events_task_idx on task_events (task_id, created_at);
+
+alter table task_events enable row level security;
+alter table task_events force row level security;
+
+create policy task_events_select on task_events for select to authenticated
+  using (is_employee());
+
+-- Realtime for live likes and activity.
+do $$
+begin
+  execute 'alter table public.comment_likes replica identity full';
+  execute 'alter table public.task_events replica identity full';
+  if not exists (select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='comment_likes') then
+    execute 'alter publication supabase_realtime add table public.comment_likes';
+  end if;
+  if not exists (select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='task_events') then
+    execute 'alter publication supabase_realtime add table public.task_events';
+  end if;
+end $$;
+
+
+-- ============================================================================
+-- AWOS — 0012 column order & Output label
+-- New default order: Task-ID · Name · PM · Macher · Deadline · Output · Status
+-- (the "Kunde" column is a display-only column shown on internal boards, not
+--  stored here). The OneDrive column is relabeled "Output" (key stays onedrive).
+-- ============================================================================
+
+update columns set position = 0                    where key = 'task_id';
+update columns set position = 1                    where key = 'name';
+update columns set position = 2                    where key = 'pm';
+update columns set position = 3                    where key = 'macher';
+update columns set position = 4                    where key = 'deadline';
+update columns set position = 5, label = 'Output'  where key = 'onedrive';
+update columns set position = 6                    where key = 'status';
+
+-- New boards use the same order/labels.
+create or replace function seed_default_columns(p_board_id uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into columns (board_id, key, label, type, position, is_required, options) values
+    (p_board_id, 'task_id',  'Task-ID',   'text',   0, false, '{}'::jsonb),
+    (p_board_id, 'name',     'Name',      'text',   1, true,  '{}'::jsonb),
+    (p_board_id, 'pm',       'PM',        'person', 2, false, '{}'::jsonb),
+    (p_board_id, 'macher',   'Macher',    'person', 3, false, '{}'::jsonb),
+    (p_board_id, 'deadline', 'Deadline',  'date',   4, false, '{}'::jsonb),
+    (p_board_id, 'onedrive', 'Output',    'link',   5, false, '{}'::jsonb),
+    (p_board_id, 'status',   'Status',    'status', 6, false,
+       jsonb_build_object('options', jsonb_build_array(
+         jsonb_build_object('label','Offen',        'color','#9e9e9e'),
+         jsonb_build_object('label','In Arbeit',    'color','#fdab3d'),
+         jsonb_build_object('label','Review',       'color','#579bfc'),
+         jsonb_build_object('label','Fertig',       'color','#00c875')
+       )))
+  on conflict (board_id, key) do nothing;
+end;
+$$;
+
+revoke all on function seed_default_columns(uuid) from public, anon, authenticated;
+grant execute on function seed_default_columns(uuid) to service_role;

@@ -15,6 +15,23 @@ import { createServerSupabase, createServiceClient } from "@/lib/supabase/server
 const BUCKET = "attachments";
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+/** Append a line to a task's activity log. Fire-and-forget (service role). */
+async function logTaskEvent(
+  taskId: string,
+  actorId: string | null,
+  kind: string,
+  summary: string,
+) {
+  try {
+    const svc = createServiceClient();
+    await svc
+      .from("task_events")
+      .insert({ task_id: taskId, actor_id: actorId, kind, summary });
+  } catch (e) {
+    console.error("logTaskEvent failed:", e);
+  }
+}
+
 /** Create a task in a group. RLS ensures the caller may write to this board. */
 export async function createTask(
   boardId: string,
@@ -38,9 +55,9 @@ export async function createTask(
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    after(() =>
-      notifyNewInternalTask({ boardId, taskId: task.id, actorId: user?.id ?? null }),
-    );
+    const actorId = user?.id ?? null;
+    after(() => notifyNewInternalTask({ boardId, taskId: task.id, actorId }));
+    after(() => logTaskEvent(task.id, actorId, "created", "Task erstellt"));
   }
   revalidatePath(`/boards/${boardId}`);
 }
@@ -129,6 +146,22 @@ export async function moveTask(
     console.error("moveTask failed", { boardId, taskId, groupId, error });
     throw new Error(`Task konnte nicht verschoben werden: ${error.message}`);
   }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: g } = await supabase
+    .from("groups")
+    .select("name")
+    .eq("id", groupId)
+    .maybeSingle<{ name: string }>();
+  after(() =>
+    logTaskEvent(
+      taskId,
+      user?.id ?? null,
+      "moved",
+      `In Gruppe „${g?.name ?? "?"}" verschoben`,
+    ),
+  );
   revalidatePath(`/boards/${boardId}`);
 }
 
@@ -192,6 +225,12 @@ export async function renameTask(
   if (!t) return;
   const supabase = await createServerSupabase();
   await supabase.from("tasks").update({ title: t }).eq("id", taskId);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  after(() =>
+    logTaskEvent(taskId, user?.id ?? null, "renamed", `Umbenannt in „${t}"`),
+  );
   revalidatePath(`/boards/${boardId}`);
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
@@ -213,12 +252,12 @@ export async function setCellValue(
       { onConflict: "task_id,column_id" },
     );
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   // Notify the newly assigned "Macher" (person column). RLS-safe: notifyAssignment
   // only notifies users who can access this board.
   if (columnKey === "macher" && v) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     after(() =>
       notifyAssignment({
         boardId,
@@ -228,6 +267,14 @@ export async function setCellValue(
       }),
     );
   }
+  after(() =>
+    logTaskEvent(
+      taskId,
+      user?.id ?? null,
+      "changed",
+      v ? `„${columnKey}" auf „${v}" gesetzt` : `„${columnKey}" geleert`,
+    ),
+  );
 
   revalidatePath(`/boards/${boardId}`);
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
@@ -295,6 +342,22 @@ export async function setPeople(
     after(() => syncMirrorForCustomerTask(taskId));
   }
 
+  {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const roleLabel =
+      columnKey === "pm" ? "PM" : columnKey === "macher" ? "Macher" : columnKey;
+    after(() =>
+      logTaskEvent(
+        taskId,
+        user?.id ?? null,
+        "assigned",
+        `${roleLabel} aktualisiert (${clean.length})`,
+      ),
+    );
+  }
+
   revalidatePath(`/boards/${boardId}`);
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
@@ -317,25 +380,65 @@ export async function updateColumnOptions(
   revalidatePath(`/boards/${boardId}`, "layout");
 }
 
-/** Panel: post a comment (plain-args variant for client components). */
+/** Post a comment or a reply (parentId) on a task. */
 export async function postComment(
   boardId: string,
   taskId: string,
   body: string,
+  parentId?: string | null,
 ) {
   const b = body.trim();
   if (!b) return;
   const ctx = await requireSession();
   const supabase = await createServerSupabase();
-  await supabase
-    .from("comments")
-    .insert({ task_id: taskId, body: b, author_id: ctx.userId });
+  await supabase.from("comments").insert({
+    task_id: taskId,
+    body: b,
+    author_id: ctx.userId,
+    parent_id: parentId ?? null,
+  });
   after(() => notifyMentions({ boardId, taskId, body: b, actorId: ctx.userId }));
   // A comment on a customer task is the briefing → (re)sync the internal
   // mirror. Runs after the response; idempotent and a no-op on internal boards.
   after(() => syncMirrorForCustomerTask(taskId));
+  after(() =>
+    logTaskEvent(
+      taskId,
+      ctx.userId,
+      "commented",
+      parentId ? "Auf einen Kommentar geantwortet" : "Kommentar geschrieben",
+    ),
+  );
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
   revalidatePath(`/boards/${boardId}`);
+}
+
+/** Toggle the current user's like on a comment. */
+export async function toggleLike(
+  boardId: string,
+  taskId: string,
+  commentId: string,
+) {
+  const ctx = await requireSession();
+  const supabase = await createServerSupabase();
+  const { data: existing } = await supabase
+    .from("comment_likes")
+    .select("comment_id")
+    .eq("comment_id", commentId)
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+  if (existing) {
+    await supabase
+      .from("comment_likes")
+      .delete()
+      .eq("comment_id", commentId)
+      .eq("user_id", ctx.userId);
+  } else {
+    await supabase
+      .from("comment_likes")
+      .insert({ comment_id: commentId, user_id: ctx.userId });
+  }
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 
 /** Mark all of the current user's notifications as read. */
@@ -403,6 +506,9 @@ export async function addComment(
 
   after(() => notifyMentions({ boardId, taskId, body, actorId: ctx.userId }));
   after(() => syncMirrorForCustomerTask(taskId));
+  after(() =>
+    logTaskEvent(taskId, ctx.userId, "commented", "Kommentar geschrieben"),
+  );
   revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
 }
 

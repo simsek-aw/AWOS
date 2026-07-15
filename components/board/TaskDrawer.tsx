@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { postComment } from "@/app/(app)/boards/[id]/actions";
 import { shortId } from "@/components/columns";
-import { createClient } from "@/lib/supabase/client";
-import type { Column, Comment, Person, Task, TaskValue } from "@/lib/types";
+import type { Column, Person, Task, TaskValue } from "@/lib/types";
 import EditableCell from "./EditableCell";
-import MentionTextarea from "./MentionTextarea";
+import TaskUpdates from "./TaskUpdates";
 
 const ROW_BOUND = new Set(["task_id"]);
 
@@ -31,38 +28,8 @@ export default function TaskDrawer({
   isEmployee: boolean;
   onClose: () => void;
 }) {
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [body, setBody] = useState("");
-  const [pending, startTransition] = useTransition();
-
   const valueOf = (columnId: string) =>
     values.find((v) => v.column_id === columnId)?.value ?? null;
-
-  const loadComments = async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("comments")
-      .select("*")
-      .eq("task_id", task.id)
-      .order("created_at", { ascending: true })
-      .returns<Comment[]>();
-    setComments(data ?? []);
-  };
-
-  useEffect(() => {
-    loadComments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id]);
-
-  const submit = () => {
-    const text = body.trim();
-    if (!text) return;
-    startTransition(async () => {
-      await postComment(boardId, task.id, text);
-      setBody("");
-      await loadComments();
-    });
-  };
 
   const nameColumn = columns.find((c) => c.key === "name");
   const fields = columns.filter((c) => !ROW_BOUND.has(c.key) && c.key !== "name");
@@ -148,54 +115,16 @@ export default function TaskDrawer({
             href={`/boards/${boardId}/tasks/${task.id}`}
             style={{ display: "inline-block", marginTop: 16, fontSize: 13 }}
           >
-            Vollansicht öffnen (Dateien, Freigabe) →
+            Vollansicht öffnen (Dateien) →
           </a>
 
-          {/* Comments */}
-          <h3 style={{ fontSize: 15, marginTop: 26 }}>Kommentare</h3>
-          <div style={{ display: "grid", gap: 10 }}>
-            {comments.map((cm) => (
-              <div key={cm.id} style={commentStyle}>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  {cm.is_agent
-                    ? "AWOS Agent"
-                    : cm.author_id === currentUserId
-                      ? "Du"
-                      : "Team"}
-                </div>
-                <div>{cm.body}</div>
-              </div>
-            ))}
-            {comments.length === 0 && (
-              <p style={{ color: "var(--faint)", fontSize: 14 }}>Noch keine Kommentare.</p>
-            )}
-          </div>
-
-          <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-            <MentionTextarea
-              people={people}
-              value={body}
-              onChange={setBody}
-              placeholder="Kommentar schreiben… (@ erwähnt jemanden)"
-            />
-            <button
-              onClick={submit}
-              disabled={pending || !body.trim()}
-              style={{
-                justifySelf: "start",
-                background: "var(--accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "9px 16px",
-                fontWeight: 600,
-                cursor: pending ? "default" : "pointer",
-                opacity: pending || !body.trim() ? 0.6 : 1,
-              }}
-            >
-              Kommentieren
-            </button>
-          </div>
+          <TaskUpdates
+            boardId={boardId}
+            taskId={task.id}
+            people={people}
+            currentUserId={currentUserId}
+            isEmployee={isEmployee}
+          />
         </div>
       </div>
     </>
@@ -208,14 +137,4 @@ const closeBtn: React.CSSProperties = {
   color: "var(--muted)",
   fontSize: 16,
   cursor: "pointer",
-};
-
-const commentStyle: React.CSSProperties = {
-  background: "var(--panel)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  padding: "10px 12px",
-  fontSize: 14,
-  display: "grid",
-  gap: 4,
 };

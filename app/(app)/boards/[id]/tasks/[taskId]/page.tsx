@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import EditableCell from "@/components/board/EditableCell";
-import MentionTextarea from "@/components/board/MentionTextarea";
+import TaskUpdates from "@/components/board/TaskUpdates";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
 import { requireSession } from "@/lib/auth";
@@ -9,17 +9,11 @@ import type {
   Attachment,
   Board,
   Column,
-  Comment,
   Person,
   Task,
   TaskValue,
 } from "@/lib/types";
-import {
-  addComment,
-  deleteAttachment,
-  deleteTask,
-  uploadAttachment,
-} from "../../actions";
+import { deleteAttachment, deleteTask, uploadAttachment } from "../../actions";
 
 // Columns bound to the task row itself, not stored in task_values.
 const ROW_BOUND = new Set(["task_id", "name"]);
@@ -170,34 +164,8 @@ export default async function TaskDetail({
     }
   }
 
-  // Comment thread. For an internal task that mirrors a customer task, assemble
-  // the SHARED thread: the customer briefing + every internal copy's comments,
-  // ordered by time. Otherwise just this task's own comments. (Only employees
-  // ever reach an internal task, so the cross-board read stays RLS-safe.)
-  let threadTaskIds: string[] = [taskId];
-  if (customerTaskId) {
-    const { data: sibs } = await supabase
-      .from("task_links")
-      .select("internal_task_id")
-      .eq("customer_task_id", customerTaskId)
-      .returns<{ internal_task_id: string }[]>();
-    threadTaskIds = [
-      customerTaskId,
-      ...(sibs ?? []).map((s) => s.internal_task_id),
-    ];
-  }
-  const { data: comments } = await supabase
-    .from("comments")
-    .select("*")
-    .in("task_id", threadTaskIds)
-    .order("created_at", { ascending: true })
-    .returns<Comment[]>();
-
-  const peopleName = new Map(people.map((p) => [p.id, p.name]));
   const isMirrored = !!customerTaskId;
-
   const nameColumn = (columns ?? []).find((c) => c.key === "name");
-  const comment = addComment.bind(null, id, taskId);
   const remove = deleteTask.bind(null, id, taskId);
 
   return (
@@ -205,11 +173,7 @@ export default async function TaskDetail({
       <RealtimeRefresh
         channel={`task-${taskId}`}
         subscriptions={[
-          // For a mirrored task the thread spans several tasks, so we can't
-          // filter by a single task_id — refresh on any comment change.
-          isMirrored
-            ? { table: "comments" }
-            : { table: "comments", filter: `task_id=eq.${taskId}` },
+          // Comments/likes/activity are handled live inside TaskUpdates.
           { table: "task_values", filter: `task_id=eq.${taskId}` },
           { table: "attachments", filter: `task_id=eq.${taskId}` },
           { table: "tasks", filter: `id=eq.${taskId}` },
@@ -410,77 +374,20 @@ export default async function TaskDetail({
           <p style={{ color: "var(--muted)", fontSize: 12 }}>Max. 10 MB pro Datei.</p>
         </section>
 
-        <section style={{ marginTop: 32 }}>
-          <h2 style={{ fontSize: 16 }}>Kommentare</h2>
-          {isMirrored && (
-            <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
-              Gemeinsamer <strong>interner</strong> Thread aller Abteilungen –
-              inkl. der Kundenkommentare (blau markiert). Was du hier schreibst,
-              sieht der Kunde nicht. Zum Antworten oben „Im Kundenboard
-              antworten" nutzen.
-            </p>
-          )}
-          <div style={{ display: "grid", gap: 10 }}>
-            {(comments ?? []).map((cm) => {
-              const fromCustomer = cm.task_id === customerTaskId;
-              const label = cm.is_agent
-                ? "AWOS Agent"
-                : cm.author_id === ctx.userId
-                  ? "Du"
-                  : (cm.author_id && peopleName.get(cm.author_id)) ||
-                    (fromCustomer ? "Kunde" : "Team");
-              return (
-                <div
-                  key={cm.id}
-                  style={{
-                    ...commentStyle,
-                    borderColor: fromCustomer
-                      ? "var(--accent)"
-                      : "var(--border)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                      {label}
-                    </span>
-                    {fromCustomer && (
-                      <span style={{ fontSize: 11, color: "var(--accent)" }}>
-                        · Kundenboard
-                      </span>
-                    )}
-                  </div>
-                  <div>{cm.body}</div>
-                </div>
-              );
-            })}
-            {(comments ?? []).length === 0 && (
-              <p style={{ color: "var(--faint)" }}>Noch keine Kommentare.</p>
-            )}
-          </div>
-
-          <form action={comment} style={{ display: "grid", gap: 8, marginTop: 12 }}>
-            <MentionTextarea
-              people={people}
-              name="body"
-              placeholder={
-                isMirrored
-                  ? "Interner Kommentar (Kunde sieht das nicht)…"
-                  : board.type === "customer"
-                    ? "Antwort an den Kunden… (@ erwähnt jemanden)"
-                    : "Kommentar schreiben… (@ erwähnt jemanden)"
-              }
-            />
-            <button type="submit" style={primaryButton}>
-              {isMirrored ? "Intern kommentieren" : "Kommentieren"}
-            </button>
-          </form>
-        </section>
+        {isMirrored && (
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 24 }}>
+            Updates hier sind <strong>intern</strong> (inkl. der Kundenkommentare,
+            blau markiert). Zum Antworten an den Kunden oben „Im Kundenboard
+            antworten" nutzen.
+          </p>
+        )}
+        <TaskUpdates
+          boardId={id}
+          taskId={taskId}
+          people={people}
+          currentUserId={ctx.userId}
+          isEmployee={isEmployee}
+        />
       </div>
     </>
   );
@@ -504,16 +411,6 @@ function formatBytes(bytes: number | null): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
-
-const commentStyle: React.CSSProperties = {
-  background: "var(--panel)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  padding: "10px 12px",
-  fontSize: 14,
-  display: "grid",
-  gap: 4,
-};
 
 const dangerButton: React.CSSProperties = {
   background: "transparent",
