@@ -73,6 +73,7 @@ export default function TaskUpdates({
 }) {
   const [tab, setTab] = useState<"updates" | "activity">("updates");
   const [flashId, setFlashId] = useState<string | null>(highlightCommentId);
+  const [summary, setSummary] = useState<string | null>(null);
   const flashRef = useRef<HTMLDivElement | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [likes, setLikes] = useState<Record<string, number>>({});
@@ -141,6 +142,13 @@ export default function TaskUpdates({
       setMyLikes(new Set());
     }
 
+    const { data: sum } = await supabase
+      .from("task_summaries")
+      .select("summary")
+      .eq("task_id", taskId)
+      .maybeSingle<{ summary: string }>();
+    setSummary(sum?.summary ?? null);
+
     if (isEmployee) {
       const { data: evs } = await supabase
         .from("task_events")
@@ -162,7 +170,12 @@ export default function TaskUpdates({
       }
       await load();
       ch = supabase.channel(`updates-${taskId}`);
-      for (const table of ["comments", "comment_likes", "task_events"]) {
+      for (const table of [
+        "comments",
+        "comment_likes",
+        "task_events",
+        "task_summaries",
+      ]) {
         ch.on(
           "postgres_changes",
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -329,6 +342,38 @@ export default function TaskUpdates({
 
   return (
     <section style={{ marginTop: 32 }}>
+      {summary && (
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            background: "rgba(0,115,234,0.08)",
+            border: "1px solid var(--border)",
+            borderLeft: "3px solid var(--accent)",
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginBottom: 16,
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1.4 }}>🤖</span>
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: 0.4,
+                color: "var(--muted)",
+                marginBottom: 2,
+              }}
+            >
+              KI-Zusammenfassung
+            </div>
+            <div style={{ fontSize: 14, lineHeight: 1.5 }}>{summary}</div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: "flex", gap: 20, borderBottom: "1px solid var(--border)" }}>
         <Tab active={tab === "updates"} onClick={() => setTab("updates")}>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { syncMirrorForCustomerTask } from "@/lib/agent/mirror";
+import { refreshGroupSummaries } from "@/lib/agent/summary";
 import { requireEmployee, requireSession } from "@/lib/auth";
 import {
   notifyAssignment,
@@ -420,6 +421,7 @@ export async function postComment(
   // A comment on a customer task is the briefing → (re)sync the internal
   // mirror. Runs after the response; idempotent and a no-op on internal boards.
   after(() => syncMirrorForCustomerTask(taskId));
+  after(() => refreshGroupSummaries(taskId));
   after(() =>
     logTaskEvent(
       taskId,
@@ -536,6 +538,7 @@ export async function addComment(
     notifyComment({ boardId, taskId, actorId: ctx.userId, body, commentId }),
   );
   after(() => syncMirrorForCustomerTask(taskId));
+  after(() => refreshGroupSummaries(taskId));
   after(() =>
     logTaskEvent(taskId, ctx.userId, "commented", "Kommentar geschrieben"),
   );
