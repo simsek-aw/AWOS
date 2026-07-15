@@ -52,17 +52,20 @@ button {
 /* -------- Responsive: off-canvas sidebar + mobile tweaks -------- */
 .app-hamburger { display: none; }
 
-@media (max-width: 768px) {
-  .app-hamburger { display: inline-flex; }
+@media (max-width: 900px) {
+  .app-hamburger { display: inline-flex !important; }
 
-  /* The left board menu slides in from the edge instead of taking a column. */
+  /* The left board menu slides in from the edge instead of taking a column.
+     !important defeats the aside's inline layout styles so it is truly
+     hidden off-screen until toggled open. */
   .app-sidebar {
-    position: fixed;
+    position: fixed !important;
     top: 0;
     bottom: 0;
     left: 0;
+    width: 260px !important;
     z-index: 60;
-    transform: translateX(-100%);
+    transform: translateX(-105%);
     transition: transform 200ms ease;
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
   }
@@ -76,7 +79,7 @@ button {
   }
 
   /* Long "Name · Rolle" text would crowd the small header. */
-  .app-user-meta { display: none; }
+  .app-user-meta { display: none !important; }
 
   /* Slightly tighter page padding on phones. */
   .page-pad { padding: 16px 12px !important; }
