@@ -7,6 +7,7 @@ import {
 } from "@/app/(app)/boards/[id]/actions";
 import { shortId } from "@/components/columns";
 import type { Column, Person, StatusOption, Task } from "@/lib/types";
+import { Avatar, EmptyAvatar } from "./Avatar";
 
 export default function EditableCell({
   boardId,
@@ -42,36 +43,56 @@ export default function EditableCell({
 
   const dim = pending ? 0.5 : 1;
 
-  // Person (PM / Macher): pick a user.
+  // Person (PM / Macher): avatar bubble; click to pick.
   if (column.type === "person") {
+    if (editing) {
+      return (
+        <select
+          autoFocus
+          value={current}
+          disabled={pending}
+          onChange={(e) => {
+            save(e.target.value);
+            setEditing(false);
+          }}
+          onBlur={() => setEditing(false)}
+          style={{
+            background: "var(--input-bg)",
+            color: "var(--text)",
+            border: "1px solid var(--accent)",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 13,
+            cursor: "pointer",
+            maxWidth: 170,
+          }}
+        >
+          <option value="">—</option>
+          {people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    const person = people.find((p) => p.id === current);
     return (
-      <select
-        value={current}
-        disabled={pending}
-        onChange={(e) => save(e.target.value)}
+      <span
+        onClick={() => setEditing(true)}
+        title={person ? person.name : "Zuweisen"}
         style={{
-          opacity: dim,
-          background: "var(--input-bg)",
-          color: current ? "var(--text)" : "var(--muted)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          padding: "4px 8px",
-          fontSize: 13,
+          display: "inline-flex",
           cursor: "pointer",
-          maxWidth: 160,
+          opacity: dim,
         }}
       >
-        <option value="">—</option>
-        {people.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+        {person ? <Avatar name={person.name} /> : <EmptyAvatar />}
+      </span>
     );
   }
 
-  // Status: always a dropdown (click → choose).
+  // Status: full-cell colored dropdown (monday-style).
   if (column.type === "status") {
     const options: StatusOption[] = column.options.options ?? [];
     const color =
@@ -83,15 +104,19 @@ export default function EditableCell({
         onChange={(e) => save(e.target.value)}
         style={{
           opacity: dim,
-          background: current ? color : "var(--input-bg)",
-          color: current ? "#0d0f13" : "var(--muted)",
+          appearance: "none",
+          WebkitAppearance: "none",
+          display: "block",
+          width: "100%",
+          height: 40,
+          textAlign: "center",
+          textAlignLast: "center",
+          background: current ? color : "transparent",
+          color: current ? "#fff" : "var(--muted)",
           border: "none",
-          borderRadius: 6,
-          padding: "3px 8px",
           fontSize: 13,
           fontWeight: 600,
           cursor: "pointer",
-          maxWidth: 160,
         }}
       >
         <option value="">—</option>

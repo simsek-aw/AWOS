@@ -56,6 +56,19 @@ export default async function BoardPage({
     name: p.full_name ?? p.id.slice(0, 8),
   }));
 
+  // Comment counts per task (RLS-scoped) for the 💬 badge in the name cell.
+  const { data: commentRows } = taskIds.length
+    ? await supabase
+        .from("comments")
+        .select("task_id")
+        .in("task_id", taskIds)
+        .returns<{ task_id: string }[]>()
+    : { data: [] as { task_id: string }[] };
+  const commentCounts: Record<string, number> = {};
+  for (const r of commentRows ?? []) {
+    commentCounts[r.task_id] = (commentCounts[r.task_id] ?? 0) + 1;
+  }
+
   return (
     <>
       <RealtimeRefresh
@@ -63,10 +76,10 @@ export default async function BoardPage({
         subscriptions={[
           { table: "tasks", filter: `board_id=eq.${id}` },
           { table: "task_values" },
+          { table: "comments" },
         ]}
       />
       <div style={{ padding: "24px 28px" }}>
-        <h1 style={{ fontSize: 24, marginTop: 0 }}>{board.name}</h1>
         <BoardTable
           boardId={id}
           boardName={board.name}
@@ -74,6 +87,7 @@ export default async function BoardPage({
           tasks={tasks ?? []}
           values={values ?? []}
           people={people}
+          commentCounts={commentCounts}
           currentUserId={ctx.userId}
         />
       </div>
