@@ -33,7 +33,22 @@ export default async function AgentsPage() {
         />
       </div>
 
-      <h2 style={sectionH}>Laufen automatisch</h2>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <h2 style={sectionH}>Laufen automatisch</h2>
+        <a
+          href="/agents/automations"
+          style={{ fontSize: 13, fontWeight: 600, color: "var(--accent)" }}
+        >
+          Verwalten →
+        </a>
+      </div>
       <div style={grid}>
         <AgentCard
           icon="link"

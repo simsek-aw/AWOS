@@ -21,6 +21,7 @@
 // agent has no DB access — this module performs the only writes, via a narrow,
 // fixed set of operations using the service client.
 import Anthropic from "@anthropic-ai/sdk";
+import { automationEnabled } from "@/lib/agent/settings";
 import { notifyNewInternalTask } from "@/lib/notifications";
 import { createServiceClient } from "@/lib/supabase/server";
 import type {
@@ -84,6 +85,7 @@ export async function syncMirrorForCustomerTask(
 ): Promise<void> {
   try {
     const svc = createServiceClient();
+    if (!(await automationEnabled(svc, "mirror"))) return;
 
     const { data: task } = await svc
       .from("tasks")

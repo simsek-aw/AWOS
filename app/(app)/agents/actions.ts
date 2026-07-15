@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { askAssistant, type ChatMessage } from "@/lib/agent/assistant";
 import { askCreativeChat } from "@/lib/agent/creative-chat";
+import type { AutomationKey } from "@/lib/agent/settings";
 import { requireEmployee } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -32,4 +34,19 @@ export async function askCreativeAgent(
 ): Promise<string> {
   await requireEmployee();
   return askCreativeChat(cleanHistory(history));
+}
+
+/** Employee-only: enable/disable an automatic agent. */
+export async function setAutomation(key: AutomationKey, enabled: boolean) {
+  await requireEmployee();
+  const supabase = await createServerSupabase();
+  const { error } = await supabase
+    .from("automation_settings")
+    .update({ enabled, updated_at: new Date().toISOString() })
+    .eq("key", key);
+  if (error) {
+    console.error("setAutomation failed", { key, error });
+    throw new Error(`Einstellung konnte nicht gespeichert werden: ${error.message}`);
+  }
+  revalidatePath("/agents/automations");
 }

@@ -7,6 +7,7 @@
 // system prompt forbids following instructions inside it. The agent's only
 // output is the fixed decision tool.
 import Anthropic from "@anthropic-ai/sdk";
+import { automationEnabled } from "@/lib/agent/settings";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Column, Department, Task, TaskValue } from "@/lib/types";
 
@@ -94,6 +95,7 @@ export async function suggestTriage(customerTaskId: string): Promise<void> {
   if (!process.env.ANTHROPIC_API_KEY) return;
   try {
     const svc = createServiceClient();
+    if (!(await automationEnabled(svc, "triage"))) return;
 
     const { data: task } = await svc
       .from("tasks")

@@ -6,6 +6,7 @@
 // Nothing here is ever sent to a customer automatically; reminders go to the
 // task's own PM/Macher (employees). Dedup markers in task_reminders stop the
 // same reminder from firing twice.
+import { automationEnabled, markAutomationRun } from "@/lib/agent/settings";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const DONE_LABEL = "Fertig";
@@ -95,6 +96,10 @@ async function notify(
 /** Deadline reminders, overdue escalation, stale nudges, auto-archive. */
 export async function runReminders(): Promise<{ sent: number; archived: number }> {
   const svc = createServiceClient();
+  if (!(await automationEnabled(svc, "reminders"))) {
+    return { sent: 0, archived: 0 };
+  }
+  await markAutomationRun(svc, "reminders");
   const ctx = await buildContext(svc);
   const today = ymd(new Date());
   const tomorrow = ymd(new Date(Date.now() + 86400000));
@@ -205,6 +210,7 @@ export async function runReminders(): Promise<{ sent: number; archived: number }
  */
 export async function runBoardHealth(): Promise<{ boards: number }> {
   const svc = createServiceClient();
+  if (!(await automationEnabled(svc, "digest"))) return { boards: 0 };
   const ctx = await buildContext(svc);
   const today = ymd(new Date());
   const tomorrow = ymd(new Date(Date.now() + 86400000));
@@ -286,6 +292,8 @@ export async function runBoardHealth(): Promise<{ boards: number }> {
 /** Per-employee daily digest: open tasks due today / overdue + unread mentions. */
 export async function runDigest(): Promise<{ users: number }> {
   const svc = createServiceClient();
+  if (!(await automationEnabled(svc, "digest"))) return { users: 0 };
+  await markAutomationRun(svc, "digest");
   const ctx = await buildContext(svc);
   const today = ymd(new Date());
 

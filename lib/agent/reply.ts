@@ -6,6 +6,7 @@
 // Prompt-injection safe: the thread is passed as DATA in a delimited block and
 // the system prompt forbids following instructions inside it.
 import Anthropic from "@anthropic-ai/sdk";
+import { automationEnabled } from "@/lib/agent/settings";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const MODEL = "claude-opus-4-8";
@@ -23,6 +24,7 @@ export async function draftCustomerReply(internalTaskId: string): Promise<void> 
   if (!process.env.ANTHROPIC_API_KEY) return;
   try {
     const svc = createServiceClient();
+    if (!(await automationEnabled(svc, "reply"))) return;
 
     // Only for internal tasks that mirror a customer task.
     const { data: link } = await svc
