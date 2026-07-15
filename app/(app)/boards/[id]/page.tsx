@@ -25,55 +25,55 @@ export default async function BoardPage({
     .single<Board>();
   if (!board) notFound();
 
-  const { data: columns } = await supabase
-    .from("columns")
-    .select("*")
-    .eq("board_id", id)
-    .order("position", { ascending: true })
-    .returns<Column[]>();
-
-  const { data: groups, error: groupsError } = await supabase
-    .from("groups")
-    .select("*")
-    .eq("board_id", id)
-    .order("position", { ascending: true })
-    .returns<Group[]>();
+  // Independent queries run in parallel — sequential awaits multiply the
+  // Vercel↔Supabase round-trip latency and were a big part of the click delay.
+  const [
+    { data: columns },
+    { data: groups, error: groupsError },
+    { data: tasks },
+    { data: profiles },
+  ] = await Promise.all([
+    supabase
+      .from("columns")
+      .select("*")
+      .eq("board_id", id)
+      .order("position", { ascending: true })
+      .returns<Column[]>(),
+    supabase
+      .from("groups")
+      .select("*")
+      .eq("board_id", id)
+      .order("position", { ascending: true })
+      .returns<Group[]>(),
+    supabase
+      .from("tasks")
+      .select("*")
+      .eq("board_id", id)
+      .is("archived_at", null)
+      .order("created_at", { ascending: true })
+      .returns<Task[]>(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, role, customer_id")
+      .returns<
+        {
+          id: string;
+          full_name: string | null;
+          role: "employee" | "customer";
+          customer_id: string | null;
+        }[]
+      >(),
+  ]);
   if (groupsError) {
     console.error("boards/[id]: fetching groups failed", { boardId: id, groupsError });
   }
 
-  const { data: tasks } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("board_id", id)
-    .is("archived_at", null)
-    .order("created_at", { ascending: true })
-    .returns<Task[]>();
-
   const taskIds = (tasks ?? []).map((t) => t.id);
-  const { data: values } = taskIds.length
-    ? await supabase
-        .from("task_values")
-        .select("*")
-        .in("task_id", taskIds)
-        .returns<TaskValue[]>()
-    : { data: [] as TaskValue[] };
 
   // Users selectable as PM/Macher. Scope them to the board so a customer of
   // one company is never taggable on another company's board:
   //  - customer board  -> employees + customers of THIS board's customer
   //  - internal board   -> employees only
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, full_name, role, customer_id")
-    .returns<
-      {
-        id: string;
-        full_name: string | null;
-        role: "employee" | "customer";
-        customer_id: string | null;
-      }[]
-    >();
   const people = (profiles ?? [])
     .filter((p) =>
       p.role === "employee"
@@ -82,14 +82,21 @@ export default async function BoardPage({
     )
     .map((p) => ({ id: p.id, name: p.full_name ?? p.id.slice(0, 8) }));
 
-  // Comment counts per task (RLS-scoped) for the 💬 badge in the name cell.
-  const { data: commentRows } = taskIds.length
-    ? await supabase
-        .from("comments")
-        .select("task_id")
-        .in("task_id", taskIds)
-        .returns<{ task_id: string }[]>()
-    : { data: [] as { task_id: string }[] };
+  // Values + comment counts both depend on taskIds → fetch them together.
+  const [{ data: values }, { data: commentRows }] = taskIds.length
+    ? await Promise.all([
+        supabase
+          .from("task_values")
+          .select("*")
+          .in("task_id", taskIds)
+          .returns<TaskValue[]>(),
+        supabase
+          .from("comments")
+          .select("task_id")
+          .in("task_id", taskIds)
+          .returns<{ task_id: string }[]>(),
+      ])
+    : [{ data: [] as TaskValue[] }, { data: [] as { task_id: string }[] }];
   const commentCounts: Record<string, number> = {};
   for (const r of commentRows ?? []) {
     commentCounts[r.task_id] = (commentCounts[r.task_id] ?? 0) + 1;
