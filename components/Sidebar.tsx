@@ -21,8 +21,8 @@ export default function Sidebar({ boards }: { boards: Board[] }) {
       style={{
         width: 240,
         flexShrink: 0,
-        borderRight: "1px solid #222834",
-        background: "#0c0e13",
+        borderRight: "1px solid var(--border)",
+        background: "var(--sidebar-bg)",
         padding: "16px 10px",
         overflowY: "auto",
       }}
@@ -38,7 +38,7 @@ export default function Sidebar({ boards }: { boards: Board[] }) {
       ))}
 
       {boards.length === 0 && (
-        <p style={{ color: "#5b6472", fontSize: 13, padding: "0 8px" }}>
+        <p style={{ color: "var(--faint)", fontSize: 13, padding: "0 8px" }}>
           Noch keine Boards.
         </p>
       )}
@@ -53,7 +53,7 @@ function Group({ title }: { title: string }) {
         fontSize: 11,
         textTransform: "uppercase",
         letterSpacing: 0.6,
-        color: "#5b6472",
+        color: "var(--faint)",
         padding: "14px 8px 6px",
       }}
     >
@@ -73,8 +73,8 @@ function BoardLink({ board, active }: { board: Board; active: boolean }) {
         padding: "8px 10px",
         borderRadius: 8,
         textDecoration: "none",
-        color: active ? "#fff" : "var(--muted)",
-        background: active ? "#1c2430" : "transparent",
+        color: active ? "var(--accent)" : "var(--muted)",
+        background: active ? "var(--active)" : "transparent",
         fontSize: 14,
         fontWeight: active ? 600 : 400,
       }}
@@ -92,7 +92,7 @@ function BoardLink({ board, active }: { board: Board; active: boolean }) {
         {board.name}
       </span>
       {board.type === "internal" && board.department && (
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "#5b6472" }}>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--faint)" }}>
           {deptLabel[board.department]}
         </span>
       )}

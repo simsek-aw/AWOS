@@ -42,7 +42,7 @@ export function renderCell(
   }
 
   if (value === null || value === undefined || value === "") {
-    return <span style={{ color: "#5b6472" }}>—</span>;
+    return <span style={{ color: "var(--faint)" }}>—</span>;
   }
   const str = String(value);
 
@@ -65,7 +65,7 @@ export function renderCell(
       );
     case "link": {
       const safe = safeHttpUrl(str);
-      if (!safe) return <span style={{ color: "#5b6472" }}>{str}</span>;
+      if (!safe) return <span style={{ color: "var(--faint)" }}>{str}</span>;
       return (
         <a href={safe} target="_blank" rel="noopener noreferrer">
           Öffnen

@@ -6,6 +6,7 @@ import { shortId } from "@/components/columns";
 import { createClient } from "@/lib/supabase/client";
 import type { Column, Comment, Person, Task, TaskValue } from "@/lib/types";
 import EditableCell from "./EditableCell";
+import MentionTextarea from "./MentionTextarea";
 
 const ROW_BOUND = new Set(["task_id"]);
 
@@ -84,8 +85,8 @@ export default function TaskDrawer({
           right: 0,
           bottom: 0,
           width: "min(480px, 100%)",
-          background: "#12151c",
-          borderLeft: "1px solid #222834",
+          background: "var(--surface)",
+          borderLeft: "1px solid var(--border)",
           zIndex: 41,
           display: "flex",
           flexDirection: "column",
@@ -97,7 +98,7 @@ export default function TaskDrawer({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "14px 18px",
-            borderBottom: "1px solid #222834",
+            borderBottom: "1px solid var(--border)",
           }}
         >
           <div style={{ color: "var(--muted)", fontSize: 12 }}>
@@ -163,26 +164,16 @@ export default function TaskDrawer({
               </div>
             ))}
             {comments.length === 0 && (
-              <p style={{ color: "#5b6472", fontSize: 14 }}>Noch keine Kommentare.</p>
+              <p style={{ color: "var(--faint)", fontSize: 14 }}>Noch keine Kommentare.</p>
             )}
           </div>
 
           <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-            <textarea
-              rows={3}
+            <MentionTextarea
+              people={people}
               value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Kommentar schreiben…"
-              style={{
-                background: "#0f1115",
-                border: "1px solid #2a2f3a",
-                borderRadius: 8,
-                padding: "10px 12px",
-                color: "var(--text)",
-                fontSize: 14,
-                resize: "vertical",
-                fontFamily: "inherit",
-              }}
+              onChange={setBody}
+              placeholder="Kommentar schreiben… (@ erwähnt jemanden)"
             />
             <button
               onClick={submit}
@@ -218,7 +209,7 @@ const closeBtn: React.CSSProperties = {
 
 const commentStyle: React.CSSProperties = {
   background: "var(--panel)",
-  border: "1px solid #222834",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "10px 12px",
   fontSize: 14,

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import MentionTextarea from "@/components/board/MentionTextarea";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { shortId } from "@/components/columns";
 import { requireSession } from "@/lib/auth";
@@ -204,8 +205,8 @@ export default async function TaskDetail({
               padding: "8px 12px",
               borderRadius: 8,
               fontSize: 14,
-              background: "#12301f",
-              color: "#7ee2b0",
+              background: "var(--ok-bg)",
+              color: "var(--ok-text)",
             }}
           >
             An Kunde freigegeben.
@@ -219,8 +220,8 @@ export default async function TaskDetail({
               padding: "8px 12px",
               borderRadius: 8,
               fontSize: 14,
-              background: "#3b1f24",
-              color: "#ff9aa2",
+              background: "var(--danger-bg)",
+              color: "var(--danger)",
             }}
           >
             {err}
@@ -273,8 +274,8 @@ export default async function TaskDetail({
           <section
             style={{
               marginTop: 24,
-              border: "1px solid #2d4a63",
-              background: "#101a24",
+              border: "1px solid var(--border)",
+              background: "var(--surface-2)",
               borderRadius: 10,
               padding: 16,
             }}
@@ -330,7 +331,7 @@ export default async function TaskDetail({
                     justifyContent: "space-between",
                     gap: 12,
                     background: "var(--panel)",
-                    border: "1px solid #222834",
+                    border: "1px solid var(--border)",
                     borderRadius: 8,
                     padding: "8px 12px",
                     fontSize: 14,
@@ -355,7 +356,7 @@ export default async function TaskDetail({
                       style={{
                         background: "transparent",
                         border: "none",
-                        color: "#ff9aa2",
+                        color: "var(--danger)",
                         cursor: "pointer",
                         fontSize: 14,
                       }}
@@ -366,7 +367,7 @@ export default async function TaskDetail({
                 </div>
               );
             })}
-            {files.length === 0 && <p style={{ color: "#5b6472" }}>Keine Dateien.</p>}
+            {files.length === 0 && <p style={{ color: "var(--faint)" }}>Keine Dateien.</p>}
           </div>
 
           <form
@@ -402,17 +403,15 @@ export default async function TaskDetail({
               </div>
             ))}
             {(comments ?? []).length === 0 && (
-              <p style={{ color: "#5b6472" }}>Noch keine Kommentare.</p>
+              <p style={{ color: "var(--faint)" }}>Noch keine Kommentare.</p>
             )}
           </div>
 
           <form action={comment} style={{ display: "grid", gap: 8, marginTop: 12 }}>
-            <textarea
+            <MentionTextarea
+              people={people}
               name="body"
-              rows={3}
-              placeholder="Kommentar schreiben…"
-              required
-              style={{ ...inputStyle, resize: "vertical" }}
+              placeholder="Kommentar schreiben… (@ erwähnt jemanden)"
             />
             <button type="submit" style={primaryButton}>
               Kommentieren
@@ -483,8 +482,8 @@ const labelStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  background: "#0f1115",
-  border: "1px solid #2a2f3a",
+  background: "var(--input-bg)",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "10px 12px",
   color: "var(--text)",
@@ -512,7 +511,7 @@ function formatBytes(bytes: number | null): string {
 
 const commentStyle: React.CSSProperties = {
   background: "var(--panel)",
-  border: "1px solid #222834",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "10px 12px",
   fontSize: 14,
@@ -522,8 +521,8 @@ const commentStyle: React.CSSProperties = {
 
 const dangerButton: React.CSSProperties = {
   background: "transparent",
-  color: "#ff9aa2",
-  border: "1px solid #55303a",
+  color: "var(--danger)",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "8px 14px",
   cursor: "pointer",

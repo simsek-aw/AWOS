@@ -28,8 +28,8 @@ export default async function AppLayout({
           alignItems: "center",
           justifyContent: "flex-end",
           padding: "0 18px",
-          borderBottom: "1px solid #1a1f28",
-          background: "#0b0d11",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--topbar-bg)",
           flexShrink: 0,
         }}
       >

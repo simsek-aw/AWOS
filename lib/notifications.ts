@@ -20,6 +20,43 @@ function canAccessBoard(p: ProfileLite, board: BoardLite): boolean {
   return board.type === "customer" && p.customer_id === board.customer_id;
 }
 
+function taskUrl(boardId: string, taskId: string): string {
+  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  return `${base}/boards/${boardId}/tasks/${taskId}`;
+}
+
+/**
+ * Send a transactional email via Resend. No-op unless RESEND_API_KEY and
+ * EMAIL_FROM are configured, so email is purely additive to the in-app bell.
+ */
+async function sendEmail(to: string, subject: string, text: string) {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  if (!key || !from || !to) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ from, to, subject, text }),
+    });
+  } catch (e) {
+    console.error("sendEmail failed:", e);
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function emailForUser(svc: any, userId: string): Promise<string | null> {
+  try {
+    const { data } = await svc.auth.admin.getUserById(userId);
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -47,14 +84,24 @@ export async function notifyAssignment(opts: {
   if (!board || !assignee) return;
   if (!canAccessBoard(assignee as ProfileLite, board as BoardLite)) return;
 
+  const body = `Du wurdest als Macher eingetragen: „${task?.title ?? "Task"}".`;
   await svc.from("notifications").insert({
     user_id: assigneeId,
     type: "assignment",
     task_id: taskId,
     board_id: boardId,
     actor_id: actorId,
-    body: `Du wurdest als Macher eingetragen: „${task?.title ?? "Task"}".`,
+    body,
   });
+
+  const email = await emailForUser(svc, assigneeId);
+  if (email) {
+    await sendEmail(
+      email,
+      "AWOS: Neue Aufgabe für dich",
+      `${body}\n\n${taskUrl(boardId, taskId)}`,
+    );
+  }
 }
 
 /** Notify every accessible user @-mentioned in a comment body. */
@@ -85,15 +132,30 @@ export async function notifyMentions(opts: {
   if (recipients.length === 0) return;
 
   const preview = body.length > 140 ? body.slice(0, 140) + "…" : body;
+  const title = task?.title ?? "Task";
   const rows = recipients.map((p) => ({
     user_id: p.id,
     type: "mention",
     task_id: taskId,
     board_id: boardId,
     actor_id: actorId,
-    body: `Erwähnt in „${task?.title ?? "Task"}": ${preview}`,
+    body: `Erwähnt in „${title}": ${preview}`,
   }));
   await svc.from("notifications").insert(rows);
+
+  const url = taskUrl(boardId, taskId);
+  await Promise.all(
+    recipients.map(async (p) => {
+      const email = await emailForUser(svc, p.id);
+      if (email) {
+        await sendEmail(
+          email,
+          `AWOS: Erwähnung in „${title}"`,
+          `Du wurdest in einem Kommentar erwähnt:\n\n${preview}\n\n${url}`,
+        );
+      }
+    }),
+  );
 }
 
 function isMentioned(body: string, p: ProfileLite): boolean {

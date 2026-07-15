@@ -33,8 +33,8 @@ export default async function UpdatePasswordPage({
           <p
             role="alert"
             style={{
-              background: "#3b1f24",
-              color: "#ff9aa2",
+              background: "var(--danger-bg)",
+              color: "var(--danger)",
               padding: "8px 12px",
               borderRadius: 8,
               fontSize: 14,
@@ -54,8 +54,8 @@ export default async function UpdatePasswordPage({
               minLength={8}
               autoComplete="new-password"
               style={{
-                background: "#0f1115",
-                border: "1px solid #2a2f3a",
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
                 borderRadius: 8,
                 padding: "10px 12px",
                 color: "var(--text)",

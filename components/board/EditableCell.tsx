@@ -51,9 +51,9 @@ export default function EditableCell({
         onChange={(e) => save(e.target.value)}
         style={{
           opacity: dim,
-          background: "#0f1115",
+          background: "var(--input-bg)",
           color: current ? "var(--text)" : "var(--muted)",
-          border: "1px solid #2a2f3a",
+          border: "1px solid var(--border)",
           borderRadius: 6,
           padding: "4px 8px",
           fontSize: 13,
@@ -83,7 +83,7 @@ export default function EditableCell({
         onChange={(e) => save(e.target.value)}
         style={{
           opacity: dim,
-          background: current ? color : "#0f1115",
+          background: current ? color : "var(--input-bg)",
           color: current ? "#0d0f13" : "var(--muted)",
           border: "none",
           borderRadius: 6,
@@ -130,7 +130,7 @@ export default function EditableCell({
         style={{
           width: "100%",
           minWidth: 90,
-          background: "#0f1115",
+          background: "var(--input-bg)",
           border: "1px solid var(--accent)",
           borderRadius: 6,
           padding: "4px 8px",
@@ -150,7 +150,7 @@ export default function EditableCell({
         minHeight: 20,
         cursor: "text",
         opacity: dim,
-        color: current ? "var(--text)" : "#5b6472",
+        color: current ? "var(--text)" : "var(--faint)",
       }}
       title="Zum Bearbeiten klicken"
     >

@@ -74,7 +74,7 @@ export default function NotificationBell({ userId }: { userId: string }) {
               position: "absolute",
               top: -2,
               right: -4,
-              background: "#e2445c",
+              background: "var(--danger)",
               color: "#fff",
               borderRadius: 10,
               fontSize: 10,
@@ -102,15 +102,15 @@ export default function NotificationBell({ userId }: { userId: string }) {
               width: 320,
               maxHeight: 400,
               overflowY: "auto",
-              background: "#12151c",
-              border: "1px solid #222834",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
               borderRadius: 10,
               zIndex: 50,
               boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
             }}
           >
             {items.length === 0 && (
-              <p style={{ color: "#5b6472", fontSize: 14, padding: 16, margin: 0 }}>
+              <p style={{ color: "var(--faint)", fontSize: 14, padding: 16, margin: 0 }}>
                 Keine Benachrichtigungen.
               </p>
             )}
@@ -126,10 +126,10 @@ export default function NotificationBell({ userId }: { userId: string }) {
                   style={{
                     display: "block",
                     padding: "10px 14px",
-                    borderBottom: "1px solid #1a1f28",
+                    borderBottom: "1px solid var(--border)",
                     textDecoration: "none",
                     color: "var(--text)",
-                    background: n.read ? "transparent" : "#141d2a",
+                    background: n.read ? "transparent" : "var(--active)",
                   }}
                 >
                   <div style={{ fontSize: 13 }}>{n.body}</div>

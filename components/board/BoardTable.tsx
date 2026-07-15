@@ -54,7 +54,7 @@ export default function BoardTable({
           </thead>
           <tbody>
             {tasks.map((t) => (
-              <tr key={t.id} style={{ background: openTaskId === t.id ? "#141a22" : undefined }}>
+              <tr key={t.id} style={{ background: openTaskId === t.id ? "var(--active)" : undefined }}>
                 <td style={{ ...td, textAlign: "center" }}>
                   <button
                     onClick={() => setOpenTaskId(t.id)}
@@ -79,7 +79,7 @@ export default function BoardTable({
             ))}
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={columns.length + 1} style={{ ...td, color: "#5b6472" }}>
+                <td colSpan={columns.length + 1} style={{ ...td, color: "var(--faint)" }}>
                   Noch keine Tasks.
                 </td>
               </tr>
@@ -97,8 +97,8 @@ export default function BoardTable({
           style={{
             flex: 1,
             maxWidth: 360,
-            background: "#0f1115",
-            border: "1px solid #2a2f3a",
+            background: "var(--input-bg)",
+            border: "1px solid var(--border)",
             borderRadius: 8,
             padding: "10px 12px",
             color: "var(--text)",
@@ -132,13 +132,13 @@ const th: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: 0.4,
   color: "var(--muted)",
-  borderBottom: "1px solid #222834",
+  borderBottom: "1px solid var(--border)",
   whiteSpace: "nowrap",
 };
 
 const td: React.CSSProperties = {
   padding: "8px 12px",
-  borderBottom: "1px solid #1a1f28",
+  borderBottom: "1px solid var(--border)",
   fontSize: 14,
 };
 

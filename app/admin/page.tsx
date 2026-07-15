@@ -164,7 +164,7 @@ export default async function AdminPage({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ marginTop: 28 }}>
-      <h2 style={{ fontSize: 16, borderBottom: "1px solid #222834", paddingBottom: 6 }}>
+      <h2 style={{ fontSize: 16, borderBottom: "1px solid var(--border)", paddingBottom: 6 }}>
         {title}
       </h2>
       {children}
@@ -180,8 +180,8 @@ function Banner({ tone, children }: { tone: "error" | "ok"; children: React.Reac
         padding: "8px 12px",
         borderRadius: 8,
         fontSize: 14,
-        background: tone === "error" ? "#3b1f24" : "#12301f",
-        color: tone === "error" ? "#ff9aa2" : "#7ee2b0",
+        background: tone === "error" ? "var(--danger-bg)" : "var(--ok-bg)",
+        color: tone === "error" ? "var(--danger)" : "var(--ok-text)",
       }}
     >
       {children}
@@ -190,7 +190,7 @@ function Banner({ tone, children }: { tone: "error" | "ok"; children: React.Reac
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <li style={{ ...rowStyle, color: "#5b6472" }}>{children}</li>;
+  return <li style={{ ...rowStyle, color: "var(--faint)" }}>{children}</li>;
 }
 
 const listStyle: React.CSSProperties = {
@@ -206,7 +206,7 @@ const rowStyle: React.CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   background: "var(--panel)",
-  border: "1px solid #222834",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "8px 12px",
   fontSize: 14,
@@ -222,8 +222,8 @@ const formRow: React.CSSProperties = {
 const input: React.CSSProperties = {
   flex: 1,
   minWidth: 160,
-  background: "#0f1115",
-  border: "1px solid #2a2f3a",
+  background: "var(--input-bg)",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "9px 12px",
   color: "var(--text)",

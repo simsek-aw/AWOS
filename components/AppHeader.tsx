@@ -13,7 +13,7 @@ export default function AppHeader({ ctx }: { ctx: SessionContext }) {
         alignItems: "center",
         justifyContent: "space-between",
         padding: "14px 24px",
-        borderBottom: "1px solid #222834",
+        borderBottom: "1px solid var(--border)",
       }}
     >
       <a
@@ -37,7 +37,7 @@ export default function AppHeader({ ctx }: { ctx: SessionContext }) {
             type="submit"
             style={{
               background: "transparent",
-              border: "1px solid #2a2f3a",
+              border: "1px solid var(--border)",
               color: "var(--muted)",
               borderRadius: 8,
               padding: "6px 12px",

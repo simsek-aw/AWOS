@@ -91,7 +91,7 @@ const grid: React.CSSProperties = {
 const cardStyle: React.CSSProperties = {
   display: "block",
   background: "var(--panel)",
-  border: "1px solid #222834",
+  border: "1px solid var(--border)",
   borderRadius: 10,
   padding: 16,
   textDecoration: "none",

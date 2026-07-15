@@ -1,10 +1,24 @@
 :root {
-  --bg: #0f1115;
-  --panel: #161a22;
-  --text: #e6e8ec;
-  --muted: #9aa4b2;
-  --accent: #579bfc;
+  /* Light "monday-like" palette */
+  --bg: #f6f7fb; /* app canvas */
+  --surface: #ffffff; /* panels, cards, drawer, rows */
+  --panel: #ffffff; /* legacy alias of surface */
+  --surface-2: #eef0f5; /* subtle alternate surface */
+  --active: #d9ecff; /* selected / highlighted (light blue) */
+  --border: #e2e4ee;
+  --text: #1f2129;
+  --muted: #676879; /* secondary text */
+  --faint: #a3a7b5; /* placeholders, em-dashes */
+  --input-bg: #ffffff;
+  --sidebar-bg: #ffffff;
+  --topbar-bg: #ffffff;
+  --accent: #0073ea; /* monday blue */
+  --danger: #d0364c;
+  --danger-bg: #fdeaed;
   --ok: #00c875;
+  --ok-text: #0b7a45;
+  --ok-bg: #e7f8ef;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
 }
 
 * {
@@ -25,4 +39,12 @@ body {
 
 a {
   color: var(--accent);
+}
+
+/* Inputs/selects inherit the light theme cleanly */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
 }
