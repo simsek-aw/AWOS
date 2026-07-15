@@ -6,6 +6,14 @@ import { createClient } from "@/lib/supabase/client";
 import type { Notification } from "@/lib/types";
 import Icon from "./icons";
 
+function ago(iso: string): string {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "gerade eben";
+  if (s < 3600) return `vor ${Math.floor(s / 60)} Min.`;
+  if (s < 86400) return `vor ${Math.floor(s / 3600)} Std.`;
+  return `vor ${Math.floor(s / 86400)} Tg.`;
+}
+
 const LABELS: Record<string, string> = {
   assignment: "Zuweisung",
   mention: "Erwähnung",
@@ -96,7 +104,8 @@ export default function NotificationBell({ userId }: { userId: string }) {
           padding: 4,
           display: "inline-flex",
           alignItems: "center",
-          color: "var(--text)",
+          color: unread > 0 ? "var(--accent)" : "var(--text)",
+          animation: unread > 0 ? "awos-bell 1.6s ease-in-out infinite" : "none",
         }}
       >
         <Icon name="bell" size={18} />
@@ -168,7 +177,39 @@ export default function NotificationBell({ userId }: { userId: string }) {
                     background: n.read ? "transparent" : "var(--active)",
                   }}
                 >
-                  <div style={{ fontSize: 13 }}>{n.body}</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, lineHeight: 1.4 }}>{n.body}</div>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        fontSize: 11,
+                        color: "var(--faint)",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {ago(n.created_at)}
+                      {!n.read && (
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: "var(--accent)",
+                          }}
+                        />
+                      )}
+                    </span>
+                  </div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
                     {LABELS[n.type] ?? "Benachrichtigung"}
                   </div>

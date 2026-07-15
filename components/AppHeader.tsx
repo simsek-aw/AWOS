@@ -46,11 +46,30 @@ export default function AppHeader({
             <Icon name="menu" size={22} />
           </button>
         )}
-        <a
-          href="/"
-          style={{ fontWeight: 700, fontSize: 18, color: "var(--text)", textDecoration: "none" }}
-        >
-          AWOS
+        <a href="/" style={{ display: "inline-flex", alignItems: "center" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.svg"
+            alt="AWOS"
+            style={{ height: 24, width: "auto", objectFit: "contain" }}
+            onError={(e) => {
+              // Fall back to the wordmark if the logo asset is missing.
+              const img = e.currentTarget as HTMLImageElement;
+              img.style.display = "none";
+              const w = img.nextElementSibling as HTMLElement | null;
+              if (w) w.style.display = "inline";
+            }}
+          />
+          <span
+            style={{
+              display: "none",
+              fontWeight: 700,
+              fontSize: 18,
+              color: "var(--text)",
+            }}
+          >
+            AWOS
+          </span>
         </a>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>

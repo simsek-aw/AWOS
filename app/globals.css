@@ -84,3 +84,12 @@ button {
   /* Slightly tighter page padding on phones. */
   .page-pad { padding: 16px 12px !important; }
 }
+
+/* Bell swing when there are unread notifications */
+@keyframes awos-bell {
+  0%, 50%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(-12deg); }
+  20% { transform: rotate(10deg); }
+  30% { transform: rotate(-8deg); }
+  40% { transform: rotate(6deg); }
+}

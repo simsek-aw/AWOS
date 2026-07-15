@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Icon from "@/components/icons";
 import type { Board } from "@/lib/types";
 
 const deptLabel: Record<string, string> = {
@@ -36,6 +37,27 @@ export default function Sidebar({
         overflowY: "auto",
       }}
     >
+      <a
+        href="/my"
+        onClick={onClose}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 10px",
+          borderRadius: 8,
+          textDecoration: "none",
+          color: pathname === "/my" ? "var(--accent)" : "var(--muted)",
+          background: pathname === "/my" ? "var(--active)" : "transparent",
+          fontSize: 14,
+          fontWeight: pathname === "/my" ? 600 : 400,
+          marginBottom: 4,
+        }}
+      >
+        <Icon name="check" size={16} />
+        Meine Aufgaben
+      </a>
+
       {customer.length > 0 && <Group title="Kunden" />}
       {customer.map((b) => (
         <BoardLink key={b.id} board={b} active={!!isActive(b.id)} onNavigate={onClose} />

@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   createTask,
   deleteGroup,
+  deleteTasks,
   renameGroup,
 } from "@/app/(app)/boards/[id]/actions";
 import type {
@@ -102,6 +103,27 @@ export default function BoardTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenTaskId]);
+
+  // Delete/Backspace deletes the selected rows (unless typing in a field or a
+  // drawer is open).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (selected.size === 0 || openTaskId) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && el.closest("input, textarea, select, [contenteditable='true']"))
+        return;
+      e.preventDefault();
+      const ids = [...selected];
+      const n = ids.length;
+      if (confirm(`${n} Task${n > 1 ? "s" : ""} löschen?`)) {
+        deleteTasks(boardId, ids);
+        setSelected(new Set());
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, openTaskId, boardId]);
 
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null;
   const createTaskBound = createTask.bind(null, boardId, group.id);

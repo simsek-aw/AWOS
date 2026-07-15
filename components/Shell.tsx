@@ -37,16 +37,6 @@ export default function Shell({
         }}
       >
         <NotificationBell userId={ctx.userId} />
-        {/* Agency logo (white SVG at public/logo.svg). Hides itself if missing. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo.svg"
-          alt="Absolutweb"
-          style={{ height: 20, width: "auto", objectFit: "contain" }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
       </div>
 
       <AppHeader ctx={ctx} onMenuClick={() => setOpen(true)} />

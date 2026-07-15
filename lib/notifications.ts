@@ -98,8 +98,8 @@ export async function notifyAssignment(opts: {
   if (!board || !assignee) return;
   if (!canAccessBoard(assignee as ProfileLite, board as BoardLite)) return;
 
-  const by = from ? ` von ${from}` : "";
-  const body = `Du wurdest als ${roleLabel} eingetragen${by}: „${task?.title ?? "Task"}".`;
+  const who = from ?? "Jemand";
+  const body = `${who} hat dich als ${roleLabel} zugewiesen zu „${task?.title ?? "Task"}".`;
   await svc.from("notifications").insert({
     user_id: assigneeId,
     type: "assignment",
@@ -240,8 +240,10 @@ export async function notifyComment(opts: {
 
   const preview = body.length > 140 ? body.slice(0, 140) + "…" : body;
   const title = task?.title ?? "Task";
-  const by = from ? `${from} ` : "";
-  const verb = parentId ? "hat geantwortet" : "hat kommentiert";
+  const who = from ?? "Jemand";
+  const notifBody = parentId
+    ? `${who} hat bei „${title}" kommentiert.`
+    : `${who} hat ein Update zu „${title}" verfasst.`;
   await svc.from("notifications").insert(
     recipients.map((p) => ({
       user_id: p.id,
@@ -250,7 +252,7 @@ export async function notifyComment(opts: {
       board_id: boardId,
       comment_id: commentId ?? null,
       actor_id: actorId,
-      body: `${by}${verb} in „${title}": ${preview}`,
+      body: notifBody,
     })),
   );
 
@@ -262,7 +264,7 @@ export async function notifyComment(opts: {
         await sendEmail(
           email,
           `AWOS: Neuer Kommentar in „${title}"`,
-          `${by}${verb}:\n\n${preview}\n\n${url}`,
+          `${notifBody}\n\n${preview}\n\n${url}`,
         );
       }
     }),
@@ -392,9 +394,9 @@ export async function notifyMentions(opts: {
   );
   if (recipients.length === 0) return;
 
-  const preview = body.length > 140 ? body.slice(0, 140) + "…" : body;
   const title = task?.title ?? "Task";
-  const by = from ? ` von ${from}` : "";
+  const who = from ?? "Jemand";
+  const preview = body.length > 140 ? body.slice(0, 140) + "…" : body;
   const rows = recipients.map((p) => ({
     user_id: p.id,
     type: "mention",
@@ -402,7 +404,7 @@ export async function notifyMentions(opts: {
     board_id: boardId,
     comment_id: commentId ?? null,
     actor_id: actorId,
-    body: `Erwähnt${by} in „${title}": ${preview}`,
+    body: `${who} hat dich erwähnt bei „${title}".`,
   }));
   await svc.from("notifications").insert(rows);
 

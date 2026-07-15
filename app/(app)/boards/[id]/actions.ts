@@ -55,6 +55,25 @@ export async function createTask(
     .select("id")
     .single<{ id: string }>();
 
+  // A new task should never have an empty status — default it to the status
+  // column's first option (usually "Offen").
+  if (task) {
+    const { data: statusCol } = await supabase
+      .from("columns")
+      .select("id, options")
+      .eq("board_id", boardId)
+      .eq("key", "status")
+      .maybeSingle<{ id: string; options: { options?: { label: string }[] } }>();
+    const firstLabel = statusCol?.options?.options?.[0]?.label ?? "Offen";
+    if (statusCol) {
+      await supabase.from("task_values").insert({
+        task_id: task.id,
+        column_id: statusCol.id,
+        value: firstLabel,
+      });
+    }
+  }
+
   // Notify the internal board's department that a new task landed. (Mirrored
   // customer tasks are notified from the mirror agent.) Mirroring itself is NOT
   // triggered on creation — it fires on the customer's first comment.
@@ -806,4 +825,12 @@ export async function deleteTask(boardId: string, taskId: string) {
   await supabase.from("tasks").delete().eq("id", taskId);
   revalidatePath(`/boards/${boardId}`);
   redirect(`/boards/${boardId}`);
+}
+
+/** Delete several tasks at once (e.g. selected rows + Delete key). No redirect. */
+export async function deleteTasks(boardId: string, taskIds: string[]) {
+  if (!taskIds.length) return;
+  const supabase = await createServerSupabase();
+  await supabase.from("tasks").delete().in("id", taskIds);
+  revalidatePath(`/boards/${boardId}`);
 }
