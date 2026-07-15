@@ -5,6 +5,7 @@ import { shortId } from "@/components/columns";
 import Icon from "@/components/icons";
 import type { Column, Person, Task, TaskValue } from "@/lib/types";
 import EditableCell from "./EditableCell";
+import TaskAttachments from "./TaskAttachments";
 import TaskFields from "./TaskFields";
 import TaskUpdates from "./TaskUpdates";
 
@@ -119,11 +120,13 @@ export default function TaskDrawer({
             isEmployee={isEmployee}
           />
 
+          <TaskAttachments boardId={boardId} taskId={task.id} />
+
           <a
             href={`/boards/${boardId}/tasks/${task.id}`}
             style={{ display: "inline-block", marginTop: 16, fontSize: 13 }}
           >
-            Vollansicht öffnen (Dateien) →
+            Vollansicht öffnen →
           </a>
 
           <TaskUpdates
