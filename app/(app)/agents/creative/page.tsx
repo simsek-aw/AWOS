@@ -1,4 +1,4 @@
-import { askCreativeAgent } from "@/app/(app)/agents/actions";
+import { listAgentChats } from "@/app/(app)/agents/actions";
 import AgentChat from "@/components/agents/AgentChat";
 import Icon from "@/components/icons";
 import { requireEmployee } from "@/lib/auth";
@@ -14,6 +14,7 @@ const EXAMPLES = [
 
 export default async function CreativePage() {
   await requireEmployee();
+  const chats = await listAgentChats("creative");
 
   return (
     <div className="page-pad" style={{ padding: "24px 28px", maxWidth: 820 }}>
@@ -36,7 +37,8 @@ export default async function CreativePage() {
         <Icon name="sparkles" size={20} /> Creative-Agent
       </h1>
       <AgentChat
-        action={askCreativeAgent}
+        agent="creative"
+        initialChats={chats}
         examples={EXAMPLES}
         intro="Beschreib das Produkt oder die Kampagne – ich liefere Ideen, die du dann nachschärfen kannst. Zum Beispiel:"
         placeholder="Briefing oder Feedback…"

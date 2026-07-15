@@ -1,4 +1,4 @@
-import { askAwosAssistant } from "@/app/(app)/agents/actions";
+import { listAgentChats } from "@/app/(app)/agents/actions";
 import AgentChat from "@/components/agents/AgentChat";
 import Icon from "@/components/icons";
 import { requireEmployee } from "@/lib/auth";
@@ -14,6 +14,7 @@ const EXAMPLES = [
 
 export default async function AssistantPage() {
   await requireEmployee();
+  const chats = await listAgentChats("assistant");
 
   return (
     <div className="page-pad" style={{ padding: "24px 28px", maxWidth: 820 }}>
@@ -36,7 +37,8 @@ export default async function AssistantPage() {
         <Icon name="sparkles" size={20} /> AWOS-Assistent
       </h1>
       <AgentChat
-        action={askAwosAssistant}
+        agent="assistant"
+        initialChats={chats}
         examples={EXAMPLES}
         intro="Frag mich etwas zu deinen Boards und Aufgaben. Zum Beispiel:"
         placeholder="Frage stellen…"
