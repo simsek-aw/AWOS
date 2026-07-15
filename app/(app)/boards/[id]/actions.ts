@@ -49,7 +49,13 @@ export async function createGroup(boardId: string, formData: FormData) {
     .limit(1)
     .maybeSingle<{ position: number }>();
   const position = (last?.position ?? -1) + 1;
-  await supabase.from("groups").insert({ board_id: boardId, name, position });
+  const { error } = await supabase
+    .from("groups")
+    .insert({ board_id: boardId, name, position });
+  if (error) {
+    console.error("createGroup failed", { boardId, error });
+    throw new Error(`Gruppe konnte nicht erstellt werden: ${error.message}`);
+  }
   revalidatePath(`/boards/${boardId}`);
 }
 
@@ -62,7 +68,14 @@ export async function renameGroup(
   const n = name.trim();
   if (!n) return;
   const supabase = await createServerSupabase();
-  await supabase.from("groups").update({ name: n }).eq("id", groupId);
+  const { error } = await supabase
+    .from("groups")
+    .update({ name: n })
+    .eq("id", groupId);
+  if (error) {
+    console.error("renameGroup failed", { boardId, groupId, error });
+    throw new Error(`Gruppe konnte nicht umbenannt werden: ${error.message}`);
+  }
   revalidatePath(`/boards/${boardId}`);
 }
 
@@ -77,11 +90,19 @@ export async function deleteGroup(boardId: string, groupId: string) {
     .order("position", { ascending: true })
     .returns<{ id: string }[]>();
   if (!others || others.length === 0) return; // never delete the last group
-  await supabase
+  const { error: moveError } = await supabase
     .from("tasks")
     .update({ group_id: others[0].id })
     .eq("group_id", groupId);
-  await supabase.from("groups").delete().eq("id", groupId);
+  if (moveError) {
+    console.error("deleteGroup: moving tasks failed", { boardId, groupId, moveError });
+    throw new Error(`Tasks konnten nicht verschoben werden: ${moveError.message}`);
+  }
+  const { error: delError } = await supabase.from("groups").delete().eq("id", groupId);
+  if (delError) {
+    console.error("deleteGroup failed", { boardId, groupId, delError });
+    throw new Error(`Gruppe konnte nicht gelöscht werden: ${delError.message}`);
+  }
   revalidatePath(`/boards/${boardId}`);
 }
 

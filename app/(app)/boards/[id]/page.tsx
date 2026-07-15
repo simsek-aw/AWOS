@@ -30,12 +30,15 @@ export default async function BoardPage({
     .order("position", { ascending: true })
     .returns<Column[]>();
 
-  const { data: groups } = await supabase
+  const { data: groups, error: groupsError } = await supabase
     .from("groups")
     .select("*")
     .eq("board_id", id)
     .order("position", { ascending: true })
     .returns<Group[]>();
+  if (groupsError) {
+    console.error("boards/[id]: fetching groups failed", { boardId: id, groupsError });
+  }
 
   const { data: tasks } = await supabase
     .from("tasks")
@@ -84,11 +87,17 @@ export default async function BoardPage({
   // but if one ever ends up empty (edge case, manual DB edit, …) provision a
   // default group on the fly instead of showing a blank board.
   if (groupList.length === 0) {
-    const { data: created } = await supabase
+    const { data: created, error: createError } = await supabase
       .from("groups")
       .insert({ board_id: id, name: "Aufgaben", position: 0 })
       .select("*")
       .single<Group>();
+    if (createError) {
+      console.error("boards/[id]: default-group provisioning failed", {
+        boardId: id,
+        createError,
+      });
+    }
     if (created) groupList = [created];
   }
 
