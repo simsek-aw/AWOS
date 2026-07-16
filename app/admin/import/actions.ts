@@ -8,6 +8,7 @@ export type ImportColumn = {
   key: string;
   label: string;
   type: string;
+  statusOptions?: string[];
 };
 
 /** Columns of a board, for the import mapping UI. Employee-only. */
@@ -18,15 +19,28 @@ export async function getImportColumns(
   const supabase = await createServerSupabase();
   const { data } = await supabase
     .from("columns")
-    .select("id, key, label, type, position")
+    .select("id, key, label, type, position, options")
     .eq("board_id", boardId)
     .order("position", { ascending: true })
-    .returns<(ImportColumn & { position: number })[]>();
+    .returns<
+      {
+        id: string;
+        key: string;
+        label: string;
+        type: string;
+        position: number;
+        options: { options?: { label: string }[] };
+      }[]
+    >();
   return (data ?? []).map((c) => ({
     id: c.id,
     key: c.key,
     label: c.label,
     type: c.type,
+    statusOptions:
+      c.type === "status"
+        ? (c.options?.options ?? []).map((o) => o.label)
+        : undefined,
   }));
 }
 
@@ -42,11 +56,6 @@ export type ImportRow = {
  * tasks and their column values. Internal/admin only — creating tasks this way
  * never triggers the mirror (that fires on customer boards via comments/tags).
  */
-const STATUS_PALETTE = [
-  "#00c875", "#579bfc", "#a25ddc", "#e2445c", "#fdab3d", "#ff642e",
-  "#9cd326", "#66ccff", "#ff5ac4", "#037f4c", "#0086c0", "#808080",
-];
-
 export async function importBoardRows(
   boardId: string,
   rows: ImportRow[],
@@ -65,41 +74,8 @@ export async function importBoardRows(
       { id: string; type: string; options: { options?: { label: string; color: string }[] } }[]
     >();
   const validCols = new Set((cols ?? []).map((c) => c.id));
-
-  // For any status column that receives values, make sure every imported label
-  // exists as an option (so it renders with a colour), appending missing ones.
-  const statusColIds = new Set(
-    (cols ?? []).filter((c) => c.type === "status").map((c) => c.id),
-  );
-  const wantedByStatusCol = new Map<string, Set<string>>();
-  for (const row of rows) {
-    for (const v of row.values ?? []) {
-      if (statusColIds.has(v.columnId) && typeof v.value === "string" && v.value.trim()) {
-        if (!wantedByStatusCol.has(v.columnId))
-          wantedByStatusCol.set(v.columnId, new Set());
-        wantedByStatusCol.get(v.columnId)!.add(v.value.trim());
-      }
-    }
-  }
-  for (const [colId, labels] of wantedByStatusCol) {
-    const col = (cols ?? []).find((c) => c.id === colId);
-    const existing = col?.options.options ?? [];
-    const have = new Set(existing.map((o) => o.label));
-    const additions = [...labels].filter((l) => !have.has(l));
-    if (additions.length) {
-      const merged = [
-        ...existing,
-        ...additions.map((label, i) => ({
-          label,
-          color: STATUS_PALETTE[(existing.length + i) % STATUS_PALETTE.length],
-        })),
-      ];
-      await supabase
-        .from("columns")
-        .update({ options: { options: merged } })
-        .eq("id", colId);
-    }
-  }
+  // Status values are mapped to existing options in the UI, so we no longer
+  // auto-create new status options here (that polluted the status column).
 
   // Existing groups by lowercased name.
   const { data: existingGroups } = await supabase

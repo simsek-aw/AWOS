@@ -142,6 +142,25 @@ function normalizeMonday(raw: string[][]): {
 
 const norm = (s: string) => s.trim().toLowerCase();
 
+// Map a monday status label onto one of the board's existing status options by
+// keyword. Returns "" if nothing fits (→ left empty on import).
+function suggestStatus(value: string, optionLabels: string[]): string {
+  const v = value.toLowerCase();
+  const pick = (...kws: string[]) =>
+    optionLabels.find((l) => kws.some((k) => l.toLowerCase().includes(k))) ?? "";
+  const exact = optionLabels.find((l) => l.toLowerCase() === v);
+  if (exact) return exact;
+  if (/erledigt|fertig|done|live|abgeschlossen|abgenommen/.test(v))
+    return pick("fertig", "done", "erledigt", "live");
+  if (/review|feedback|freigabe|abnahme|extern|qs|kontrolle/.test(v))
+    return pick("review", "feedback", "freigabe");
+  if (/arbeit|umsetzung|bearbeit|shooting|anpassung|briefing|operativ|progress|wip/.test(v))
+    return pick("arbeit", "progress", "umsetzung");
+  if (/idee|offen|neu|todo|to do|backlog|geplant|hold/.test(v))
+    return pick("offen", "neu", "todo", "idee");
+  return "";
+}
+
 export default function MondayImport({
   boards,
   people,
@@ -156,6 +175,7 @@ export default function MondayImport({
   const [parsed, setParsed] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<string[]>([]); // per CSV column
   const [personMap, setPersonMap] = useState<Record<string, string>>({});
+  const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [result, setResult] = useState<
     { message: string; ids: string[] } | null
   >(null);
@@ -234,6 +254,35 @@ export default function MondayImport({
     return hit?.id ?? "";
   };
 
+  // Distinct status-cell values across columns mapped to a status column, and
+  // the board's existing status options they map onto.
+  const statusColIdx = useMemo(
+    () =>
+      mapping
+        .map((m, i) => ({ m, i }))
+        .filter(({ m }) => columns.find((c) => c.id === m)?.type === "status")
+        .map(({ i }) => i),
+    [mapping, columns],
+  );
+  const statusOptionLabels = useMemo(
+    () => columns.flatMap((c) => c.statusOptions ?? []),
+    [columns],
+  );
+  const distinctStatuses = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of dataRows)
+      for (const i of statusColIdx) {
+        const v = (r[i] ?? "").trim();
+        if (v) set.add(v);
+      }
+    return [...set];
+  }, [dataRows, statusColIdx]);
+
+  const resolveStatus = (value: string): string => {
+    if (statusMap[value] !== undefined) return statusMap[value];
+    return suggestStatus(value, statusOptionLabels);
+  };
+
   const buildRows = (): ImportRow[] => {
     const titleIdx = mapping.indexOf(TITLE);
     const groupIdx = mapping.indexOf(GROUP);
@@ -263,6 +312,9 @@ export default function MondayImport({
           if (ids.length) values.push({ columnId: col.id, value: ids });
         } else if (col.type === "date") {
           values.push({ columnId: col.id, value: parseDate(cell) });
+        } else if (col.type === "status") {
+          const mapped = resolveStatus(cell);
+          if (mapped) values.push({ columnId: col.id, value: mapped });
         } else {
           values.push({ columnId: col.id, value: cell });
         }
@@ -434,6 +486,39 @@ export default function MondayImport({
                   {people.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Step 4b: status mapping */}
+      {distinctStatuses.length > 0 && statusOptionLabels.length > 0 && (
+        <div>
+          <Label>4b · Status zuordnen</Label>
+          <p style={{ color: "var(--faint)", fontSize: 12, margin: "0 0 6px" }}>
+            monday-Status auf euren Status-Aufbau abbilden. „— leer lassen —"
+            importiert ohne Status.
+          </p>
+          <div style={{ display: "grid", gap: 6 }}>
+            {distinctStatuses.map((s) => (
+              <div key={s} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ flex: 1, fontSize: 13 }}>{s}</span>
+                <span style={{ color: "var(--faint)" }}>→</span>
+                <select
+                  value={resolveStatus(s)}
+                  onChange={(e) =>
+                    setStatusMap((prev) => ({ ...prev, [s]: e.target.value }))
+                  }
+                  style={{ ...input, width: 220 }}
+                >
+                  <option value="">— leer lassen —</option>
+                  {statusOptionLabels.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
                     </option>
                   ))}
                 </select>
