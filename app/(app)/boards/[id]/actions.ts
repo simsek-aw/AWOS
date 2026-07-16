@@ -672,6 +672,38 @@ export async function postComment(
   revalidatePath(`/boards/${boardId}`);
 }
 
+/** Edit a comment's body (RLS: author or employee). */
+export async function editComment(
+  boardId: string,
+  taskId: string,
+  commentId: string,
+  body: string,
+) {
+  const b = body.trim();
+  if (!b) return;
+  await requireSession();
+  const supabase = await createServerSupabase();
+  await supabase
+    .from("comments")
+    .update({ body: b, edited_at: new Date().toISOString() })
+    .eq("id", commentId);
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Delete a comment (RLS: author or employee). */
+export async function deleteComment(
+  boardId: string,
+  taskId: string,
+  commentId: string,
+) {
+  await requireSession();
+  const supabase = await createServerSupabase();
+  await supabase.from("comments").delete().eq("id", commentId);
+  revalidatePath(`/boards/${boardId}/tasks/${taskId}`);
+  revalidatePath(`/boards/${boardId}`);
+}
+
 /** Employee-only: generate ad creatives for a task (on demand). */
 export async function requestCreatives(boardId: string, taskId: string) {
   await requireEmployee();

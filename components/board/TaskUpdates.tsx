@@ -9,12 +9,15 @@ import {
   useTransition,
 } from "react";
 import {
+  deleteComment,
+  editComment,
   postComment,
   requestCreatives,
   toggleLike,
 } from "@/app/(app)/boards/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/icons";
+import { toast } from "@/components/toast";
 import type {
   Comment,
   Person,
@@ -97,6 +100,8 @@ export default function TaskUpdates({
   const [body, setBody] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
   const [, startTransition] = useTransition();
 
   const peopleName = useMemo(
@@ -267,6 +272,29 @@ export default function TaskUpdates({
     });
   };
 
+  const saveEdit = (id: string) => {
+    const text = editBody.trim();
+    if (!text) {
+      setEditingId(null);
+      return;
+    }
+    startTransition(async () => {
+      await editComment(boardId, taskId, id, text);
+      setEditingId(null);
+      toast("Kommentar bearbeitet");
+      await load();
+    });
+  };
+
+  const removeComment = (id: string) => {
+    if (!confirm("Kommentar löschen?")) return;
+    startTransition(async () => {
+      await deleteComment(boardId, taskId, id);
+      toast("Kommentar gelöscht");
+      await load();
+    });
+  };
+
   const generate = () => {
     setGenerating(true);
     startTransition(async () => {
@@ -332,9 +360,37 @@ export default function TaskUpdates({
               </span>
             )}
           </div>
-          <div style={{ fontSize: 14, margin: "3px 0 4px", whiteSpace: "pre-wrap" }}>
-            {renderBody(cm.body, names)}
-          </div>
+          {editingId === cm.id ? (
+            <div style={{ margin: "4px 0" }}>
+              <MentionTextarea
+                people={people}
+                value={editBody}
+                onChange={setEditBody}
+                rows={2}
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <button
+                  onClick={() => saveEdit(cm.id)}
+                  style={{ ...primaryBtn, padding: "5px 12px", fontSize: 13 }}
+                >
+                  Speichern
+                </button>
+                <button onClick={() => setEditingId(null)} style={linkBtn}>
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 14, margin: "3px 0 4px", whiteSpace: "pre-wrap" }}>
+              {renderBody(cm.body, names)}
+              {cm.edited_at && (
+                <span style={{ color: "var(--faint)", fontSize: 11 }}>
+                  {" "}
+                  · bearbeitet
+                </span>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
             <button
               onClick={() => like(cm.id)}
@@ -359,6 +415,27 @@ export default function TaskUpdates({
                 <Icon name="reply" size={15} /> Antworten
               </button>
             )}
+            {!cm.is_agent &&
+              (cm.author_id === currentUserId || isEmployee) &&
+              editingId !== cm.id && (
+                <>
+                  <button
+                    onClick={() => {
+                      setEditingId(cm.id);
+                      setEditBody(cm.body);
+                    }}
+                    style={linkBtn}
+                  >
+                    Bearbeiten
+                  </button>
+                  <button
+                    onClick={() => removeComment(cm.id)}
+                    style={{ ...linkBtn, color: "var(--danger)" }}
+                  >
+                    Löschen
+                  </button>
+                </>
+              )}
           </div>
 
           {replyTo === cm.id && (

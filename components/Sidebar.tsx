@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Icon from "@/components/icons";
 import type { Board } from "@/lib/types";
@@ -24,10 +25,15 @@ export default function Sidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
-  const customer = boards.filter((b) => b.type === "customer");
-  const internal = boards.filter((b) => b.type === "internal");
+  const [q, setQ] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const match = (b: Board) =>
+    !q || b.name.toLowerCase().includes(q.toLowerCase());
+  const customer = boards.filter((b) => b.type === "customer" && match(b));
+  const internal = boards.filter((b) => b.type === "internal" && match(b));
 
   const isActive = (id: string) => pathname?.startsWith(`/boards/${id}`);
+  const showSearch = boards.length > 6;
 
   return (
     <aside
@@ -89,15 +95,59 @@ export default function Sidebar({
         </a>
       )}
 
-      {customer.length > 0 && <Group title="Kunden" />}
-      {customer.map((b) => (
-        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
-      ))}
+      {showSearch && (
+        <div style={{ padding: "8px 4px 4px" }}>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Board suchen…"
+            style={{
+              width: "100%",
+              background: "var(--input-bg)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              padding: "7px 10px",
+              color: "var(--text)",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+        </div>
+      )}
 
-      {internal.length > 0 && <Group title="Intern" />}
-      {internal.map((b) => (
-        <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
-      ))}
+      {customer.length > 0 && (
+        <Group
+          title="Kunden"
+          collapsed={!!collapsed.customer}
+          onToggle={() =>
+            setCollapsed((c) => ({ ...c, customer: !c.customer }))
+          }
+        />
+      )}
+      {!collapsed.customer &&
+        customer.map((b) => (
+          <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
+        ))}
+
+      {internal.length > 0 && (
+        <Group
+          title="Intern"
+          collapsed={!!collapsed.internal}
+          onToggle={() =>
+            setCollapsed((c) => ({ ...c, internal: !c.internal }))
+          }
+        />
+      )}
+      {!collapsed.internal &&
+        internal.map((b) => (
+          <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
+        ))}
+
+      {q && customer.length === 0 && internal.length === 0 && (
+        <p style={{ color: "var(--faint)", fontSize: 13, padding: "8px 10px" }}>
+          Keine Treffer.
+        </p>
+      )}
 
       {boards.length === 0 && (
         <p style={{ color: "var(--faint)", fontSize: 13, padding: "0 8px" }}>
@@ -108,19 +158,37 @@ export default function Sidebar({
   );
 }
 
-function Group({ title }: { title: string }) {
+function Group({
+  title,
+  collapsed,
+  onToggle,
+}: {
+  title: string;
+  collapsed?: boolean;
+  onToggle?: () => void;
+}) {
   return (
-    <div
+    <button
+      onClick={onToggle}
       style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        width: "100%",
+        background: "transparent",
+        border: "none",
         fontSize: 11,
         textTransform: "uppercase",
         letterSpacing: 0.6,
         color: "var(--faint)",
         padding: "14px 8px 6px",
+        cursor: onToggle ? "pointer" : "default",
+        fontWeight: 700,
       }}
     >
+      <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={12} />
       {title}
-    </div>
+    </button>
   );
 }
 
