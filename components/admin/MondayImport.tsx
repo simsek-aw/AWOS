@@ -6,6 +6,7 @@ import {
   type ImportColumn,
   type ImportRow,
   importBoardRows,
+  undoImport,
 } from "@/app/admin/import/actions";
 
 type Board = { id: string; name: string; type: string };
@@ -27,7 +28,12 @@ function detectDelimiter(line: string): string {
 }
 
 function parseCsv(text: string): string[][] {
-  const t = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  // Strip a UTF-8 BOM (Excel exports one) so the first header isn't corrupted.
+  const t = text
+    .replace(/^﻿/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
   if (!t) return [];
   const delim = detectDelimiter(t.split("\n")[0]);
   const rows: string[][] = [];
@@ -85,7 +91,9 @@ export default function MondayImport({
   const [parsed, setParsed] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<string[]>([]); // per CSV column
   const [personMap, setPersonMap] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<
+    { message: string; ids: string[] } | null
+  >(null);
   const [loadingCols, startCols] = useTransition();
   const [importing, startImport] = useTransition();
 
@@ -196,11 +204,12 @@ export default function MondayImport({
     if (!boardId || !rows.length) return;
     startImport(async () => {
       const res = await importBoardRows(boardId, rows);
-      setResult(
-        `${res.created} Aufgaben importiert${
+      setResult({
+        message: `${res.created} Aufgaben importiert${
           res.groups ? `, ${res.groups} Gruppe(n) angelegt` : ""
         }.`,
-      );
+        ids: res.createdIds,
+      });
     });
   };
 
@@ -389,14 +398,50 @@ export default function MondayImport({
             <div
               style={{
                 marginTop: 10,
-                padding: "8px 12px",
+                padding: "10px 12px",
                 borderRadius: 8,
                 background: "var(--ok-bg)",
                 color: "var(--ok-text)",
                 fontSize: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
               }}
             >
-              {result}
+              <span>{result.message}</span>
+              {result.ids.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Import rückgängig machen? Löscht die ${result.ids.length} gerade importierten Aufgaben.`,
+                      )
+                    ) {
+                      const ids = result.ids;
+                      startImport(async () => {
+                        await undoImport(boardId, ids);
+                        setResult(null);
+                        setParsed([]);
+                        setRaw("");
+                      });
+                    }
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid var(--ok-text)",
+                    color: "var(--ok-text)",
+                    borderRadius: 8,
+                    padding: "5px 10px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Rückgängig
+                </button>
+              )}
             </div>
           )}
         </div>

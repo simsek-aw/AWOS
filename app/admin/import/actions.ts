@@ -41,21 +41,64 @@ export type ImportRow = {
  * tasks and their column values. Internal/admin only — creating tasks this way
  * never triggers the mirror (that fires on customer boards via comments/tags).
  */
+const STATUS_PALETTE = [
+  "#00c875", "#579bfc", "#a25ddc", "#e2445c", "#fdab3d", "#ff642e",
+  "#9cd326", "#66ccff", "#ff5ac4", "#037f4c", "#0086c0", "#808080",
+];
+
 export async function importBoardRows(
   boardId: string,
   rows: ImportRow[],
-): Promise<{ created: number; groups: number }> {
+): Promise<{ created: number; groups: number; createdIds: string[] }> {
   await requireEmployee();
-  if (!rows?.length) return { created: 0, groups: 0 };
+  if (!rows?.length) return { created: 0, groups: 0, createdIds: [] };
   const supabase = await createServerSupabase();
 
-  // Valid column ids for this board (never trust client-supplied ids).
+  // Valid columns for this board (never trust client-supplied ids). We also
+  // need type/options to auto-extend status columns with imported labels.
   const { data: cols } = await supabase
     .from("columns")
-    .select("id")
+    .select("id, type, options")
     .eq("board_id", boardId)
-    .returns<{ id: string }[]>();
+    .returns<
+      { id: string; type: string; options: { options?: { label: string; color: string }[] } }[]
+    >();
   const validCols = new Set((cols ?? []).map((c) => c.id));
+
+  // For any status column that receives values, make sure every imported label
+  // exists as an option (so it renders with a colour), appending missing ones.
+  const statusColIds = new Set(
+    (cols ?? []).filter((c) => c.type === "status").map((c) => c.id),
+  );
+  const wantedByStatusCol = new Map<string, Set<string>>();
+  for (const row of rows) {
+    for (const v of row.values ?? []) {
+      if (statusColIds.has(v.columnId) && typeof v.value === "string" && v.value.trim()) {
+        if (!wantedByStatusCol.has(v.columnId))
+          wantedByStatusCol.set(v.columnId, new Set());
+        wantedByStatusCol.get(v.columnId)!.add(v.value.trim());
+      }
+    }
+  }
+  for (const [colId, labels] of wantedByStatusCol) {
+    const col = (cols ?? []).find((c) => c.id === colId);
+    const existing = col?.options.options ?? [];
+    const have = new Set(existing.map((o) => o.label));
+    const additions = [...labels].filter((l) => !have.has(l));
+    if (additions.length) {
+      const merged = [
+        ...existing,
+        ...additions.map((label, i) => ({
+          label,
+          color: STATUS_PALETTE[(existing.length + i) % STATUS_PALETTE.length],
+        })),
+      ];
+      await supabase
+        .from("columns")
+        .update({ options: { options: merged } })
+        .eq("id", colId);
+    }
+  }
 
   // Existing groups by lowercased name.
   const { data: existingGroups } = await supabase
@@ -100,7 +143,7 @@ export async function importBoardRows(
     return defaultGroupId;
   };
 
-  let created = 0;
+  const createdIds: string[] = [];
   for (const row of rows) {
     const title = String(row.title ?? "").trim();
     if (!title) continue;
@@ -111,7 +154,7 @@ export async function importBoardRows(
       .select("id")
       .single<{ id: string }>();
     if (!task) continue;
-    created++;
+    createdIds.push(task.id);
 
     const valueRows = (row.values ?? [])
       .filter(
@@ -129,5 +172,13 @@ export async function importBoardRows(
     }
   }
 
-  return { created, groups: createdGroups };
+  return { created: createdIds.length, groups: createdGroups, createdIds };
+}
+
+/** Undo an import: delete the tasks it created (their values cascade). */
+export async function undoImport(boardId: string, taskIds: string[]) {
+  await requireEmployee();
+  if (!taskIds.length) return;
+  const supabase = await createServerSupabase();
+  await supabase.from("tasks").delete().in("id", taskIds);
 }
