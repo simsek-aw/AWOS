@@ -60,8 +60,12 @@ export default async function AppLayout({
     }
   }
 
+  // Hide archived boards from the sidebar (filter in JS so it also works before
+  // the archived_at migration is applied — undefined = not archived).
+  const activeBoards = (boards ?? []).filter((b) => !b.archived_at);
+
   return (
-    <Shell ctx={ctx} boards={boards ?? []} unreadByBoard={unreadByBoard}>
+    <Shell ctx={ctx} boards={activeBoards} unreadByBoard={unreadByBoard}>
       {children}
     </Shell>
   );

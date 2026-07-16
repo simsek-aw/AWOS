@@ -18,8 +18,9 @@ export default async function Dashboard() {
     .order("name", { ascending: true })
     .returns<Board[]>();
 
-  const internal = (boards ?? []).filter((b) => b.type === "internal");
-  const customer = (boards ?? []).filter((b) => b.type === "customer");
+  const active = (boards ?? []).filter((b) => !b.archived_at);
+  const internal = active.filter((b) => b.type === "internal");
+  const customer = active.filter((b) => b.type === "customer");
 
   return (
     <div style={{ maxWidth: 960, padding: "32px 28px" }}>

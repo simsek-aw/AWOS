@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { shortId } from "@/components/columns";
 import Icon from "@/components/icons";
+import { toast } from "@/components/toast";
 import type { Column, Person, Task, TaskValue } from "@/lib/types";
 import EditableCell from "./EditableCell";
 import TaskAttachments from "./TaskAttachments";
@@ -89,9 +90,23 @@ export default function TaskDrawer({
           <div style={{ color: "var(--muted)", fontSize: 12 }}>
             {boardName} · <code>{shortId(task.id)}</code>
           </div>
-          <button onClick={close} style={closeBtn} title="Schließen">
-            <Icon name="x" size={18} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(
+                  `${window.location.origin}/boards/${boardId}?task=${task.id}`,
+                );
+                toast("Link kopiert");
+              }}
+              style={closeBtn}
+              title="Task-Link kopieren"
+            >
+              <Icon name="link" size={17} />
+            </button>
+            <button onClick={close} style={closeBtn} title="Schließen">
+              <Icon name="x" size={18} />
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: 18, overflowY: "auto" }}>

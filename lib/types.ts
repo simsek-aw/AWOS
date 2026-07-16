@@ -32,6 +32,7 @@ export interface Board {
   type: BoardType;
   customer_id: string | null;
   department: Department | null;
+  archived_at?: string | null;
   created_at: string;
 }
 

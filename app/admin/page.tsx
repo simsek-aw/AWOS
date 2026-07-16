@@ -8,6 +8,8 @@ import {
   createCustomerBoard,
   createInternalBoard,
   inviteUser,
+  renameBoard,
+  setBoardArchived,
 } from "./actions";
 
 const deptLabel: Record<string, string> = {
@@ -98,13 +100,46 @@ export default async function AdminPage({
         <Section title="Boards">
           <ul style={listStyle}>
             {(boards ?? []).map((b) => (
-              <li key={b.id} style={rowStyle}>
-                <span>{b.name}</span>
-                <span style={{ color: "var(--muted)", fontSize: 13 }}>
+              <li
+                key={b.id}
+                style={{ ...rowStyle, gap: 8, opacity: b.archived_at ? 0.55 : 1 }}
+              >
+                <form
+                  action={renameBoard}
+                  style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}
+                >
+                  <input type="hidden" name="board_id" value={b.id} />
+                  <input
+                    name="name"
+                    defaultValue={b.name}
+                    style={{ ...input, flex: 1, minWidth: 0 }}
+                  />
+                  <button style={{ ...button, padding: "6px 10px" }}>Umbenennen</button>
+                </form>
+                <span style={{ color: "var(--muted)", fontSize: 12, whiteSpace: "nowrap" }}>
                   {b.type === "internal"
                     ? `Intern${b.department ? " · " + deptLabel[b.department] : ""}`
                     : `Kunde · ${b.customer_id ? customerName.get(b.customer_id) : "?"}`}
+                  {b.archived_at ? " · archiviert" : ""}
                 </span>
+                <form action={setBoardArchived}>
+                  <input type="hidden" name="board_id" value={b.id} />
+                  <input type="hidden" name="archived" value={b.archived_at ? "0" : "1"} />
+                  <button
+                    style={{
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      color: "var(--muted)",
+                      fontSize: 13,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {b.archived_at ? "Wiederherstellen" : "Archivieren"}
+                  </button>
+                </form>
               </li>
             ))}
             {(boards ?? []).length === 0 && <Empty>Noch keine Boards.</Empty>}

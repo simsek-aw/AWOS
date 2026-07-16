@@ -50,6 +50,33 @@ export async function createCustomer(formData: FormData) {
   ok("Kunde + Board angelegt");
 }
 
+/** Rename a board. */
+export async function renameBoard(formData: FormData) {
+  await requireEmployee();
+  const boardId = String(formData.get("board_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!boardId || !name) return;
+  const svc = createServiceClient();
+  await svc.from("boards").update({ name }).eq("id", boardId);
+  revalidatePath("/admin");
+  revalidatePath("/", "layout");
+}
+
+/** Archive or unarchive a board (soft — data is kept, just hidden). */
+export async function setBoardArchived(formData: FormData) {
+  await requireEmployee();
+  const boardId = String(formData.get("board_id") ?? "");
+  const archived = String(formData.get("archived") ?? "") === "1";
+  if (!boardId) return;
+  const svc = createServiceClient();
+  await svc
+    .from("boards")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", boardId);
+  revalidatePath("/admin");
+  revalidatePath("/", "layout");
+}
+
 export async function createInternalBoard(formData: FormData) {
   await requireEmployee();
   const name = String(formData.get("name") ?? "").trim();

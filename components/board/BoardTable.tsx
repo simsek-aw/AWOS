@@ -2,12 +2,16 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
+  bulkMoveToGroup,
+  bulkSetPeople,
+  bulkSetStatus,
   createTask,
   deleteGroup,
   deleteTasks,
   markTaskRead,
   renameGroup,
 } from "@/app/(app)/boards/[id]/actions";
+import { toast } from "@/components/toast";
 import type {
   Column,
   Group,
@@ -99,6 +103,9 @@ export default function BoardTable({
   const [renaming, setRenaming] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [bulkMenu, setBulkMenu] = useState<
+    null | "status" | "move" | "pm" | "macher"
+  >(null);
   // When a drag starts on an interactive control (input/checkbox/status/…) we
   // must NOT hijack it as a row drag — this lets the whole row be draggable
   // while cell editing still works.
@@ -193,6 +200,29 @@ export default function BoardTable({
 
   const valueOf = (taskId: string, columnId: string) =>
     valueMap.get(taskId)?.get(columnId) ?? null;
+
+  // --- Bulk actions on selected rows --------------------------------------
+  const statusOptions =
+    columns.find((c) => c.type === "status")?.options.options ?? [];
+  const afterBulk = () => {
+    setSelected(new Set());
+    setBulkMenu(null);
+  };
+  const applyStatus = (label: string) => {
+    bulkSetStatus(boardId, [...selected], label);
+    toast("Status aktualisiert");
+    afterBulk();
+  };
+  const applyMove = (gid: string) => {
+    bulkMoveToGroup(boardId, [...selected], gid);
+    toast("Verschoben");
+    afterBulk();
+  };
+  const applyPerson = (key: "pm" | "macher", id: string) => {
+    bulkSetPeople(boardId, [...selected], key, id ? [id] : []);
+    toast(id ? "Zugewiesen" : "Zuweisung entfernt");
+    afterBulk();
+  };
 
   const isDropTarget = dragActive && dragOver;
 
@@ -295,6 +325,121 @@ export default function BoardTable({
           ×
         </button>
       </div>
+
+      {selected.size > 0 && (
+        <div
+          style={{
+            borderTop: "1px solid var(--border)",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--surface-2)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+              padding: "8px 14px",
+            }}
+          >
+            <strong style={{ fontSize: 13 }}>{selected.size} ausgewählt</strong>
+            <BulkBtn
+              label="Status"
+              on={bulkMenu === "status"}
+              onClick={() => setBulkMenu((m) => (m === "status" ? null : "status"))}
+            />
+            <BulkBtn
+              label="Verschieben"
+              on={bulkMenu === "move"}
+              onClick={() => setBulkMenu((m) => (m === "move" ? null : "move"))}
+            />
+            <BulkBtn
+              label="PM"
+              on={bulkMenu === "pm"}
+              onClick={() => setBulkMenu((m) => (m === "pm" ? null : "pm"))}
+            />
+            <BulkBtn
+              label="Macher"
+              on={bulkMenu === "macher"}
+              onClick={() => setBulkMenu((m) => (m === "macher" ? null : "macher"))}
+            />
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <button
+                onClick={() => {
+                  const ids = [...selected];
+                  if (confirm(`${ids.length} Task(s) löschen?`)) {
+                    deleteTasks(boardId, ids);
+                    afterBulk();
+                  }
+                }}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "5px 10px",
+                  color: "var(--danger)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Löschen
+              </button>
+              <button
+                onClick={afterBulk}
+                title="Auswahl aufheben"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "5px 10px",
+                  color: "var(--muted)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Aufheben
+              </button>
+            </div>
+          </div>
+
+          {bulkMenu && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                padding: "0 14px 10px",
+              }}
+            >
+              {bulkMenu === "status" &&
+                [...statusOptions.map((o) => o.label), ""].map((label) => (
+                  <BulkChip
+                    key={label || "leeren"}
+                    label={label || "Leeren"}
+                    onClick={() => applyStatus(label)}
+                  />
+                ))}
+              {bulkMenu === "move" &&
+                groups.map((g) => (
+                  <BulkChip key={g.id} label={g.name} onClick={() => applyMove(g.id)} />
+                ))}
+              {(bulkMenu === "pm" || bulkMenu === "macher") && (
+                <>
+                  {people.map((p) => (
+                    <BulkChip
+                      key={p.id}
+                      label={p.name}
+                      onClick={() => applyPerson(bulkMenu, p.id)}
+                    />
+                  ))}
+                  <BulkChip label="Leeren" onClick={() => applyPerson(bulkMenu, "")} />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {!collapsed && (
         <div style={{ overflowX: "auto" }}>
@@ -625,6 +770,53 @@ function AddTaskRow({
         </tr>
       )}
     </>
+  );
+}
+
+function BulkBtn({
+  label,
+  on,
+  onClick,
+}: {
+  label: string;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: on ? "var(--active)" : "transparent",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        padding: "5px 10px",
+        color: "var(--text)",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function BulkChip({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 999,
+        padding: "5px 12px",
+        color: "var(--text)",
+        fontSize: 13,
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

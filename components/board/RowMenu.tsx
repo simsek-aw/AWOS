@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { deleteTask, duplicateTask } from "@/app/(app)/boards/[id]/actions";
 import Icon, { type IconName } from "@/components/icons";
+import { toast } from "@/components/toast";
 import type { Group } from "@/lib/types";
 import Popover from "./Popover";
 
@@ -88,6 +89,7 @@ export default function RowMenu({
                     navigator.clipboard?.writeText(
                       `${window.location.origin}${taskHref}`,
                     );
+                    toast("Link kopiert");
                   }}
                 />
                 <Divider />

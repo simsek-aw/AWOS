@@ -1044,3 +1044,72 @@ export async function deleteTasks(boardId: string, taskIds: string[]) {
   await supabase.from("tasks").delete().in("id", taskIds);
   revalidatePath(`/boards/${boardId}`);
 }
+
+/** Bulk: set the status of several tasks at once. */
+export async function bulkSetStatus(
+  boardId: string,
+  taskIds: string[],
+  label: string,
+) {
+  if (!taskIds.length) return;
+  const supabase = await createServerSupabase();
+  const { data: col } = await supabase
+    .from("columns")
+    .select("id")
+    .eq("board_id", boardId)
+    .eq("key", "status")
+    .maybeSingle<{ id: string }>();
+  if (!col) return;
+  const value = label.trim() || null;
+  await supabase.from("task_values").upsert(
+    taskIds.map((id) => ({ task_id: id, column_id: col.id, value })),
+    { onConflict: "task_id,column_id" },
+  );
+  after(() =>
+    Promise.all(taskIds.map((id) => propagateFieldAcrossMirror(id, "status"))),
+  );
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Bulk: move several tasks into a group. */
+export async function bulkMoveToGroup(
+  boardId: string,
+  taskIds: string[],
+  groupId: string,
+) {
+  if (!taskIds.length || !groupId) return;
+  const supabase = await createServerSupabase();
+  await supabase.from("tasks").update({ group_id: groupId }).in("id", taskIds);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Bulk: set a person column (pm/macher) on several tasks (replaces value). */
+export async function bulkSetPeople(
+  boardId: string,
+  taskIds: string[],
+  columnKey: "pm" | "macher",
+  personIds: string[],
+) {
+  if (!taskIds.length) return;
+  const supabase = await createServerSupabase();
+  const { data: col } = await supabase
+    .from("columns")
+    .select("id")
+    .eq("board_id", boardId)
+    .eq("key", columnKey)
+    .maybeSingle<{ id: string }>();
+  if (!col) return;
+  const clean = Array.from(new Set(personIds.filter(Boolean)));
+  await supabase.from("task_values").upsert(
+    taskIds.map((id) => ({
+      task_id: id,
+      column_id: col.id,
+      value: clean.length ? clean : null,
+    })),
+    { onConflict: "task_id,column_id" },
+  );
+  after(() =>
+    Promise.all(taskIds.map((id) => propagateFieldAcrossMirror(id, columnKey))),
+  );
+  revalidatePath(`/boards/${boardId}`);
+}
