@@ -1,0 +1,691 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  deleteGeneration,
+  generateImage,
+  type GenerationView,
+} from "@/app/(app)/tools/awideogram/actions";
+import Icon from "@/components/icons";
+import { toast } from "@/components/toast";
+import type { RenderingSpeed } from "@/lib/ideogram";
+
+type Box = {
+  id: string;
+  type: "text" | "object";
+  x: number; // 0..1 fractions of the canvas
+  y: number;
+  w: number;
+  h: number;
+  text: string;
+  desc: string;
+  color: string;
+};
+
+type Gesture = {
+  mode: "draw" | "move" | "resize";
+  id: string;
+  startX: number;
+  startY: number;
+  orig: { x: number; y: number; w: number; h: number };
+};
+
+const ASPECTS = [
+  "1x1",
+  "16x9",
+  "9x16",
+  "4x3",
+  "3x4",
+  "3x2",
+  "2x3",
+  "16x10",
+  "10x16",
+];
+const SPEEDS: RenderingSpeed[] = ["TURBO", "DEFAULT", "QUALITY"];
+const clamp = (n: number, min = 0, max = 1) => Math.max(min, Math.min(max, n));
+
+export default function AWideogramStudio({
+  initial,
+  hasKey,
+}: {
+  initial: GenerationView[];
+  hasKey: boolean;
+}) {
+  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [gallery, setGallery] = useState<GenerationView[]>(initial);
+  const [busy, setBusy] = useState(false);
+
+  // Prompt / style state.
+  const [hld, setHld] = useState("");
+  const [aesthetics, setAesthetics] = useState("");
+  const [lighting, setLighting] = useState("");
+  const [medium, setMedium] = useState("");
+  const [background, setBackground] = useState("");
+  const [palette, setPalette] = useState("");
+  const [aspect, setAspect] = useState("1x1");
+  const [speed, setSpeed] = useState<RenderingSpeed>("DEFAULT");
+
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const gesture = useRef<Gesture | null>(null);
+
+  const selected = boxes.find((b) => b.id === selectedId) ?? null;
+  const patch = (id: string, p: Partial<Box>) =>
+    setBoxes((prev) => prev.map((b) => (b.id === id ? { ...b, ...p } : b)));
+
+  const frac = (clientX: number, clientY: number) => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    return {
+      x: clamp((clientX - r.left) / r.width),
+      y: clamp((clientY - r.top) / r.height),
+    };
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const g = gesture.current;
+      if (!g) return;
+      const p = frac(e.clientX, e.clientY);
+      if (g.mode === "draw") {
+        patch(g.id, {
+          x: Math.min(g.startX, p.x),
+          y: Math.min(g.startY, p.y),
+          w: Math.abs(p.x - g.startX),
+          h: Math.abs(p.y - g.startY),
+        });
+      } else if (g.mode === "move") {
+        const dx = p.x - g.startX;
+        const dy = p.y - g.startY;
+        patch(g.id, {
+          x: clamp(g.orig.x + dx, 0, 1 - g.orig.w),
+          y: clamp(g.orig.y + dy, 0, 1 - g.orig.h),
+        });
+      } else if (g.mode === "resize") {
+        patch(g.id, {
+          w: clamp(p.x - g.orig.x, 0.03, 1 - g.orig.x),
+          h: clamp(p.y - g.orig.y, 0.03, 1 - g.orig.y),
+        });
+      }
+    };
+    const onUp = () => {
+      const g = gesture.current;
+      gesture.current = null;
+      if (g?.mode === "draw") {
+        // Drop boxes that were basically just a click.
+        setBoxes((prev) =>
+          prev.filter((b) => b.id !== g.id || (b.w > 0.03 && b.h > 0.03)),
+        );
+      }
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startDraw = (e: React.MouseEvent) => {
+    if (e.target !== canvasRef.current) return; // only on empty canvas
+    const p = frac(e.clientX, e.clientY);
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : String(Math.random());
+    const nb: Box = {
+      id,
+      type: "text",
+      x: p.x,
+      y: p.y,
+      w: 0,
+      h: 0,
+      text: "Text",
+      desc: "",
+      color: "",
+    };
+    setBoxes((prev) => [...prev, nb]);
+    setSelectedId(id);
+    gesture.current = {
+      mode: "draw",
+      id,
+      startX: p.x,
+      startY: p.y,
+      orig: { x: p.x, y: p.y, w: 0, h: 0 },
+    };
+  };
+
+  const startMove = (e: React.MouseEvent, b: Box) => {
+    e.stopPropagation();
+    setSelectedId(b.id);
+    const p = frac(e.clientX, e.clientY);
+    gesture.current = {
+      mode: "move",
+      id: b.id,
+      startX: p.x,
+      startY: p.y,
+      orig: { x: b.x, y: b.y, w: b.w, h: b.h },
+    };
+  };
+
+  const startResize = (e: React.MouseEvent, b: Box) => {
+    e.stopPropagation();
+    setSelectedId(b.id);
+    gesture.current = {
+      mode: "resize",
+      id: b.id,
+      startX: b.x,
+      startY: b.y,
+      orig: { x: b.x, y: b.y, w: b.w, h: b.h },
+    };
+  };
+
+  const removeBox = (id: string) => {
+    setBoxes((prev) => prev.filter((b) => b.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  };
+
+  const generate = async () => {
+    if (!hld.trim()) {
+      toast("Bitte eine Bildbeschreibung eingeben.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { images } = await generateImage({
+        highLevelDescription: hld.trim(),
+        aesthetics: aesthetics.trim() || undefined,
+        lighting: lighting.trim() || undefined,
+        medium: medium.trim() || undefined,
+        backgroundDesc: background.trim() || undefined,
+        palette: palette
+          .split(/[,\s]+/)
+          .map((s) => s.trim())
+          .filter((s) => /^#?[0-9a-fA-F]{3,8}$/.test(s))
+          .map((s) => (s.startsWith("#") ? s : `#${s}`)),
+        aspectRatio: aspect,
+        renderingSpeed: speed,
+        boxes: boxes.map((b) => ({
+          type: b.type,
+          x: b.x,
+          y: b.y,
+          w: b.w,
+          h: b.h,
+          text: b.type === "text" ? b.text : undefined,
+          desc: b.desc || undefined,
+          color: b.color || undefined,
+        })),
+      });
+      setGallery((prev) => [...images, ...prev]);
+      toast(`${images.length} Bild${images.length > 1 ? "er" : ""} erstellt`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Generierung fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDelete = async (id: string) => {
+    setGallery((prev) => prev.filter((g) => g.id !== id));
+    try {
+      await deleteGeneration(id);
+    } catch {
+      toast("Löschen fehlgeschlagen");
+    }
+  };
+
+  const [rw, rh] = aspect.split("x").map(Number);
+
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 26 }}>🖼️</span>
+        <div>
+          <h1 style={{ fontSize: 22, margin: 0 }}>AWideogram</h1>
+          <p style={{ color: "var(--muted)", fontSize: 13, margin: "2px 0 0" }}>
+            Bildgenerierung mit Layout-Kontrolle (Ideogram 4.0). Ziehe Kästen auf
+            die Fläche und weise ihnen Text/Objekte zu.
+          </p>
+        </div>
+      </div>
+
+      {!hasKey && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "var(--danger-bg)",
+            color: "var(--danger)",
+            fontSize: 13,
+          }}
+        >
+          Kein <strong>IDEOGRAM_API_KEY</strong> gesetzt — Generierung ist erst
+          aktiv, sobald der Key als sensible Env-Var in Vercel hinterlegt ist.
+        </div>
+      )}
+
+      <div
+        className="awideogram-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 320px",
+          gap: 20,
+          marginTop: 18,
+          alignItems: "start",
+        }}
+      >
+        {/* Canvas editor */}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginBottom: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <Field label="Format">
+              <select
+                value={aspect}
+                onChange={(e) => setAspect(e.target.value)}
+                style={inputStyle}
+              >
+                {ASPECTS.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Qualität">
+              <select
+                value={speed}
+                onChange={(e) => setSpeed(e.target.value as RenderingSpeed)}
+                style={inputStyle}
+              >
+                {SPEEDS.map((s) => (
+                  <option key={s} value={s}>
+                    {s === "TURBO"
+                      ? "Turbo (schnell)"
+                      : s === "QUALITY"
+                        ? "Qualität"
+                        : "Standard"}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {boxes.length > 0 && (
+              <button
+                onClick={() => {
+                  setBoxes([]);
+                  setSelectedId(null);
+                }}
+                style={{ ...ghostBtn, alignSelf: "flex-end" }}
+              >
+                Layout leeren
+              </button>
+            )}
+          </div>
+
+          <div
+            ref={canvasRef}
+            onMouseDown={startDraw}
+            style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: 640,
+              aspectRatio: `${rw} / ${rh}`,
+              background:
+                "repeating-linear-gradient(0deg, var(--surface-2) 0 1px, transparent 1px 40px), repeating-linear-gradient(90deg, var(--surface-2) 0 1px, transparent 1px 40px), var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              overflow: "hidden",
+              cursor: "crosshair",
+              userSelect: "none",
+            }}
+          >
+            {boxes.map((b) => {
+              const isSel = b.id === selectedId;
+              const col = b.color || (b.type === "text" ? "#579bfc" : "#00c875");
+              return (
+                <div
+                  key={b.id}
+                  onMouseDown={(e) => startMove(e, b)}
+                  style={{
+                    position: "absolute",
+                    left: `${b.x * 100}%`,
+                    top: `${b.y * 100}%`,
+                    width: `${b.w * 100}%`,
+                    height: `${b.h * 100}%`,
+                    border: `2px solid ${col}`,
+                    background: col + "22",
+                    borderRadius: 4,
+                    boxShadow: isSel ? `0 0 0 2px ${col}` : undefined,
+                    cursor: "move",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    fontSize: 12,
+                    color: "var(--text)",
+                    padding: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      pointerEvents: "none",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {b.type === "text" ? b.text || "Text" : b.desc || "Objekt"}
+                  </span>
+                  {isSel && (
+                    <span
+                      onMouseDown={(e) => startResize(e, b)}
+                      style={{
+                        position: "absolute",
+                        right: -6,
+                        bottom: -6,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        background: col,
+                        cursor: "nwse-resize",
+                        border: "2px solid var(--surface)",
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            {boxes.length === 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--faint)",
+                  fontSize: 13,
+                  pointerEvents: "none",
+                }}
+              >
+                Kasten aufziehen für Text/Objekt-Platzierung (optional)
+              </div>
+            )}
+          </div>
+          <p style={{ color: "var(--faint)", fontSize: 12, marginTop: 8 }}>
+            Ohne Kästen wird rein aus der Beschreibung generiert. Mit Kästen wird
+            die Position exakt vorgegeben (Layout Control).
+          </p>
+        </div>
+
+        {/* Settings panel */}
+        <div style={{ display: "grid", gap: 12 }}>
+          <Field label="Bildbeschreibung *">
+            <textarea
+              value={hld}
+              onChange={(e) => setHld(e.target.value)}
+              rows={3}
+              placeholder="z. B. Sommer-Sale-Poster für eine Reise-Marke"
+              style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+            />
+          </Field>
+
+          {selected ? (
+            <div
+              style={{
+                border: "1px solid var(--accent)",
+                borderRadius: 10,
+                padding: 10,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <strong style={{ fontSize: 13 }}>Ausgewählter Kasten</strong>
+                <button
+                  onClick={() => removeBox(selected.id)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--danger)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  Entfernen
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["text", "object"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => patch(selected.id, { type: t })}
+                    style={{
+                      ...ghostBtn,
+                      flex: 1,
+                      background:
+                        selected.type === t ? "var(--active)" : "transparent",
+                      color:
+                        selected.type === t ? "var(--text)" : "var(--muted)",
+                    }}
+                  >
+                    {t === "text" ? "Text" : "Objekt"}
+                  </button>
+                ))}
+              </div>
+              {selected.type === "text" && (
+                <Field label="Text im Bild">
+                  <input
+                    value={selected.text}
+                    onChange={(e) => patch(selected.id, { text: e.target.value })}
+                    placeholder="z. B. -50%"
+                    style={inputStyle}
+                  />
+                </Field>
+              )}
+              <Field label="Beschreibung / Stil">
+                <input
+                  value={selected.desc}
+                  onChange={(e) => patch(selected.id, { desc: e.target.value })}
+                  placeholder={
+                    selected.type === "text"
+                      ? "fette serifenlose Schrift, weiß"
+                      : "Produktfoto einer Sonnencreme"
+                  }
+                  style={inputStyle}
+                />
+              </Field>
+              <Field label="Farbe (optional)">
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="color"
+                    value={selected.color || "#579bfc"}
+                    onChange={(e) => patch(selected.id, { color: e.target.value })}
+                    style={{
+                      width: 36,
+                      height: 30,
+                      border: "none",
+                      background: "transparent",
+                      padding: 0,
+                      cursor: "pointer",
+                    }}
+                  />
+                  {selected.color && (
+                    <button
+                      onClick={() => patch(selected.id, { color: "" })}
+                      style={{ ...ghostBtn, padding: "5px 8px" }}
+                    >
+                      zurücksetzen
+                    </button>
+                  )}
+                </div>
+              </Field>
+            </div>
+          ) : (
+            <details>
+              <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--muted)" }}>
+                Stil &amp; Hintergrund (optional)
+              </summary>
+              <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                <Field label="Ästhetik">
+                  <input value={aesthetics} onChange={(e) => setAesthetics(e.target.value)} placeholder="clean, modern" style={inputStyle} />
+                </Field>
+                <Field label="Licht">
+                  <input value={lighting} onChange={(e) => setLighting(e.target.value)} placeholder="weiches Studiolicht" style={inputStyle} />
+                </Field>
+                <Field label="Medium">
+                  <input value={medium} onChange={(e) => setMedium(e.target.value)} placeholder="Fotografie / 3D-Render" style={inputStyle} />
+                </Field>
+                <Field label="Hintergrund">
+                  <input value={background} onChange={(e) => setBackground(e.target.value)} placeholder="schlichter Farbverlauf" style={inputStyle} />
+                </Field>
+                <Field label="Farbpalette (Hex, kommagetrennt)">
+                  <input value={palette} onChange={(e) => setPalette(e.target.value)} placeholder="#0a2540, #ff7a00" style={inputStyle} />
+                </Field>
+              </div>
+            </details>
+          )}
+
+          <button
+            onClick={generate}
+            disabled={busy}
+            style={{
+              background: "var(--accent)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 16px",
+              fontWeight: 700,
+              cursor: busy ? "default" : "pointer",
+              opacity: busy ? 0.7 : 1,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            <Icon name="sparkles" size={16} />
+            {busy ? "Generiere…" : "Bild generieren"}
+          </button>
+        </div>
+      </div>
+
+      {/* Gallery */}
+      <h2 style={{ fontSize: 16, marginTop: 32 }}>Galerie</h2>
+      {gallery.length === 0 ? (
+        <p style={{ color: "var(--faint)", fontSize: 14 }}>
+          Noch keine Bilder erstellt.
+        </p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: 12,
+            marginTop: 12,
+          }}
+        >
+          {gallery.map((g) => (
+            <div
+              key={g.id}
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                overflow: "hidden",
+                background: "var(--surface)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <a href={g.url} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={g.url}
+                  alt={g.highLevelDescription ?? "AWideogram"}
+                  style={{ width: "100%", display: "block", aspectRatio: "1 / 1", objectFit: "cover" }}
+                />
+              </a>
+              <div style={{ padding: "8px 10px", display: "flex", gap: 8, alignItems: "center" }}>
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 12,
+                    color: "var(--muted)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={g.highLevelDescription ?? ""}
+                >
+                  {g.highLevelDescription ?? "—"}
+                </span>
+                <a
+                  href={g.url}
+                  download
+                  title="Herunterladen"
+                  style={{ color: "var(--muted)", display: "inline-flex" }}
+                >
+                  <Icon name="external" size={15} />
+                </a>
+                <button
+                  onClick={() => onDelete(g.id)}
+                  title="Löschen"
+                  style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", display: "inline-flex" }}
+                >
+                  <Icon name="trash" size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 4, fontSize: 12, color: "var(--muted)" }}>
+      {label}
+      {children}
+    </label>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  background: "var(--input-bg)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "8px 10px",
+  color: "var(--text)",
+  fontSize: 13,
+};
+
+const ghostBtn: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "7px 10px",
+  color: "var(--muted)",
+  fontSize: 13,
+  cursor: "pointer",
+};
