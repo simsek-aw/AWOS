@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   deleteUser,
   sendPasswordReset,
+  setUserAdmin,
   setUserPassword,
   updateUser,
 } from "@/app/admin/actions";
@@ -44,6 +45,20 @@ export default function UserRow({
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {profile.is_admin && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#fff",
+                background: "var(--accent)",
+                borderRadius: 999,
+                padding: "1px 8px",
+              }}
+            >
+              Admin
+            </span>
+          )}
           <span style={{ color: "var(--muted)", fontSize: 13 }}>
             {profile.role === "employee"
               ? `Mitarbeiter${profile.department ? " · " + deptLabel[profile.department] : ""}`
@@ -105,6 +120,28 @@ export default function UserRow({
               Änderungen speichern
             </button>
           </form>
+
+          {profile.role === "employee" && (
+            <form action={setUserAdmin} style={{ marginTop: 8 }}>
+              <input type="hidden" name="user_id" value={profile.id} />
+              <input
+                type="hidden"
+                name="is_admin"
+                value={profile.is_admin ? "0" : "1"}
+              />
+              <button
+                style={profile.is_admin ? dangerBtn : button}
+                disabled={isSelf && !!profile.is_admin}
+                title={
+                  isSelf && profile.is_admin
+                    ? "Eigene Admin-Rechte können nicht entzogen werden"
+                    : undefined
+                }
+              >
+                {profile.is_admin ? "Admin-Recht entziehen" : "Zum Admin machen"}
+              </button>
+            </form>
+          )}
 
           <hr style={hr} />
 

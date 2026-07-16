@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireEmployee } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Department } from "@/lib/types";
 
@@ -25,7 +25,7 @@ function ok(message: string): never {
 }
 
 export async function createCustomer(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) fail("Kundenname fehlt");
 
@@ -52,7 +52,7 @@ export async function createCustomer(formData: FormData) {
 
 /** Rename a board. */
 export async function renameBoard(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const boardId = String(formData.get("board_id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   if (!boardId || !name) return;
@@ -64,7 +64,7 @@ export async function renameBoard(formData: FormData) {
 
 /** Archive or unarchive a board (soft — data is kept, just hidden). */
 export async function setBoardArchived(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const boardId = String(formData.get("board_id") ?? "");
   const archived = String(formData.get("archived") ?? "") === "1";
   if (!boardId) return;
@@ -78,7 +78,7 @@ export async function setBoardArchived(formData: FormData) {
 }
 
 export async function createInternalBoard(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
   const department = String(formData.get("department") ?? "") as Department | "";
   if (!name) fail("Board-Name fehlt");
@@ -97,7 +97,7 @@ export async function createInternalBoard(formData: FormData) {
 }
 
 export async function createCustomerBoard(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
   const customerId = String(formData.get("customer_id") ?? "");
   if (!name) fail("Board-Name fehlt");
@@ -117,7 +117,7 @@ export async function createCustomerBoard(formData: FormData) {
 }
 
 export async function updateUser(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const userId = String(formData.get("user_id") ?? "");
   const fullName = String(formData.get("full_name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
@@ -143,8 +143,28 @@ export async function updateUser(formData: FormData) {
   ok("Nutzer aktualisiert");
 }
 
+/** Grant or revoke admin rights. Can't revoke your own (avoids lock-out). */
+export async function setUserAdmin(formData: FormData) {
+  const ctx = await requireAdmin();
+  const userId = String(formData.get("user_id") ?? "");
+  const makeAdmin = String(formData.get("is_admin") ?? "") === "1";
+  if (!userId) fail("Nutzer fehlt");
+  if (userId === ctx.userId && !makeAdmin)
+    fail("Du kannst dir die Admin-Rechte nicht selbst entziehen");
+
+  const svc = createServiceClient();
+  const { error } = await svc
+    .from("profiles")
+    .update({ is_admin: makeAdmin })
+    .eq("id", userId);
+  if (error) fail("Admin-Recht konnte nicht geändert werden");
+
+  revalidatePath("/admin");
+  ok(makeAdmin ? "Admin-Recht erteilt" : "Admin-Recht entzogen");
+}
+
 export async function setUserPassword(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const userId = String(formData.get("user_id") ?? "");
   const password = String(formData.get("password") ?? "");
 
@@ -164,7 +184,7 @@ export async function setUserPassword(formData: FormData) {
 }
 
 export async function sendPasswordReset(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const email = String(formData.get("email") ?? "").trim();
   if (!email) fail("E-Mail fehlt");
 
@@ -183,7 +203,7 @@ export async function sendPasswordReset(formData: FormData) {
 }
 
 export async function deleteUser(formData: FormData) {
-  const ctx = await requireEmployee();
+  const ctx = await requireAdmin();
   const userId = String(formData.get("user_id") ?? "");
   if (!userId) fail("Nutzer fehlt");
   if (userId === ctx.userId) fail("Du kannst dich nicht selbst löschen");
@@ -207,7 +227,7 @@ export async function deleteUser(formData: FormData) {
 export async function importTeam(
   rows: { name: string; email: string; department: string }[],
 ): Promise<{ created: number; skipped: number; errors: string[] }> {
-  await requireEmployee();
+  await requireAdmin();
   const svc = createServiceClient();
 
   const mapDept = (s: string): "marketing" | "content" | "grafik" | null => {
@@ -268,7 +288,7 @@ export async function importTeam(
 }
 
 export async function inviteUser(formData: FormData) {
-  await requireEmployee();
+  await requireAdmin();
   const email = String(formData.get("email") ?? "").trim();
   const fullName = String(formData.get("full_name") ?? "").trim();
   const role = String(formData.get("role") ?? "");

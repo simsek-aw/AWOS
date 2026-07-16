@@ -1,6 +1,6 @@
 import AppHeader from "@/components/AppHeader";
 import MondayImport from "@/components/admin/MondayImport";
-import { requireEmployee } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Board } from "@/lib/types";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60; // large imports run as a server action here
 
 export default async function ImportPage() {
-  const ctx = await requireEmployee();
+  const ctx = await requireAdmin();
   const supabase = await createServerSupabase();
 
   const [{ data: boards }, { data: profiles }] = await Promise.all([

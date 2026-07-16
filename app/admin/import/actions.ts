@@ -1,6 +1,6 @@
 "use server";
 
-import { requireEmployee } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export type ImportColumn = {
@@ -14,7 +14,7 @@ export type ImportColumn = {
 export async function getImportColumns(
   boardId: string,
 ): Promise<ImportColumn[]> {
-  await requireEmployee();
+  await requireAdmin();
   const supabase = await createServerSupabase();
   const { data } = await supabase
     .from("columns")
@@ -51,7 +51,7 @@ export async function importBoardRows(
   boardId: string,
   rows: ImportRow[],
 ): Promise<{ created: number; groups: number; createdIds: string[] }> {
-  await requireEmployee();
+  await requireAdmin();
   if (!rows?.length) return { created: 0, groups: 0, createdIds: [] };
   const supabase = await createServerSupabase();
 
@@ -242,7 +242,7 @@ export async function importBoardRows(
 
 /** Undo an import: delete the tasks it created (their values cascade). */
 export async function undoImport(boardId: string, taskIds: string[]) {
-  await requireEmployee();
+  await requireAdmin();
   if (!taskIds.length) return;
   const supabase = await createServerSupabase();
   await supabase.from("tasks").delete().in("id", taskIds);

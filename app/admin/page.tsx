@@ -1,7 +1,7 @@
 import AppHeader from "@/components/AppHeader";
 import TeamImport from "@/components/admin/TeamImport";
 import UserRow from "@/components/admin/UserRow";
-import { requireEmployee } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 import type { Board, Customer, Profile } from "@/lib/types";
 import {
@@ -24,7 +24,7 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const ctx = await requireEmployee();
+  const ctx = await requireAdmin();
   const { error, ok } = await searchParams;
   const supabase = await createServerSupabase();
 

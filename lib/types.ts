@@ -17,6 +17,7 @@ export interface Profile {
   role: UserRole;
   customer_id: string | null;
   department: Department | null;
+  is_admin?: boolean;
   created_at: string;
 }
 

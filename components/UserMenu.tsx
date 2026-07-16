@@ -23,6 +23,7 @@ export default function UserMenu({ ctx }: { ctx: SessionContext }) {
   const name = ctx.profile.full_name ?? ctx.email ?? "Benutzer";
   const role = roleLabel[ctx.profile.role] ?? ctx.profile.role;
   const isEmployee = ctx.profile.role === "employee";
+  const admin = ctx.profile.is_admin ?? isEmployee;
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -119,7 +120,7 @@ export default function UserMenu({ ctx }: { ctx: SessionContext }) {
             <Icon name="user" size={16} />
             Mein Profil
           </a>
-          {isEmployee && (
+          {admin && (
             <a href="/admin" style={menuItem}>
               <Icon name="shield" size={16} />
               Admin

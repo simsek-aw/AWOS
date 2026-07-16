@@ -14,7 +14,7 @@ export default function AppHeader({
   ctx: SessionContext;
   onMenuClick?: () => void;
 }) {
-  const isEmployee = ctx.profile.role === "employee";
+  const admin = ctx.profile.is_admin ?? ctx.profile.role === "employee";
   const [searchOpen, setSearchOpen] = useState(false);
 
   // Cmd/Ctrl+K opens the search overlay from anywhere.
@@ -116,7 +116,7 @@ export default function AppHeader({
           <Icon name="search" size={20} />
         </button>
         <NotificationBell userId={ctx.userId} />
-        {isEmployee && (
+        {admin && (
           <a
             href="/admin"
             title="Admin"
