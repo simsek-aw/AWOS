@@ -73,7 +73,7 @@ export default function ProductSwitcher({
             top: "calc(100% + 8px)",
             left: 0,
             zIndex: 90,
-            width: 340,
+            width: 460,
             maxWidth: "calc(100vw - 32px)",
             background: "var(--surface)",
             border: "1px solid var(--border)",
