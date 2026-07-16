@@ -1,4 +1,5 @@
 import AppHeader from "@/components/AppHeader";
+import TeamImport from "@/components/admin/TeamImport";
 import UserRow from "@/components/admin/UserRow";
 import { requireEmployee } from "@/lib/auth";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
@@ -79,6 +80,11 @@ export default async function AdminPage({
 
         {error && <Banner tone="error">{error}</Banner>}
         {ok && <Banner tone="ok">{ok}</Banner>}
+
+        {/* --- Team import --- */}
+        <Section title="Team-Import (CSV)">
+          <TeamImport />
+        </Section>
 
         {/* --- Customers --- */}
         <Section title="Kunden">

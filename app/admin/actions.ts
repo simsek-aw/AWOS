@@ -197,6 +197,76 @@ export async function deleteUser(formData: FormData) {
   ok("Nutzer gelöscht");
 }
 
+/**
+ * Bulk-create internal team members (employees) without sending any e-mail.
+ * Accounts are created email-confirmed with a random password; logins can be
+ * enabled later per person via a password reset. Deduped by name so a person
+ * isn't created twice (keeps PM/Macher matching unambiguous). Idempotent:
+ * an already-existing e-mail is skipped.
+ */
+export async function importTeam(
+  rows: { name: string; email: string; department: string }[],
+): Promise<{ created: number; skipped: number; errors: string[] }> {
+  await requireEmployee();
+  const svc = createServiceClient();
+
+  const mapDept = (s: string): "marketing" | "content" | "grafik" | null => {
+    const d = (s ?? "").trim().toLowerCase();
+    if (d.includes("grafik")) return "grafik";
+    if (d.includes("content")) return "content";
+    if (d.includes("marketing")) return "marketing";
+    return null;
+  };
+
+  const seen = new Set<string>();
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const r of rows ?? []) {
+    const name = (r.name ?? "").trim();
+    const email = (r.email ?? "").trim().toLowerCase();
+    if (!name || !email || !email.includes("@")) {
+      skipped++;
+      continue;
+    }
+    if (seen.has(name.toLowerCase())) {
+      skipped++;
+      continue;
+    }
+    seen.add(name.toLowerCase());
+
+    const { data: acc, error } = await svc.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      password: `${crypto.randomUUID()}Aa1!`,
+      user_metadata: { full_name: name },
+    });
+    if (error || !acc.user) {
+      skipped++;
+      if (errors.length < 8) errors.push(`${email}: ${error?.message ?? "unbekannt"}`);
+      continue;
+    }
+    const { error: pErr } = await svc.rpc("provision_profile", {
+      p_user_id: acc.user.id,
+      p_full_name: name,
+      p_role: "employee",
+      p_customer_id: null,
+      p_department: mapDept(r.department),
+    });
+    if (pErr) {
+      await svc.auth.admin.deleteUser(acc.user.id);
+      skipped++;
+      if (errors.length < 8) errors.push(`${email}: Profil (${pErr.message})`);
+      continue;
+    }
+    created++;
+  }
+
+  revalidatePath("/admin");
+  return { created, skipped, errors };
+}
+
 export async function inviteUser(formData: FormData) {
   await requireEmployee();
   const email = String(formData.get("email") ?? "").trim();
