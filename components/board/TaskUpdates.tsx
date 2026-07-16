@@ -366,6 +366,9 @@ export default function TaskUpdates({
                 people={people}
                 value={editBody}
                 onChange={setEditBody}
+                onSubmit={() => {
+                  if (editBody.trim()) saveEdit(cm.id);
+                }}
                 rows={2}
               />
               <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
@@ -444,6 +447,9 @@ export default function TaskUpdates({
                 people={people}
                 value={replyBody}
                 onChange={setReplyBody}
+                onSubmit={() => {
+                  if (replyBody.trim()) submitReply(cm.id);
+                }}
                 placeholder="Antwort schreiben… (@ erwähnt jemanden)"
                 rows={2}
               />
@@ -636,15 +642,23 @@ export default function TaskUpdates({
               people={people}
               value={body}
               onChange={setBody}
+              onSubmit={() => {
+                if (body.trim()) submitTop();
+              }}
               placeholder="Schreibe eine Aktualisierung und erwähne andere mit @"
             />
-            <button
-              onClick={submitTop}
-              disabled={!body.trim()}
-              style={{ ...primaryBtn, marginTop: 8, opacity: body.trim() ? 1 : 0.6 }}
-            >
-              Aktualisierung posten
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+              <button
+                onClick={submitTop}
+                disabled={!body.trim()}
+                style={{ ...primaryBtn, opacity: body.trim() ? 1 : 0.6 }}
+              >
+                Aktualisierung posten
+              </button>
+              <span style={{ color: "var(--faint)", fontSize: 12 }}>
+                ⌘/Strg + Enter
+              </span>
+            </div>
           </div>
 
           <div style={{ display: "grid", gap: 18 }}>

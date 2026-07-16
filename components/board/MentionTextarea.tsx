@@ -10,6 +10,7 @@ export default function MentionTextarea({
   name,
   value,
   onChange,
+  onSubmit,
   placeholder,
   rows = 3,
 }: {
@@ -17,6 +18,8 @@ export default function MentionTextarea({
   name?: string;
   value?: string;
   onChange?: (v: string) => void;
+  // Fired on Cmd/Ctrl+Enter — lets the parent submit the comment.
+  onSubmit?: () => void;
   placeholder?: string;
   rows?: number;
 }) {
@@ -73,6 +76,13 @@ export default function MentionTextarea({
           );
         }}
         onKeyDown={(e) => {
+          // Cmd/Ctrl+Enter submits, regardless of the mention menu.
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && onSubmit) {
+            e.preventDefault();
+            setMenu(null);
+            onSubmit();
+            return;
+          }
           if (!menu || matches.length === 0) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
