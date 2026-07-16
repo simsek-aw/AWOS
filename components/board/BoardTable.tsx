@@ -1364,9 +1364,9 @@ const subToggle: React.CSSProperties = {
   border: "none",
   color: "var(--muted)",
   cursor: "pointer",
-  fontSize: 12,
+  fontSize: 16,
   lineHeight: 1,
-  width: 16,
+  width: 20,
   flexShrink: 0,
   padding: 0,
 };
