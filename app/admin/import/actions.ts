@@ -49,6 +49,11 @@ export type ImportRow = {
   title: string;
   customerName?: string;
   values: { columnId: string; value: unknown }[];
+  // Stable key of this row, and (for subitems) the key of the parent row. Used
+  // to link subitems to their parent across the two-pass insert below. Keys are
+  // assigned by the client (buildRows) and survive title-filtering here.
+  key?: number;
+  parentKey?: number;
 };
 
 /**
@@ -176,39 +181,58 @@ export async function importBoardRows(
 
   const createdIds: string[] = [];
   const valueRows: { task_id: string; column_id: string; value: unknown }[] = [];
-  for (const batch of chunk(valid, 400)) {
-    const objs = batch.map((r) => ({
-      board_id: boardId,
-      group_id: groupIdFor(r.group),
-      title: String(r.title).trim(),
-      customer_id: custIdFor(r.customerName),
-    }));
-    const { data: inserted, error } = await supabase
-      .from("tasks")
-      .insert(objs)
-      .select("id")
-      .returns<{ id: string }[]>();
-    if (error) {
-      console.error("import: task insert failed", error);
-      throw new Error(`Import fehlgeschlagen: ${error.message}`);
-    }
-    const ids = (inserted ?? []).map((x) => x.id);
-    for (let i = 0; i < batch.length; i++) {
-      const id = ids[i];
-      if (!id) continue;
-      createdIds.push(id);
-      for (const v of batch[i].values ?? []) {
-        if (
-          validCols.has(v.columnId) &&
-          v.value != null &&
-          !(typeof v.value === "string" && v.value.trim() === "") &&
-          !(Array.isArray(v.value) && v.value.length === 0)
-        ) {
-          valueRows.push({ task_id: id, column_id: v.columnId, value: v.value });
+  // Maps each row's client key to its created task id, so subitems can point
+  // parent_id at the task their parent row produced.
+  const keyToId = new Map<number, string>();
+
+  const insertRows = async (
+    list: ImportRow[],
+    parentIdOf: (r: ImportRow) => string | null,
+  ) => {
+    for (const batch of chunk(list, 400)) {
+      const objs = batch.map((r) => ({
+        board_id: boardId,
+        group_id: groupIdFor(r.group),
+        title: String(r.title).trim(),
+        customer_id: custIdFor(r.customerName),
+        parent_id: parentIdOf(r),
+      }));
+      const { data: inserted, error } = await supabase
+        .from("tasks")
+        .insert(objs)
+        .select("id")
+        .returns<{ id: string }[]>();
+      if (error) {
+        console.error("import: task insert failed", error);
+        throw new Error(`Import fehlgeschlagen: ${error.message}`);
+      }
+      const ids = (inserted ?? []).map((x) => x.id);
+      for (let i = 0; i < batch.length; i++) {
+        const id = ids[i];
+        if (!id) continue;
+        createdIds.push(id);
+        if (typeof batch[i].key === "number") keyToId.set(batch[i].key!, id);
+        for (const v of batch[i].values ?? []) {
+          if (
+            validCols.has(v.columnId) &&
+            v.value != null &&
+            !(typeof v.value === "string" && v.value.trim() === "") &&
+            !(Array.isArray(v.value) && v.value.length === 0)
+          ) {
+            valueRows.push({ task_id: id, column_id: v.columnId, value: v.value });
+          }
         }
       }
     }
-  }
+  };
+
+  // Insert parents first so their ids exist when subitems reference them, then
+  // subitems with parent_id resolved from the parent's created id.
+  const parents = valid.filter((r) => r.parentKey == null);
+  const children = valid.filter((r) => r.parentKey != null);
+  await insertRows(parents, () => null);
+  await insertRows(children, (r) => keyToId.get(r.parentKey!) ?? null);
+
   for (const vb of chunk(valueRows, 500)) {
     await supabase.from("task_values").upsert(vb, { onConflict: "task_id,column_id" });
   }

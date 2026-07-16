@@ -249,9 +249,28 @@ export default function BoardView({
     }
   };
 
+  // Subitems grouped by their parent id (sorted by position/creation). Built
+  // from ALL tasks so children stay attached regardless of the parent filter.
+  const childrenByParent = useMemo(() => {
+    const m = new Map<string, Task[]>();
+    for (const t of localTasks) {
+      if (!t.parent_id) continue;
+      if (!m.has(t.parent_id)) m.set(t.parent_id, []);
+      m.get(t.parent_id)!.push(t);
+    }
+    for (const list of m.values())
+      list.sort(
+        (a, b) =>
+          a.position - b.position || a.created_at.localeCompare(b.created_at),
+      );
+    return m;
+  }, [localTasks]);
+
   const firstGroupId = groups[0]?.id ?? null;
   const tasksByGroup = useMemo(() => {
-    const filtered = localTasks.filter(passesFilter);
+    // Only top-level tasks form the group rows; subitems render nested under
+    // their parent inside BoardTable.
+    const filtered = localTasks.filter((t) => !t.parent_id && passesFilter(t));
     const byGroup = new Map<string, Task[]>();
     for (const g of groups) byGroup.set(g.id, []);
     for (const t of filtered) {
@@ -759,6 +778,7 @@ export default function BoardView({
                 group={g}
                 columns={columns}
                 tasks={tasksByGroup.get(g.id) ?? []}
+                childrenByParent={childrenByParent}
                 values={values}
                 people={people}
                 commentCounts={commentCounts}

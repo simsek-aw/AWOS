@@ -83,28 +83,31 @@ function parseDate(raw: string): string {
   return s;
 }
 
-// Normalize a monday board export into a clean table with a leading "Gruppe"
-// column. Handles: board-title row, section rows, repeated "Name" headers, and
-// subitem blocks (skipped — a different sub-schema). A single-cell row is a
-// section only when the next non-blank row is a "Name" header; otherwise it's a
-// title-only task.
+// Normalize a monday board export into a clean table with two leading columns:
+// "__sub" (a marker: "1" for a subitem row, "" otherwise) and "Gruppe".
+// Handles: board-title row, section rows, repeated "Name" headers, and subitem
+// blocks. monday indents subitems under one empty leading cell, so a subitem
+// row's cells are shifted right by one — we drop that empty cell to re-align
+// them onto the parent's column layout. A single-cell row is a section only
+// when the next non-blank row is a "Name" header; otherwise it's a title-only
+// task.
 function normalizeMonday(raw: string[][]): {
   rows: string[][];
   monday: boolean;
-  skippedSubitems: number;
+  subitems: number;
 } {
   const headerIdx = raw.findIndex((r) => (r[0] ?? "").trim() === "Name");
   const singleCol = raw.some(
     (r) => r.filter((c) => (c ?? "").trim() !== "").length === 1,
   );
   if (headerIdx < 0 || (headerIdx === 0 && !singleCol)) {
-    return { rows: raw, monday: false, skippedSubitems: 0 };
+    return { rows: raw, monday: false, subitems: 0 };
   }
-  const header = ["Gruppe", ...raw[headerIdx]];
+  const header = ["__sub", "Gruppe", ...raw[headerIdx]];
   const out: string[][] = [header];
   let group = "";
   let sawHeader = false;
-  let skippedSubitems = 0;
+  let subitems = 0;
   const blank = (r: string[]) => r.every((c) => (c ?? "").trim() === "");
 
   for (let i = 0; i < raw.length; i++) {
@@ -117,6 +120,17 @@ function normalizeMonday(raw: string[][]): {
     }
     if (c0 === "Subitems") continue; // subitem sub-header
     if (filled.length === 0) continue;
+    // A subitem row has an empty first (Name) cell: its data lives one column to
+    // the right. Re-align by dropping the leading empty cell.
+    if (c0 === "") {
+      const rest = row.slice(1);
+      const r0 = (rest[0] ?? "").trim();
+      // Skip the subitem block's own header / label rows.
+      if (r0 === "" || r0 === "Name" || r0 === "Subitems") continue;
+      subitems++;
+      out.push(["1", group, ...rest]);
+      continue;
+    }
     if (filled.length === 1) {
       // Section header only if the next non-blank row is a "Name" header.
       let j = i + 1;
@@ -127,17 +141,12 @@ function normalizeMonday(raw: string[][]): {
         continue;
       }
       if (!sawHeader) continue; // board title before any header
-      out.push([group, ...row]); // title-only task
+      out.push(["", group, ...row]); // title-only task
       continue;
     }
-    // A subitem row has an empty first (Name) cell — skip it.
-    if (c0 === "") {
-      skippedSubitems++;
-      continue;
-    }
-    out.push([group, ...row]);
+    out.push(["", group, ...row]);
   }
-  return { rows: out, monday: true, skippedSubitems };
+  return { rows: out, monday: true, subitems };
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -215,13 +224,13 @@ export default function MondayImport({
     });
 
   const ingest = (raw2d: string[][]) => {
-    const { rows, monday, skippedSubitems } = normalizeMonday(raw2d);
+    const { rows, monday, subitems } = normalizeMonday(raw2d);
     setParsed(rows);
     setResult(null);
     setFileMsg(
       monday
         ? `monday-Format erkannt: Gruppen als Abschnitte übernommen${
-            skippedSubitems ? `, ${skippedSubitems} Subitems übersprungen` : ""
+            subitems ? `, ${subitems} Subitems werden mitimportiert` : ""
           }.`
         : null,
     );
@@ -287,10 +296,15 @@ export default function MondayImport({
     const titleIdx = mapping.indexOf(TITLE);
     const groupIdx = mapping.indexOf(GROUP);
     const customerIdx = mapping.indexOf(CUSTOMER);
+    // The marker column (see normalizeMonday) is always the first column.
+    const subIdx = header.indexOf("__sub");
     const out: ImportRow[] = [];
+    let key = 0;
+    let lastParentKey: number | null = null;
     for (const r of dataRows) {
       const title = titleIdx >= 0 ? (r[titleIdx] ?? "").trim() : "";
       if (!title) continue;
+      const isSub = subIdx >= 0 && (r[subIdx] ?? "").trim() === "1";
       const values: { columnId: string; value: unknown }[] = [];
       mapping.forEach((target, i) => {
         if (
@@ -319,12 +333,19 @@ export default function MondayImport({
           values.push({ columnId: col.id, value: cell });
         }
       });
+      const myKey = key++;
+      // A subitem attaches to the most recent top-level row; if none has been
+      // seen yet it falls back to a normal top-level task.
+      const parentKey = isSub && lastParentKey != null ? lastParentKey : undefined;
+      if (!isSub) lastParentKey = myKey;
       out.push({
         group: groupIdx >= 0 ? (r[groupIdx] ?? "").trim() : undefined,
         customerName:
           customerIdx >= 0 ? (r[customerIdx] ?? "").trim() || undefined : undefined,
         title,
         values,
+        key: myKey,
+        parentKey,
       });
     }
     return out;
@@ -533,7 +554,11 @@ export default function MondayImport({
         <div>
           <Label>5 · Vorschau &amp; Import</Label>
           <Hint>
-            {preview.length} Aufgaben · Gruppen: {groupsInPreview.join(", ")}
+            {preview.filter((r) => r.parentKey == null).length} Aufgaben
+            {preview.some((r) => r.parentKey != null)
+              ? ` · ${preview.filter((r) => r.parentKey != null).length} Subitems`
+              : ""}{" "}
+            · Gruppen: {groupsInPreview.join(", ")}
           </Hint>
           <div
             style={{
@@ -555,9 +580,14 @@ export default function MondayImport({
                 }}
               >
                 <span style={{ color: "var(--faint)", width: 90, flexShrink: 0 }}>
-                  {r.group || "(Standard)"}
+                  {r.parentKey == null ? r.group || "(Standard)" : ""}
                 </span>
-                <span style={{ flex: 1 }}>{r.title}</span>
+                <span style={{ flex: 1, paddingLeft: r.parentKey != null ? 18 : 0 }}>
+                  {r.parentKey != null && (
+                    <span style={{ color: "var(--faint)" }}>↳ </span>
+                  )}
+                  {r.title}
+                </span>
                 <span style={{ color: "var(--muted)" }}>
                   {r.values.length} Werte
                 </span>

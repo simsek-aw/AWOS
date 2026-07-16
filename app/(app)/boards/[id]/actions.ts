@@ -104,6 +104,69 @@ export async function createTask(
   revalidatePath(`/boards/${boardId}`);
 }
 
+/**
+ * Create a subitem under a parent task. A subitem is a normal task with
+ * parent_id set; it inherits the parent's board and group. RLS ensures the
+ * caller may write to this board (parent_id is validated against it).
+ */
+export async function createSubitem(
+  boardId: string,
+  parentId: string,
+  formData: FormData,
+) {
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return;
+
+  const ctx = await requireSession();
+  const supabase = await createServerSupabase();
+
+  // Load the parent to inherit its group and confirm it belongs to this board.
+  const { data: parent } = await supabase
+    .from("tasks")
+    .select("id, board_id, group_id")
+    .eq("id", parentId)
+    .maybeSingle<{ id: string; board_id: string; group_id: string | null }>();
+  if (!parent || parent.board_id !== boardId) return;
+
+  const { data: task } = await supabase
+    .from("tasks")
+    .insert({
+      board_id: boardId,
+      group_id: parent.group_id,
+      parent_id: parentId,
+      title,
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  // Seed the same defaults as a top-level task (status + creator as PM).
+  if (task) {
+    const { data: cols } = await supabase
+      .from("columns")
+      .select("id, key, options")
+      .eq("board_id", boardId)
+      .in("key", ["status", "pm"])
+      .returns<
+        { id: string; key: string; options: { options?: { label: string }[] } }[]
+      >();
+    const statusCol = cols?.find((c) => c.key === "status");
+    const pmCol = cols?.find((c) => c.key === "pm");
+    const seedRows: { task_id: string; column_id: string; value: unknown }[] = [];
+    if (statusCol) {
+      const firstLabel = statusCol.options?.options?.[0]?.label ?? "Offen";
+      seedRows.push({ task_id: task.id, column_id: statusCol.id, value: firstLabel });
+    }
+    if (pmCol && ctx.profile.role === "employee") {
+      seedRows.push({ task_id: task.id, column_id: pmCol.id, value: [ctx.userId] });
+    }
+    if (seedRows.length) await supabase.from("task_values").insert(seedRows);
+    after(() =>
+      logTaskEvent(task.id, ctx.userId, "created", "Subitem erstellt"),
+    );
+  }
+  revalidatePath(`/boards/${boardId}`);
+}
+
 /** Create a new group on a board. */
 export async function createGroup(boardId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim() || "Neue Gruppe";
@@ -208,6 +271,8 @@ export async function moveTask(
     console.error("moveTask failed", { boardId, taskId, groupId, error });
     throw new Error(`Task konnte nicht verschoben werden: ${error.message}`);
   }
+  // Keep subitems in the same group as their parent.
+  await supabase.from("tasks").update({ group_id: groupId }).eq("parent_id", taskId);
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -1194,6 +1259,8 @@ export async function bulkMoveToGroup(
   if (!taskIds.length || !groupId) return;
   const supabase = await createServerSupabase();
   await supabase.from("tasks").update({ group_id: groupId }).in("id", taskIds);
+  // Move subitems along with their parents.
+  await supabase.from("tasks").update({ group_id: groupId }).in("parent_id", taskIds);
   revalidatePath(`/boards/${boardId}`);
 }
 

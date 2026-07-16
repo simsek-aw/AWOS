@@ -5,6 +5,7 @@ import {
   bulkMoveToGroup,
   bulkSetPeople,
   bulkSetStatus,
+  createSubitem,
   createTask,
   deleteGroup,
   deleteTasks,
@@ -56,6 +57,7 @@ export default function BoardTable({
   group,
   columns,
   tasks,
+  childrenByParent = new Map(),
   values,
   people,
   commentCounts,
@@ -84,6 +86,7 @@ export default function BoardTable({
   group: Group;
   columns: Column[];
   tasks: Task[];
+  childrenByParent?: Map<string, Task[]>;
   values: TaskValue[];
   people: Person[];
   commentCounts: Record<string, number>;
@@ -109,6 +112,15 @@ export default function BoardTable({
 }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  // Which parent tasks have their subitems expanded.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const childrenOf = (id: string) => childrenByParent.get(id) ?? [];
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -171,7 +183,7 @@ export default function BoardTable({
   // Open the drawer automatically when arriving from a notification link
   // (?task=…) and the task lives in this group.
   useEffect(() => {
-    if (autoOpenTaskId && tasks.some((t) => t.id === autoOpenTaskId)) {
+    if (autoOpenTaskId && flatTasks.some((t) => t.id === autoOpenTaskId)) {
       setOpenTaskId(autoOpenTaskId);
       markTaskRead(autoOpenTaskId);
       setUnread((prev) => {
@@ -205,7 +217,18 @@ export default function BoardTable({
     return () => window.removeEventListener("keydown", onKey);
   }, [selected, openTaskId, boardId]);
 
-  const openTask = tasks.find((t) => t.id === openTaskId) ?? null;
+  // Flat list of every row shown in this group (parents + their subitems), for
+  // lookups like opening a drawer or auto-open from a notification link.
+  const flatTasks = useMemo(() => {
+    const out: Task[] = [];
+    for (const t of tasks) {
+      out.push(t);
+      for (const c of childrenByParent.get(t.id) ?? []) out.push(c);
+    }
+    return out;
+  }, [tasks, childrenByParent]);
+
+  const openTask = flatTasks.find((t) => t.id === openTaskId) ?? null;
   const createTaskBound = createTask.bind(null, boardId, group.id);
   const accent = accentFor(group.name);
 
@@ -246,6 +269,244 @@ export default function BoardTable({
   };
 
   const isDropTarget = dragActive && dragOver;
+
+  // Renders one task row. depth 0 = top-level (draggable, has the
+  // expand/collapse chevron); depth 1 = subitem (indented, not reorderable).
+  const renderRow = (
+    t: Task,
+    depth: number,
+    childCount: number,
+    isExpanded: boolean,
+  ) => {
+    const isSel = selected.has(t.id);
+    const isOpen = openTaskId === t.id;
+    const isHover = hoveredId === t.id;
+    const isChild = depth > 0;
+    const dragProps = isChild
+      ? {}
+      : {
+          draggable: !!onTaskDragStart,
+          onMouseDown: (e: React.MouseEvent) => {
+            dragBlocked.current = !!(e.target as HTMLElement).closest(INTERACTIVE);
+          },
+          onDragStart: (e: React.DragEvent) => {
+            if (!onTaskDragStart || dragBlocked.current) {
+              e.preventDefault();
+              return;
+            }
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", t.id);
+            onTaskDragStart(t.id);
+          },
+          onDragOver: (e: React.DragEvent) => {
+            if (!onReorder) return;
+            e.preventDefault();
+            if (dropId !== t.id) setDropId(t.id);
+          },
+          onDragLeave: (e: React.DragEvent) => {
+            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+            setDropId((cur) => (cur === t.id ? null : cur));
+          },
+          onDrop: (e: React.DragEvent) => {
+            if (!onReorder) return;
+            const draggedId = e.dataTransfer.getData("text/plain");
+            setDropId(null);
+            if (draggedId && tasks.some((x) => x.id === draggedId)) {
+              e.preventDefault();
+              e.stopPropagation();
+              reorderBefore(draggedId, t.id);
+            }
+          },
+        };
+    return (
+      <tr
+        key={t.id}
+        {...dragProps}
+        onMouseEnter={() => setHoveredId(t.id)}
+        onMouseLeave={() => setHoveredId((cur) => (cur === t.id ? null : cur))}
+        style={{
+          background: isOpen
+            ? "var(--active)"
+            : isSel
+              ? "var(--surface-2)"
+              : isHover
+                ? "var(--surface-2)"
+                : isChild
+                  ? "var(--surface-2)"
+                  : undefined,
+          cursor: !isChild && onTaskDragStart ? "grab" : undefined,
+          boxShadow:
+            dropId === t.id ? "inset 0 2px 0 var(--accent)" : undefined,
+        }}
+      >
+        <td style={{ ...td, textAlign: "center", whiteSpace: "nowrap" }}>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 2,
+              visibility: isHover ? "visible" : "hidden",
+            }}
+          >
+            <RowMenu
+              boardId={boardId}
+              taskId={t.id}
+              taskTitle={t.title}
+              groups={groups}
+              currentGroupId={group.id}
+              onOpenDrawer={() => openTaskAndRead(t.id)}
+              onMove={(gid) => onMoveToGroup?.(t.id, gid)}
+            />
+          </span>
+          <input
+            type="checkbox"
+            checked={isSel}
+            onChange={() => toggleOne(t.id)}
+            style={{ marginLeft: 2 }}
+          />
+        </td>
+        {columns.map((c) => {
+          const isStatus = c.type === "status";
+          const isPerson = c.type === "person";
+          return (
+            <Fragment key={c.id}>
+              <td
+                style={{
+                  ...td,
+                  padding: isStatus ? 0 : td.padding,
+                  textAlign: isPerson ? "center" : "left",
+                }}
+              >
+                {c.key === "name" ? (
+                  <div
+                    onClick={() => openTaskAndRead(t.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      cursor: "pointer",
+                      minWidth: 0,
+                      paddingLeft: depth * 22,
+                    }}
+                    title={t.title}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      {!isChild ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpand(t.id);
+                          }}
+                          title={
+                            childCount > 0
+                              ? `${childCount} Subitem${childCount > 1 ? "s" : ""}`
+                              : "Subitem hinzufügen"
+                          }
+                          style={{
+                            ...subToggle,
+                            visibility:
+                              childCount > 0 || isHover || isExpanded
+                                ? "visible"
+                                : "hidden",
+                          }}
+                        >
+                          {childCount > 0 ? (isExpanded ? "▾" : "▸") : "＋"}
+                        </button>
+                      ) : (
+                        <span
+                          aria-hidden
+                          style={{ color: "var(--faint)", flexShrink: 0 }}
+                        >
+                          ↳
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          fontWeight: isChild ? 400 : 500,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          minWidth: 0,
+                        }}
+                      >
+                        {t.title}
+                      </span>
+                      {!isChild && childCount > 0 && (
+                        <span style={subCountPill}>{childCount}</span>
+                      )}
+                    </span>
+                    <span
+                      style={{
+                        ...commentBtn,
+                        position: "relative",
+                        color: unread.has(t.id)
+                          ? "var(--accent)"
+                          : commentCounts[t.id]
+                            ? "var(--muted)"
+                            : "var(--faint)",
+                      }}
+                    >
+                      <Icon name="message" size={16} />
+                      {commentCounts[t.id] ? (
+                        <span style={countBadge}>{commentCounts[t.id]}</span>
+                      ) : null}
+                      {unread.has(t.id) && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: -3,
+                            right: -4,
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: "var(--danger)",
+                            border: "1px solid var(--surface)",
+                          }}
+                        />
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <EditableCell
+                    boardId={boardId}
+                    task={t}
+                    column={c}
+                    value={valueOf(t.id, c.id)}
+                    people={people}
+                    canEditLabels={isEmployee}
+                    fullWidthStatus
+                  />
+                )}
+              </td>
+              {showCustomer && c.key === "task_id" && (
+                <td style={td}>
+                  {isChild ? null : (
+                    <CustomerCell
+                      boardId={boardId}
+                      taskId={t.id}
+                      customers={customers}
+                      currentId={customerIdByTask[t.id] ?? null}
+                      currentName={customerByTask[t.id] ?? null}
+                      locked={lockedSet.has(t.id)}
+                    />
+                  )}
+                </td>
+              )}
+            </Fragment>
+          );
+        })}
+      </tr>
+    );
+  };
 
   return (
     <div
@@ -540,186 +801,20 @@ export default function BoardTable({
 
             <tbody>
               {tasks.map((t) => {
-                const isSel = selected.has(t.id);
-                const isOpen = openTaskId === t.id;
-                const isHover = hoveredId === t.id;
+                const kids = childrenOf(t.id);
+                const isExpanded = expanded.has(t.id);
                 return (
-                  <tr
-                    key={t.id}
-                    draggable={!!onTaskDragStart}
-                    onMouseDown={(e) => {
-                      // Block row-drag only when the gesture starts on a control.
-                      dragBlocked.current = !!(e.target as HTMLElement).closest(
-                        INTERACTIVE,
-                      );
-                    }}
-                    onDragStart={(e) => {
-                      if (!onTaskDragStart || dragBlocked.current) {
-                        e.preventDefault();
-                        return;
-                      }
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", t.id);
-                      onTaskDragStart(t.id);
-                    }}
-                    onMouseEnter={() => setHoveredId(t.id)}
-                    onMouseLeave={() =>
-                      setHoveredId((cur) => (cur === t.id ? null : cur))
-                    }
-                    onDragOver={(e) => {
-                      if (!onReorder) return;
-                      e.preventDefault();
-                      if (dropId !== t.id) setDropId(t.id);
-                    }}
-                    onDragLeave={(e) => {
-                      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-                      setDropId((cur) => (cur === t.id ? null : cur));
-                    }}
-                    onDrop={(e) => {
-                      if (!onReorder) return;
-                      const draggedId = e.dataTransfer.getData("text/plain");
-                      setDropId(null);
-                      if (draggedId && tasks.some((x) => x.id === draggedId)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        reorderBefore(draggedId, t.id);
-                      }
-                      // else: cross-group move — let it bubble to the group drop.
-                    }}
-                    style={{
-                      background: isOpen
-                        ? "var(--active)"
-                        : isSel
-                          ? "var(--surface-2)"
-                          : isHover
-                            ? "var(--surface-2)"
-                            : undefined,
-                      cursor: onTaskDragStart ? "grab" : undefined,
-                      boxShadow:
-                        dropId === t.id ? "inset 0 2px 0 var(--accent)" : undefined,
-                    }}
-                  >
-                    <td style={{ ...td, textAlign: "center", whiteSpace: "nowrap" }}>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 2,
-                          visibility: isHover ? "visible" : "hidden",
-                        }}
-                      >
-                        <RowMenu
-                          boardId={boardId}
-                          taskId={t.id}
-                          taskTitle={t.title}
-                          groups={groups}
-                          currentGroupId={group.id}
-                          onOpenDrawer={() => openTaskAndRead(t.id)}
-                          onMove={(gid) => onMoveToGroup?.(t.id, gid)}
-                        />
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={isSel}
-                        onChange={() => toggleOne(t.id)}
-                        style={{ marginLeft: 2 }}
+                  <Fragment key={t.id}>
+                    {renderRow(t, 0, kids.length, isExpanded)}
+                    {isExpanded &&
+                      kids.map((c) => renderRow(c, 1, 0, false))}
+                    {isExpanded && (
+                      <SubitemAddRow
+                        action={createSubitem.bind(null, boardId, t.id)}
+                        colSpan={columns.length + (showCustomer ? 1 : 0)}
                       />
-                    </td>
-                    {columns.map((c) => {
-                      const isStatus = c.type === "status";
-                      const isPerson = c.type === "person";
-                      return (
-                        <Fragment key={c.id}>
-                        <td
-                          style={{
-                            ...td,
-                            padding: isStatus ? 0 : td.padding,
-                            textAlign: isPerson ? "center" : "left",
-                          }}
-                        >
-                          {c.key === "name" ? (
-                            <div
-                              onClick={() => openTaskAndRead(t.id)}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 8,
-                                cursor: "pointer",
-                                minWidth: 0,
-                              }}
-                              title={t.title}
-                            >
-                              <span
-                                style={{
-                                  fontWeight: 500,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  minWidth: 0,
-                                }}
-                              >
-                                {t.title}
-                              </span>
-                              <span
-                                style={{
-                                  ...commentBtn,
-                                  position: "relative",
-                                  color: unread.has(t.id)
-                                    ? "var(--accent)"
-                                    : commentCounts[t.id]
-                                      ? "var(--muted)"
-                                      : "var(--faint)",
-                                }}
-                              >
-                                <Icon name="message" size={16} />
-                                {commentCounts[t.id] ? (
-                                  <span style={countBadge}>{commentCounts[t.id]}</span>
-                                ) : null}
-                                {unread.has(t.id) && (
-                                  <span
-                                    style={{
-                                      position: "absolute",
-                                      top: -3,
-                                      right: -4,
-                                      width: 8,
-                                      height: 8,
-                                      borderRadius: "50%",
-                                      background: "var(--danger)",
-                                      border: "1px solid var(--surface)",
-                                    }}
-                                  />
-                                )}
-                              </span>
-                            </div>
-                          ) : (
-                            <EditableCell
-                              boardId={boardId}
-                              task={t}
-                              column={c}
-                              value={valueOf(t.id, c.id)}
-                              people={people}
-                              canEditLabels={isEmployee}
-                              fullWidthStatus
-                            />
-                          )}
-                        </td>
-                        {showCustomer && c.key === "task_id" && (
-                          <td style={td}>
-                            <CustomerCell
-                              boardId={boardId}
-                              taskId={t.id}
-                              customers={customers}
-                              currentId={customerIdByTask[t.id] ?? null}
-                              currentName={customerByTask[t.id] ?? null}
-                              locked={lockedSet.has(t.id)}
-                            />
-                          </td>
-                        )}
-                        </Fragment>
-                      );
-                    })}
-                  </tr>
+                    )}
+                  </Fragment>
                 );
               })}
 
@@ -850,6 +945,94 @@ export default function BoardTable({
                     <span style={urgencyPillStyle(urgency.tone)}>{urgency.label}</span>
                   )}
                 </div>
+                {(() => {
+                  const kids = childrenOf(t.id);
+                  return (
+                    <div style={{ marginTop: 10 }}>
+                      {kids.length > 0 && (
+                        <div
+                          style={{
+                            borderTop: "1px solid var(--border)",
+                            paddingTop: 8,
+                            display: "grid",
+                            gap: 6,
+                          }}
+                        >
+                          {kids.map((c) => {
+                            const cs = statusCol
+                              ? String(valueOf(c.id, statusCol.id) ?? "")
+                              : "";
+                            const csColor =
+                              statusOptions.find((o) => o.label === cs)?.color ??
+                              "#6b7189";
+                            return (
+                              <div
+                                key={c.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openTaskAndRead(c.id);
+                                }}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 8,
+                                  paddingLeft: 12,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    color: "var(--muted)",
+                                    display: "flex",
+                                    gap: 6,
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  <span style={{ color: "var(--faint)" }}>↳</span>
+                                  <span
+                                    style={{
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {c.title}
+                                  </span>
+                                </span>
+                                {cs && (
+                                  <span style={statusPillStyle(csColor)}>{cs}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <form
+                        action={createSubitem.bind(null, boardId, t.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ marginTop: 8, paddingLeft: 12 }}
+                      >
+                        <input
+                          type="text"
+                          name="title"
+                          placeholder="+ Subitem"
+                          required
+                          autoComplete="off"
+                          style={{
+                            width: "100%",
+                            background: "var(--input-bg)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 8,
+                            padding: "8px 10px",
+                            color: "var(--text)",
+                            fontSize: 13,
+                          }}
+                        />
+                      </form>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -952,6 +1135,46 @@ function AddTaskRow({
         </tr>
       )}
     </>
+  );
+}
+
+/** Indented add row for creating a subitem under a parent task. */
+function SubitemAddRow({
+  action,
+  colSpan,
+}: {
+  action: (fd: FormData) => void;
+  colSpan: number;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <tr style={{ background: "var(--surface-2)" }}>
+      <td style={{ borderRight: "none" }} />
+      <td colSpan={colSpan} style={{ ...td, borderRight: "none", padding: 6 }}>
+        <form action={action} style={{ paddingLeft: 22 }}>
+          <input
+            type="text"
+            name="title"
+            placeholder="+ Subitem hinzufügen"
+            required
+            autoComplete="off"
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              background: focused ? "var(--input-bg)" : "transparent",
+              border: `1px solid ${focused ? "var(--accent)" : "transparent"}`,
+              borderRadius: 6,
+              padding: "7px 10px",
+              color: "var(--text)",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+        </form>
+      </td>
+    </tr>
   );
 }
 
@@ -1113,6 +1336,31 @@ const countBadge: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   color: "var(--muted)",
+};
+
+// Expand/collapse toggle in front of a task name.
+const subToggle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  color: "var(--muted)",
+  cursor: "pointer",
+  fontSize: 12,
+  lineHeight: 1,
+  width: 16,
+  flexShrink: 0,
+  padding: 0,
+};
+
+// Small pill showing how many subitems a parent has.
+const subCountPill: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--muted)",
+  background: "var(--surface-2)",
+  border: "1px solid var(--border)",
+  borderRadius: 999,
+  padding: "0 6px",
+  flexShrink: 0,
 };
 
 const addBtn: React.CSSProperties = {

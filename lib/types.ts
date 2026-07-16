@@ -72,6 +72,9 @@ export interface Task {
   title: string;
   position: number;
   created_by: string | null;
+  // Subitem link: a task with parent_id set is a subitem of that task (same
+  // board). Top-level tasks have parent_id null.
+  parent_id: string | null;
   // Manual customer tag for internally-created tasks (never triggers a mirror).
   customer_id: string | null;
   created_at: string;
