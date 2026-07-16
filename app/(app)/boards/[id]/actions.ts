@@ -171,6 +171,26 @@ export async function deleteGroup(boardId: string, groupId: string) {
   revalidatePath(`/boards/${boardId}`);
 }
 
+/** Persist a group's task order (drag & drop within a group). */
+export async function reorderTasks(
+  boardId: string,
+  groupId: string,
+  orderedIds: string[],
+) {
+  if (!orderedIds.length) return;
+  const supabase = await createServerSupabase();
+  // Position = index in the new order. Sequential to keep it simple/reliable.
+  await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase
+        .from("tasks")
+        .update({ position: i, group_id: groupId })
+        .eq("id", id),
+    ),
+  );
+  revalidatePath(`/boards/${boardId}`);
+}
+
 /** Move a task to another group (drag & drop between groups). */
 export async function moveTask(
   boardId: string,

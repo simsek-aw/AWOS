@@ -68,6 +68,7 @@ export default function BoardTable({
   customers = [],
   onTaskDragStart,
   onGroupDrop,
+  onReorder,
   onMoveToGroup,
   dragActive = false,
   autoOpenTaskId = null,
@@ -92,6 +93,7 @@ export default function BoardTable({
   customers?: { id: string; name: string }[];
   onTaskDragStart?: (taskId: string) => void;
   onGroupDrop?: (groupId: string) => void;
+  onReorder?: (groupId: string, orderedIds: string[]) => void;
   onMoveToGroup?: (taskId: string, groupId: string) => void;
   dragActive?: boolean;
   autoOpenTaskId?: string | null;
@@ -106,6 +108,17 @@ export default function BoardTable({
   const [bulkMenu, setBulkMenu] = useState<
     null | "status" | "move" | "pm" | "macher"
   >(null);
+  const [dropId, setDropId] = useState<string | null>(null);
+
+  // Reorder within this group: move `draggedId` to just before `targetId`.
+  const reorderBefore = (draggedId: string, targetId: string) => {
+    const ids = tasks.map((t) => t.id);
+    if (!ids.includes(draggedId) || draggedId === targetId) return;
+    const without = ids.filter((id) => id !== draggedId);
+    const at = without.indexOf(targetId);
+    without.splice(at < 0 ? without.length : at, 0, draggedId);
+    onReorder?.(group.id, without);
+  };
   // When a drag starts on an interactive control (input/checkbox/status/…) we
   // must NOT hijack it as a row drag — this lets the whole row be draggable
   // while cell editing still works.
@@ -519,6 +532,26 @@ export default function BoardTable({
                     onMouseLeave={() =>
                       setHoveredId((cur) => (cur === t.id ? null : cur))
                     }
+                    onDragOver={(e) => {
+                      if (!onReorder) return;
+                      e.preventDefault();
+                      if (dropId !== t.id) setDropId(t.id);
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                      setDropId((cur) => (cur === t.id ? null : cur));
+                    }}
+                    onDrop={(e) => {
+                      if (!onReorder) return;
+                      const draggedId = e.dataTransfer.getData("text/plain");
+                      setDropId(null);
+                      if (draggedId && tasks.some((x) => x.id === draggedId)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        reorderBefore(draggedId, t.id);
+                      }
+                      // else: cross-group move — let it bubble to the group drop.
+                    }}
                     style={{
                       background: isOpen
                         ? "var(--active)"
@@ -528,6 +561,8 @@ export default function BoardTable({
                             ? "var(--surface-2)"
                             : undefined,
                       cursor: onTaskDragStart ? "grab" : undefined,
+                      boxShadow:
+                        dropId === t.id ? "inset 0 2px 0 var(--accent)" : undefined,
                     }}
                   >
                     <td style={{ ...td, textAlign: "center", whiteSpace: "nowrap" }}>

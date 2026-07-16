@@ -6,6 +6,7 @@ import {
   createTask,
   deleteBoardView,
   moveTask,
+  reorderTasks,
   saveBoardView,
 } from "@/app/(app)/boards/[id]/actions";
 import Icon, { type IconName } from "@/components/icons";
@@ -245,6 +246,21 @@ export default function BoardView({
     draggingRef.current = null;
     setDragActive(false);
     if (taskId) applyMove(taskId, groupId);
+  };
+
+  // Reorder within a group: optimistic local reorder + persist positions.
+  const applyReorder = (groupId: string, orderedIds: string[]) => {
+    const groupSet = new Set(orderedIds);
+    setLocalTasks((prev) => {
+      const byId = new Map(prev.map((t) => [t.id, t]));
+      let i = 0;
+      return prev.map((t) =>
+        groupSet.has(t.id) ? (byId.get(orderedIds[i++]) ?? t) : t,
+      );
+    });
+    draggingRef.current = null;
+    setDragActive(false);
+    startTransition(() => reorderTasks(boardId, groupId, orderedIds));
   };
 
   const createGroupBound = createGroup.bind(null, boardId);
@@ -603,6 +619,7 @@ export default function BoardView({
           customers={customers}
           onTaskDragStart={onTaskDragStart}
           onGroupDrop={onGroupDrop}
+          onReorder={applyReorder}
           onMoveToGroup={applyMove}
           dragActive={dragActive}
           autoOpenTaskId={autoOpenTaskId}
