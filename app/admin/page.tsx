@@ -41,6 +41,53 @@ export default async function AdminPage({
 
   const customerList = customers ?? [];
   const customerName = new Map(customerList.map((c) => [c.id, c.name]));
+  const allBoards = boards ?? [];
+  const internalBoards = allBoards.filter((b) => b.type === "internal");
+  const boardsOfCustomer = (cid: string) =>
+    allBoards.filter((b) => b.type === "customer" && b.customer_id === cid);
+
+  // One board row: rename + archive/restore inline.
+  const boardRow = (b: Board) => (
+    <li
+      key={b.id}
+      style={{ ...rowStyle, gap: 8, opacity: b.archived_at ? 0.55 : 1 }}
+    >
+      <form
+        action={renameBoard}
+        style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}
+      >
+        <input type="hidden" name="board_id" value={b.id} />
+        <input
+          name="name"
+          defaultValue={b.name}
+          style={{ ...input, flex: 1, minWidth: 0 }}
+        />
+        <button style={{ ...button, padding: "6px 10px" }}>Umbenennen</button>
+      </form>
+      <span style={{ color: "var(--muted)", fontSize: 12, whiteSpace: "nowrap" }}>
+        {b.type === "internal" && b.department ? deptLabel[b.department] : ""}
+        {b.archived_at ? (b.department ? " · " : "") + "archiviert" : ""}
+      </span>
+      <form action={setBoardArchived}>
+        <input type="hidden" name="board_id" value={b.id} />
+        <input type="hidden" name="archived" value={b.archived_at ? "0" : "1"} />
+        <button
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: "6px 10px",
+            color: "var(--muted)",
+            fontSize: 13,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {b.archived_at ? "Wiederherstellen" : "Archivieren"}
+        </button>
+      </form>
+    </li>
+  );
 
   // Emails aren't in `profiles`; fetch them from the auth admin API (service
   // role) so we can show and act on them in the user editor.
@@ -86,71 +133,65 @@ export default async function AdminPage({
           <TeamImport />
         </Section>
 
-        {/* --- Customers --- */}
-        <Section title="Kunden">
-          <ul style={listStyle}>
-            {customerList.map((c) => (
-              <li key={c.id} style={rowStyle}>
-                {c.name}
-              </li>
-            ))}
+        {/* --- Customers with their boards --- */}
+        <Section title="Kunden & Boards">
+          <div style={{ display: "grid", gap: 12 }}>
+            {customerList.map((c) => {
+              const cb = boardsOfCustomer(c.id);
+              return (
+                <div
+                  key={c.id}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    background: "var(--panel)",
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ fontWeight: 700, marginBottom: cb.length ? 8 : 6 }}>
+                    {c.name}
+                  </div>
+                  {cb.length > 0 ? (
+                    <ul style={{ ...listStyle, margin: 0 }}>{cb.map(boardRow)}</ul>
+                  ) : (
+                    <form
+                      action={createCustomerBoard}
+                      style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}
+                    >
+                      <span style={{ color: "var(--faint)", fontSize: 13 }}>
+                        Kein Board angelegt —
+                      </span>
+                      <input type="hidden" name="customer_id" value={c.id} />
+                      <input
+                        name="name"
+                        defaultValue={c.name}
+                        placeholder="Board-Name"
+                        required
+                        style={{ ...input, flex: "0 1 200px", minWidth: 140 }}
+                      />
+                      <button style={{ ...button, padding: "6px 12px" }}>
+                        Board anlegen
+                      </button>
+                    </form>
+                  )}
+                </div>
+              );
+            })}
             {customerList.length === 0 && <Empty>Noch keine Kunden.</Empty>}
-          </ul>
-          <form action={createCustomer} style={formRow}>
+          </div>
+
+          <form action={createCustomer} style={{ ...formRow, marginTop: 12 }}>
             <input name="name" placeholder="Neuer Kundenname" required style={input} />
             <button style={button}>Kunde anlegen</button>
           </form>
         </Section>
 
-        {/* --- Boards --- */}
-        <Section title="Boards">
+        {/* --- Internal boards --- */}
+        <Section title="Interne Boards">
           <ul style={listStyle}>
-            {(boards ?? []).map((b) => (
-              <li
-                key={b.id}
-                style={{ ...rowStyle, gap: 8, opacity: b.archived_at ? 0.55 : 1 }}
-              >
-                <form
-                  action={renameBoard}
-                  style={{ display: "flex", gap: 6, flex: 1, minWidth: 0 }}
-                >
-                  <input type="hidden" name="board_id" value={b.id} />
-                  <input
-                    name="name"
-                    defaultValue={b.name}
-                    style={{ ...input, flex: 1, minWidth: 0 }}
-                  />
-                  <button style={{ ...button, padding: "6px 10px" }}>Umbenennen</button>
-                </form>
-                <span style={{ color: "var(--muted)", fontSize: 12, whiteSpace: "nowrap" }}>
-                  {b.type === "internal"
-                    ? `Intern${b.department ? " · " + deptLabel[b.department] : ""}`
-                    : `Kunde · ${b.customer_id ? customerName.get(b.customer_id) : "?"}`}
-                  {b.archived_at ? " · archiviert" : ""}
-                </span>
-                <form action={setBoardArchived}>
-                  <input type="hidden" name="board_id" value={b.id} />
-                  <input type="hidden" name="archived" value={b.archived_at ? "0" : "1"} />
-                  <button
-                    style={{
-                      background: "transparent",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      padding: "6px 10px",
-                      color: "var(--muted)",
-                      fontSize: 13,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {b.archived_at ? "Wiederherstellen" : "Archivieren"}
-                  </button>
-                </form>
-              </li>
-            ))}
-            {(boards ?? []).length === 0 && <Empty>Noch keine Boards.</Empty>}
+            {internalBoards.map(boardRow)}
+            {internalBoards.length === 0 && <Empty>Noch keine internen Boards.</Empty>}
           </ul>
-
           <form action={createInternalBoard} style={formRow}>
             <input name="name" placeholder="Internes Board" required style={input} />
             <select name="department" style={input} defaultValue="">
@@ -160,21 +201,6 @@ export default async function AdminPage({
               <option value="grafik">Grafik</option>
             </select>
             <button style={button}>Intern anlegen</button>
-          </form>
-
-          <form action={createCustomerBoard} style={formRow}>
-            <input name="name" placeholder="Kunden-Board" required style={input} />
-            <select name="customer_id" style={input} required defaultValue="">
-              <option value="" disabled>
-                Kunde wählen…
-              </option>
-              {customerList.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <button style={button}>Kunden-Board anlegen</button>
           </form>
         </Section>
 
