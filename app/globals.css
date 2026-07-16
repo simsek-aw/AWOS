@@ -21,6 +21,29 @@
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
 
+/* Light theme (opt-in via data-theme="light" on <html>) */
+:root[data-theme="light"] {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --panel: #ffffff;
+  --surface-2: #eceef3;
+  --active: #e3ecfd;
+  --border: #dcdfe7;
+  --text: #1c2030;
+  --muted: #5a6072;
+  --faint: #98a0b3;
+  --input-bg: #ffffff;
+  --sidebar-bg: #f4f5f7;
+  --topbar-bg: #ffffff;
+  --accent: #0073ea;
+  --danger: #e2445c;
+  --danger-bg: #fbe4e8;
+  --ok: #00c875;
+  --ok-text: #0a7a47;
+  --ok-bg: #e2f6ec;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+}
+
 * {
   box-sizing: border-box;
 }

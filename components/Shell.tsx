@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SessionContext } from "@/lib/auth";
 import type { Board } from "@/lib/types";
 import AppHeader from "./AppHeader";
@@ -22,6 +22,12 @@ export default function Shell({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+
+  // Apply the saved theme (dark default) on load.
+  useEffect(() => {
+    const t = localStorage.getItem("awos-theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  }, []);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>

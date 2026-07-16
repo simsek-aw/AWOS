@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SessionContext } from "@/lib/auth";
 import Icon from "./icons";
+import ThemeToggle from "./ThemeToggle";
 
 const roleLabel: Record<string, string> = {
   employee: "Mitarbeiter",
@@ -128,6 +129,10 @@ export default function UserMenu({ ctx }: { ctx: SessionContext }) {
             <Icon name="check" size={16} />
             Meine Aufgaben
           </a>
+
+          <div style={{ borderTop: "1px solid var(--border)" }}>
+            <ThemeToggle style={{ ...menuItem }} />
+          </div>
 
           <form action="/auth/signout" method="post" style={{ margin: 0 }}>
             <button type="submit" style={{ ...menuItem, width: "100%", background: "transparent", cursor: "pointer" }}>
