@@ -5,6 +5,7 @@ import {
   createGroup,
   createTask,
   deleteBoardView,
+  markTaskRead,
   moveTask,
   reorderTasks,
   saveBoardView,
@@ -13,9 +14,13 @@ import Icon, { type IconName } from "@/components/icons";
 import type { Column, Group, Person, Task, TaskValue } from "@/lib/types";
 import { toast } from "@/components/toast";
 import { Avatar } from "./Avatar";
+import BoardCalendar from "./BoardCalendar";
+import BoardKanban from "./BoardKanban";
 import BoardTable from "./BoardTable";
+import BoardWorkload from "./BoardWorkload";
 import ColumnsManager from "./ColumnsManager";
 import Popover from "./Popover";
+import TaskDrawer from "./TaskDrawer";
 
 type DeadlineFilter = "all" | "overdue" | "today" | "week" | "none";
 
@@ -78,7 +83,44 @@ export default function BoardView({
 
   const [, startTransition] = useTransition();
 
-  // --- Toolbar state -------------------------------------------------------
+  // --- View + toolbar state ------------------------------------------------
+  const [view, setView] = useState<"table" | "kanban" | "calendar" | "workload">(
+    "table",
+  );
+  const [groupBy, setGroupBy] = useState<"status" | "pm" | "macher" | "group">(
+    "status",
+  );
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+
+  // Remember the last view/grouping per board (per device).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`awos-view-${boardId}`);
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v.view) setView(v.view);
+        if (v.groupBy) setGroupBy(v.groupBy);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [boardId]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `awos-view-${boardId}`,
+        JSON.stringify({ view, groupBy }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [boardId, view, groupBy]);
+
+  const openTask = (id: string) => {
+    setOpenTaskId(id);
+    markTaskRead(id);
+  };
+
   const [search, setSearch] = useState("");
   const [personFilter, setPersonFilter] = useState("");
   const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("all");
@@ -223,6 +265,19 @@ export default function BoardView({
     valueMap,
   ]);
 
+  // Flat filtered list for Kanban/Calendar/Workload (respects group filter too).
+  const filteredTasks = useMemo(
+    () =>
+      localTasks.filter(
+        (t) =>
+          passesFilter(t) &&
+          (visibleGroupIds.length === 0 ||
+            (t.group_id ? visibleGroupIds.includes(t.group_id) : true)),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [localTasks, search, personFilter, deadlineFilter, visibleGroupIds, valueMap],
+  );
+
   // --- Drag & drop between groups -----------------------------------------
   const draggingRef = useRef<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -287,8 +342,14 @@ export default function BoardView({
     visibleGroupIds,
     sortColId,
     sortDir,
+    view,
+    groupBy,
   });
   const applyView = (config: Record<string, unknown>) => {
+    if (["table", "kanban", "calendar", "workload"].includes(config.view as string))
+      setView(config.view as typeof view);
+    if (["status", "pm", "macher", "group"].includes(config.groupBy as string))
+      setGroupBy(config.groupBy as typeof groupBy);
     setSearch(typeof config.search === "string" ? config.search : "");
     setPersonFilter(
       typeof config.personFilter === "string" ? config.personFilter : "",
@@ -338,6 +399,77 @@ export default function BoardView({
         <button onClick={newTask} style={primaryBtn}>
           <Icon name="plus" size={16} /> Neu: Task
         </button>
+
+        <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 4px" }} />
+
+        {/* View switcher */}
+        <div
+          style={{
+            display: "inline-flex",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: 2,
+          }}
+        >
+          {(
+            [
+              ["table", "group", "Tabelle"],
+              ["kanban", "group", "Kanban"],
+              ["calendar", "check", "Kalender"],
+              ["workload", "user", "Auslastung"],
+            ] as [typeof view, IconName, string][]
+          ).map(([v, , label]) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              style={{
+                background: view === v ? "var(--surface)" : "transparent",
+                border: "none",
+                borderRadius: 6,
+                padding: "6px 12px",
+                color: view === v ? "var(--text)" : "var(--muted)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: view === v ? "0 1px 3px rgba(0,0,0,0.3)" : "none",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === "kanban" && (
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              color: "var(--muted)",
+            }}
+          >
+            Gruppieren:
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
+              style={{
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "6px 8px",
+                color: "var(--text)",
+                fontSize: 13,
+              }}
+            >
+              <option value="status">Status</option>
+              <option value="pm">PM</option>
+              <option value="macher">Macher</option>
+              <option value="group">Gruppe</option>
+            </select>
+          </label>
+        )}
 
         <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 4px" }} />
 
@@ -593,45 +725,102 @@ export default function BoardView({
         )}
       </div>
 
-      {groups
-        .filter(
-          (g) => visibleGroupIds.length === 0 || visibleGroupIds.includes(g.id),
-        )
-        .map((g) => (
-        <BoardTable
-          key={g.id}
+      {view === "table" && (
+        <>
+          {groups
+            .filter(
+              (g) =>
+                visibleGroupIds.length === 0 || visibleGroupIds.includes(g.id),
+            )
+            .map((g) => (
+              <BoardTable
+                key={g.id}
+                boardId={boardId}
+                boardName={boardName}
+                group={g}
+                columns={columns}
+                tasks={tasksByGroup.get(g.id) ?? []}
+                values={values}
+                people={people}
+                commentCounts={commentCounts}
+                unreadTasks={unreadTasks}
+                currentUserId={currentUserId}
+                isEmployee={isEmployee}
+                groups={groups}
+                showCustomer={showCustomer}
+                customerByTask={customerByTask}
+                customerIdByTask={customerIdByTask}
+                lockedCustomerTasks={lockedCustomerTasks}
+                customers={customers}
+                onTaskDragStart={onTaskDragStart}
+                onGroupDrop={onGroupDrop}
+                onReorder={applyReorder}
+                onMoveToGroup={applyMove}
+                dragActive={dragActive}
+                autoOpenTaskId={autoOpenTaskId}
+                highlightCommentId={highlightCommentId}
+              />
+            ))}
+
+          <form action={createGroupBound}>
+            <button type="submit" style={ghostBtn}>
+              <Icon name="plus" size={16} /> Neue Gruppe hinzufügen
+            </button>
+          </form>
+        </>
+      )}
+
+      {view === "kanban" && (
+        <BoardKanban
           boardId={boardId}
-          boardName={boardName}
-          group={g}
           columns={columns}
-          tasks={tasksByGroup.get(g.id) ?? []}
+          tasks={filteredTasks}
           values={values}
           people={people}
+          groups={groups}
           commentCounts={commentCounts}
           unreadTasks={unreadTasks}
-          currentUserId={currentUserId}
-          isEmployee={isEmployee}
-          groups={groups}
-          showCustomer={showCustomer}
-          customerByTask={customerByTask}
-          customerIdByTask={customerIdByTask}
-          lockedCustomerTasks={lockedCustomerTasks}
-          customers={customers}
-          onTaskDragStart={onTaskDragStart}
-          onGroupDrop={onGroupDrop}
-          onReorder={applyReorder}
-          onMoveToGroup={applyMove}
-          dragActive={dragActive}
-          autoOpenTaskId={autoOpenTaskId}
-          highlightCommentId={highlightCommentId}
+          groupBy={groupBy}
+          onOpenTask={openTask}
         />
-      ))}
+      )}
 
-      <form action={createGroupBound}>
-        <button type="submit" style={ghostBtn}>
-          <Icon name="plus" size={16} /> Neue Gruppe hinzufügen
-        </button>
-      </form>
+      {view === "calendar" && (
+        <BoardCalendar
+          columns={columns}
+          tasks={filteredTasks}
+          values={values}
+          onOpenTask={openTask}
+        />
+      )}
+
+      {view === "workload" && (
+        <BoardWorkload
+          columns={columns}
+          tasks={filteredTasks}
+          values={values}
+          people={people}
+          onOpenTask={openTask}
+        />
+      )}
+
+      {openTaskId && (() => {
+        const t = localTasks.find((x) => x.id === openTaskId);
+        if (!t) return null;
+        return (
+          <TaskDrawer
+            boardId={boardId}
+            boardName={boardName}
+            columns={columns}
+            task={t}
+            values={values.filter((v) => v.task_id === t.id)}
+            people={people}
+            currentUserId={currentUserId}
+            isEmployee={isEmployee}
+            onClose={() => setOpenTaskId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
