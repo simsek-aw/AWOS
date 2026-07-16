@@ -35,6 +35,7 @@ create policy tools_select on tools
 insert into tools (key, name, description, icon, color, kind, url, position, enabled)
 values
   ('awcms', 'AWcms', 'Boards, Aufgaben und Kunden', '🗂️', '#00c875', 'internal', '/my', 0, true),
-  ('awscribe', 'AWscribe', 'Meetings transkribieren, zusammenfassen und To-Dos ableiten', '🎙️', '#579bfc', 'link', null, 1, false),
-  ('awstudio', 'AWstudio', 'Produkte zu einer Bilderserie / Ads generieren', '🎨', '#fdab3d', 'link', null, 2, false)
+  ('awmeet', 'AWmeet', 'Meetings transkribieren, zusammenfassen und To-Dos ableiten', '🎙️', '#579bfc', 'link', null, 1, false),
+  ('awcreative', 'AWcreative', 'Produkte zu einer Bilderserie / Ads generieren', '🎨', '#fdab3d', 'link', null, 2, false),
+  ('awtime', 'AWtime', 'Zeiterfassung', '⏱️', '#e2445c', 'link', null, 3, false)
 on conflict (key) do nothing;

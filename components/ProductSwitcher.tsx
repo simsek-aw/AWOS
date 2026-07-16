@@ -146,6 +146,24 @@ export default function ProductSwitcher({
                       {external(t) && !disabled && (
                         <Icon name="external" size={11} style={{ opacity: 0.6 }} />
                       )}
+                      {disabled && (
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            fontSize: 9,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.4,
+                            color: "var(--muted)",
+                            background: "var(--surface-2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 999,
+                            padding: "1px 6px",
+                          }}
+                        >
+                          Bald
+                        </span>
+                      )}
                     </span>
                     <span
                       style={{
@@ -157,7 +175,7 @@ export default function ProductSwitcher({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {disabled ? "bald verfügbar" : t.description || ""}
+                      {t.description || ""}
                     </span>
                   </span>
                 </>
