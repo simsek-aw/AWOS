@@ -12,6 +12,7 @@ import {
   renameGroup,
 } from "@/app/(app)/boards/[id]/actions";
 import { toast } from "@/components/toast";
+import { deadlineUrgency, formatDate } from "@/lib/format";
 import type {
   Column,
   Group,
@@ -24,6 +25,7 @@ import Icon from "@/components/icons";
 import { AvatarStack } from "./Avatar";
 import CustomerCell from "./CustomerCell";
 import EditableCell from "./EditableCell";
+import { statusPillStyle, urgencyPillStyle } from "./pills";
 import RowMenu from "./RowMenu";
 import TaskDrawer from "./TaskDrawer";
 
@@ -455,7 +457,8 @@ export default function BoardTable({
       )}
 
       {!collapsed && (
-        <div style={{ overflowX: "auto" }}>
+        <>
+        <div className="board-desktop" style={{ overflowX: "auto" }}>
           <table
             style={{
               borderCollapse: "collapse",
@@ -730,6 +733,119 @@ export default function BoardTable({
             )}
           </table>
         </div>
+
+        {/* Mobile: cards */}
+        <div className="board-cards">
+          {tasks.map((t) => {
+            const statusCol = columns.find((c) => c.type === "status");
+            const statusVal = statusCol
+              ? String(valueOf(t.id, statusCol.id) ?? "")
+              : "";
+            const statusColor =
+              statusOptions.find((o) => o.label === statusVal)?.color ?? "#6b7189";
+            const deadlineCol = columns.find((c) => c.key === "deadline");
+            const deadline = deadlineCol
+              ? String(valueOf(t.id, deadlineCol.id) ?? "").slice(0, 10)
+              : "";
+            const urgency =
+              deadline && statusVal !== "Fertig" ? deadlineUrgency(deadline) : null;
+            const personNames = (key: string): string[] => {
+              const col = columns.find((c) => c.key === key);
+              if (!col) return [];
+              const v = valueOf(t.id, col.id);
+              const ids = Array.isArray(v) ? v.map(String) : v ? [String(v)] : [];
+              return ids.map((id) => peopleById.get(id) ?? "?");
+            };
+            const pm = personNames("pm");
+            const macher = personNames("macher");
+            return (
+              <div
+                key={t.id}
+                onClick={() => openTaskAndRead(t.id)}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  background: "var(--surface)",
+                  padding: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{t.title}</span>
+                  <span
+                    style={{
+                      ...commentBtn,
+                      position: "relative",
+                      color: unread.has(t.id)
+                        ? "var(--accent)"
+                        : commentCounts[t.id]
+                          ? "var(--muted)"
+                          : "var(--faint)",
+                    }}
+                  >
+                    <Icon name="message" size={16} />
+                    {commentCounts[t.id] ? (
+                      <span style={countBadge}>{commentCounts[t.id]}</span>
+                    ) : null}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 10,
+                  }}
+                >
+                  {statusVal && (
+                    <span style={statusPillStyle(statusColor)}>{statusVal}</span>
+                  )}
+                  {pm.length > 0 && <AvatarStack names={pm} size={22} />}
+                  {macher.length > 0 && <AvatarStack names={macher} size={22} />}
+                  {deadline && (
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                      {formatDate(deadline)}
+                    </span>
+                  )}
+                  {urgency && (
+                    <span style={urgencyPillStyle(urgency.tone)}>{urgency.label}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <form
+            action={createTaskBound}
+            onClick={(e) => e.stopPropagation()}
+            style={{ marginTop: 2 }}
+          >
+            <input
+              type="text"
+              name="title"
+              placeholder="+ Task hinzufügen"
+              required
+              autoComplete="off"
+              style={{
+                width: "100%",
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "10px 12px",
+                color: "var(--text)",
+                fontSize: 14,
+              }}
+            />
+          </form>
+        </div>
+        </>
       )}
 
       {openTask && (

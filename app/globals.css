@@ -119,6 +119,13 @@ button {
   .header-search-btn { display: inline-flex !important; }
 }
 
+/* Board: table on desktop, cards on phones */
+.board-cards { display: none; }
+@media (max-width: 700px) {
+  .board-desktop { display: none !important; }
+  .board-cards { display: grid !important; gap: 8px; padding: 10px; }
+}
+
 /* Toast entrance */
 @keyframes awos-toast-in {
   from { opacity: 0; transform: translateY(8px); }
