@@ -1,4 +1,5 @@
 import AppHeader from "@/components/AppHeader";
+import DeleteCustomerButton from "@/components/admin/DeleteCustomerButton";
 import TeamImport from "@/components/admin/TeamImport";
 import UserRow from "@/components/admin/UserRow";
 import { requireAdmin } from "@/lib/auth";
@@ -148,8 +149,21 @@ export default async function AdminPage({
                     padding: 12,
                   }}
                 >
-                  <div style={{ fontWeight: 700, marginBottom: cb.length ? 8 : 6 }}>
-                    {c.name}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: cb.length ? 8 : 6,
+                    }}
+                  >
+                    <span style={{ fontWeight: 700 }}>{c.name}</span>
+                    <DeleteCustomerButton
+                      customerId={c.id}
+                      name={c.name}
+                      hasBoards={cb.length > 0}
+                    />
                   </div>
                   {cb.length > 0 ? (
                     <ul style={{ ...listStyle, margin: 0 }}>{cb.map(boardRow)}</ul>

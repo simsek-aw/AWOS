@@ -50,6 +50,47 @@ export async function createCustomer(formData: FormData) {
   ok("Kunde + Board angelegt");
 }
 
+/**
+ * Delete a customer. Blocked while the customer still has boards (so a customer
+ * delete never silently cascades boards + all their tasks). The customer's own
+ * user accounts are removed along with it.
+ */
+export async function deleteCustomer(formData: FormData) {
+  await requireAdmin();
+  const customerId = String(formData.get("customer_id") ?? "");
+  if (!customerId) fail("Kunde fehlt");
+
+  const svc = createServiceClient();
+
+  const { data: boards } = await svc
+    .from("boards")
+    .select("id")
+    .eq("customer_id", customerId)
+    .returns<{ id: string }[]>();
+  if ((boards ?? []).length > 0) {
+    fail(
+      `Kunde hat noch ${boards!.length} Board(s). Bitte zuerst löschen oder archivieren.`,
+    );
+  }
+
+  // Remove the customer's user accounts (their profiles cascade with them).
+  const { data: users } = await svc
+    .from("profiles")
+    .select("id")
+    .eq("role", "customer")
+    .eq("customer_id", customerId)
+    .returns<{ id: string }[]>();
+  for (const u of users ?? []) {
+    await svc.auth.admin.deleteUser(u.id);
+  }
+
+  const { error } = await svc.from("customers").delete().eq("id", customerId);
+  if (error) fail("Kunde konnte nicht gelöscht werden");
+
+  revalidatePath("/admin");
+  ok("Kunde gelöscht");
+}
+
 /** Rename a board. */
 export async function renameBoard(formData: FormData) {
   await requireAdmin();
