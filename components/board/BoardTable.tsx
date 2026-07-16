@@ -73,6 +73,9 @@ export default function BoardTable({
   onReorder,
   onMoveToGroup,
   dragActive = false,
+  sortColId = "",
+  sortDir = "asc",
+  onHeaderSort,
   autoOpenTaskId = null,
   highlightCommentId = null,
 }: {
@@ -98,6 +101,9 @@ export default function BoardTable({
   onReorder?: (groupId: string, orderedIds: string[]) => void;
   onMoveToGroup?: (taskId: string, groupId: string) => void;
   dragActive?: boolean;
+  sortColId?: string;
+  sortDir?: "asc" | "desc";
+  onHeaderSort?: (columnId: string) => void;
   autoOpenTaskId?: string | null;
   highlightCommentId?: string | null;
 }) {
@@ -486,24 +492,49 @@ export default function BoardTable({
                 <th style={{ ...th, width: 40, textAlign: "center" }}>
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} />
                 </th>
-                {columns.map((c) => (
-                  <Fragment key={c.id}>
-                    <th
-                      style={{
-                        ...th,
-                        textAlign:
-                          c.type === "status" || c.type === "person"
-                            ? "center"
-                            : "left",
-                      }}
-                    >
-                      {c.label}
-                    </th>
-                    {showCustomer && c.key === "task_id" && (
-                      <th style={th}>Kunde</th>
-                    )}
-                  </Fragment>
-                ))}
+                {columns.map((c) => {
+                  const centered = c.type === "status" || c.type === "person";
+                  const arrow =
+                    sortColId === c.id ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+                  return (
+                    <Fragment key={c.id}>
+                      <th
+                        onClick={() => onHeaderSort?.(c.id)}
+                        title="Sortieren: auf/ab/aus"
+                        style={{
+                          ...th,
+                          textAlign: centered ? "center" : "left",
+                          cursor: onHeaderSort ? "pointer" : undefined,
+                          color: sortColId === c.id ? "var(--text)" : th.color,
+                          userSelect: "none",
+                        }}
+                      >
+                        {c.label}
+                        {arrow}
+                      </th>
+                      {showCustomer && c.key === "task_id" && (
+                        <th
+                          onClick={() => onHeaderSort?.("__customer")}
+                          title="Sortieren: auf/ab/aus"
+                          style={{
+                            ...th,
+                            cursor: onHeaderSort ? "pointer" : undefined,
+                            color:
+                              sortColId === "__customer" ? "var(--text)" : th.color,
+                            userSelect: "none",
+                          }}
+                        >
+                          Kunde
+                          {sortColId === "__customer"
+                            ? sortDir === "asc"
+                              ? " ▲"
+                              : " ▼"
+                            : ""}
+                        </th>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tr>
             </thead>
 

@@ -227,12 +227,26 @@ export default function BoardView({
 
   const sortValue = (t: Task): string => {
     if (!sortColId) return "";
+    if (sortColId === "__customer") return customerByTask[t.id] ?? "";
     const col = columns.find((c) => c.id === sortColId);
     if (!col) return "";
     if (col.key === "name") return t.title;
     if (col.key === "task_id") return t.id;
     const v = valueMap.get(t.id)?.get(sortColId);
     return Array.isArray(v) ? v.map(String).join(",") : v ? String(v) : "";
+  };
+
+  // Header click cycles: asc → desc → off.
+  const cycleSort = (columnId: string) => {
+    if (sortColId !== columnId) {
+      setSortColId(columnId);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else {
+      setSortColId("");
+      setSortDir("asc");
+    }
   };
 
   const firstGroupId = groups[0]?.id ?? null;
@@ -762,6 +776,9 @@ export default function BoardView({
                 onReorder={applyReorder}
                 onMoveToGroup={applyMove}
                 dragActive={dragActive}
+                sortColId={sortColId}
+                sortDir={sortDir}
+                onHeaderSort={cycleSort}
                 autoOpenTaskId={autoOpenTaskId}
                 highlightCommentId={highlightCommentId}
               />
