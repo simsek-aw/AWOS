@@ -178,21 +178,39 @@ export default async function AdminPage({
           </form>
         </Section>
 
-        {/* --- Users --- */}
+        {/* --- Users (split into employees + customers) --- */}
         <Section title="Nutzer">
-          <ul style={listStyle}>
-            {(profiles ?? []).map((p) => (
-              <UserRow
-                key={p.id}
-                profile={p}
-                email={emailById.get(p.id) ?? null}
-                customers={customerList}
-                isSelf={p.id === ctx.userId}
-              />
-            ))}
-          </ul>
+          {(() => {
+            const all = profiles ?? [];
+            const employees = all.filter((p) => p.role === "employee");
+            const customers = all.filter((p) => p.role === "customer");
+            const renderList = (list: typeof all) => (
+              <ul style={listStyle}>
+                {list.map((p) => (
+                  <UserRow
+                    key={p.id}
+                    profile={p}
+                    email={emailById.get(p.id) ?? null}
+                    customers={customerList}
+                    isSelf={p.id === ctx.userId}
+                  />
+                ))}
+                {list.length === 0 && <Empty>Niemand.</Empty>}
+              </ul>
+            );
+            return (
+              <>
+                <div style={subHead}>Mitarbeiter ({employees.length})</div>
+                {renderList(employees)}
+                <div style={{ ...subHead, marginTop: 16 }}>
+                  Kunden ({customers.length})
+                </div>
+                {renderList(customers)}
+              </>
+            );
+          })()}
 
-          <form action={inviteUser} style={{ display: "grid", gap: 8, marginTop: 12 }}>
+          <form action={inviteUser} style={{ display: "grid", gap: 8, marginTop: 16 }}>
             <div style={formRow}>
               <input name="full_name" placeholder="Name" style={input} />
               <input name="email" type="email" placeholder="E-Mail" required style={input} />
@@ -274,9 +292,17 @@ function Empty({ children }: { children: React.ReactNode }) {
 const listStyle: React.CSSProperties = {
   listStyle: "none",
   padding: 0,
-  margin: "12px 0",
+  margin: "8px 0",
   display: "grid",
   gap: 6,
+};
+
+const subHead: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+  color: "var(--faint)",
 };
 
 const rowStyle: React.CSSProperties = {

@@ -14,6 +14,7 @@ import Icon, { type IconName } from "@/components/icons";
 import type { Column, Group, Person, Task, TaskValue } from "@/lib/types";
 import { toast } from "@/components/toast";
 import { Avatar } from "./Avatar";
+import BoardAccess from "./BoardAccess";
 import BoardCalendar from "./BoardCalendar";
 import BoardKanban from "./BoardKanban";
 import BoardTable from "./BoardTable";
@@ -53,6 +54,7 @@ export default function BoardView({
   lockedCustomerTasks = [],
   customers = [],
   savedViews = [],
+  canManageAccess = false,
   autoOpenTaskId = null,
   highlightCommentId = null,
 }: {
@@ -73,6 +75,7 @@ export default function BoardView({
   lockedCustomerTasks?: string[];
   customers?: { id: string; name: string }[];
   savedViews?: { id: string; name: string; config: Record<string, unknown> }[];
+  canManageAccess?: boolean;
   autoOpenTaskId?: string | null;
   highlightCommentId?: string | null;
 }) {
@@ -712,6 +715,8 @@ export default function BoardView({
             {() => <ColumnsManager boardId={boardId} columns={columns} />}
           </ToolbarMenu>
         )}
+
+        {canManageAccess && <BoardAccess boardId={boardId} />}
 
         {(activeFilterCount > 0 || search || visibleGroupIds.length > 0) && (
           <>

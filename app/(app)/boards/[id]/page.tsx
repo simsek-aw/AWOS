@@ -314,6 +314,10 @@ export default async function BoardPage({
             lockedCustomerTasks={lockedCustomerTasks}
             customers={customers}
             savedViews={savedViews ?? []}
+            canManageAccess={
+              board.type === "customer" &&
+              (ctx.profile.is_admin ?? ctx.profile.role === "employee")
+            }
             autoOpenTaskId={openTaskParam ?? null}
             highlightCommentId={highlightComment ?? null}
           />

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { generateCreatives } from "@/lib/agent/creative";
@@ -12,7 +13,7 @@ import {
 import { draftCustomerReply } from "@/lib/agent/reply";
 import { refreshGroupSummaries } from "@/lib/agent/summary";
 import { suggestTriage } from "@/lib/agent/triage";
-import { requireEmployee, requireSession } from "@/lib/auth";
+import { requireAdmin, requireEmployee, requireSession } from "@/lib/auth";
 import {
   notifyAssignment,
   notifyComment,
@@ -1164,4 +1165,123 @@ export async function bulkSetPeople(
     Promise.all(taskIds.map((id) => propagateFieldAcrossMirror(id, columnKey))),
   );
   revalidatePath(`/boards/${boardId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Board access management (customer boards): invite / list / remove customers.
+// Admin-only. Access to a customer board is granted by a customer profile whose
+// customer_id matches the board's — so inviting = creating such a profile.
+// ---------------------------------------------------------------------------
+
+async function siteOrigin(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  const h = await headers();
+  const host = h.get("host") ?? "localhost:3000";
+  const proto = host.startsWith("localhost") ? "http" : "https";
+  return `${proto}://${host}`;
+}
+
+async function boardCustomerId(boardId: string): Promise<string | null> {
+  const svc = createServiceClient();
+  const { data } = await svc
+    .from("boards")
+    .select("customer_id, type")
+    .eq("id", boardId)
+    .maybeSingle<{ customer_id: string | null; type: string }>();
+  return data?.type === "customer" ? (data.customer_id ?? null) : null;
+}
+
+export type BoardMember = { id: string; name: string; email: string | null };
+
+/** List the customer users who can access this customer board. */
+export async function listBoardCustomers(
+  boardId: string,
+): Promise<BoardMember[]> {
+  await requireAdmin();
+  const customerId = await boardCustomerId(boardId);
+  if (!customerId) return [];
+  const svc = createServiceClient();
+  const { data: profiles } = await svc
+    .from("profiles")
+    .select("id, full_name")
+    .eq("role", "customer")
+    .eq("customer_id", customerId)
+    .returns<{ id: string; full_name: string | null }[]>();
+  const emailById = new Map<string, string>();
+  try {
+    const { data: authUsers } = await svc.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of authUsers?.users ?? []) if (u.email) emailById.set(u.id, u.email);
+  } catch {
+    /* emails are best-effort */
+  }
+  return (profiles ?? []).map((p) => ({
+    id: p.id,
+    name: p.full_name ?? "—",
+    email: emailById.get(p.id) ?? null,
+  }));
+}
+
+/** Invite a customer to this board (creates a customer account + sends the
+ * Supabase invite e-mail). Returns a status the UI can show. */
+export async function inviteBoardCustomer(
+  boardId: string,
+  email: string,
+  name: string,
+): Promise<{ ok: boolean; message: string }> {
+  await requireAdmin();
+  const mail = email.trim().toLowerCase();
+  if (!mail.includes("@")) return { ok: false, message: "Ungültige E-Mail." };
+  const customerId = await boardCustomerId(boardId);
+  if (!customerId)
+    return { ok: false, message: "Nur für Kundenboards mit zugeordnetem Kunden." };
+
+  const svc = createServiceClient();
+  const origin = await siteOrigin();
+  const { data: created, error } = await svc.auth.admin.inviteUserByEmail(mail, {
+    redirectTo: `${origin}/auth/confirm?next=/auth/update-password`,
+    data: { full_name: name.trim() || mail },
+  });
+  if (error || !created.user) {
+    return {
+      ok: false,
+      message: "Einladung fehlgeschlagen (E-Mail evtl. vergeben oder SMTP fehlt).",
+    };
+  }
+  const { error: pErr } = await svc.rpc("provision_profile", {
+    p_user_id: created.user.id,
+    p_full_name: name.trim() || mail,
+    p_role: "customer",
+    p_customer_id: customerId,
+    p_department: null,
+  });
+  if (pErr) {
+    await svc.auth.admin.deleteUser(created.user.id);
+    return { ok: false, message: "Profil konnte nicht angelegt werden." };
+  }
+  revalidatePath(`/boards/${boardId}`);
+  return { ok: true, message: `Einladung an ${mail} gesendet.` };
+}
+
+/** Remove a customer's access to this board (deletes their account). */
+export async function removeBoardCustomer(
+  boardId: string,
+  userId: string,
+): Promise<{ ok: boolean; message: string }> {
+  await requireAdmin();
+  const customerId = await boardCustomerId(boardId);
+  if (!customerId) return { ok: false, message: "Kein Kundenboard." };
+  const svc = createServiceClient();
+  // Verify the target really belongs to this board's customer before deleting.
+  const { data: p } = await svc
+    .from("profiles")
+    .select("id, customer_id, role")
+    .eq("id", userId)
+    .maybeSingle<{ id: string; customer_id: string | null; role: string }>();
+  if (!p || p.role !== "customer" || p.customer_id !== customerId) {
+    return { ok: false, message: "Nutzer gehört nicht zu diesem Board." };
+  }
+  const { error } = await svc.auth.admin.deleteUser(userId);
+  if (error) return { ok: false, message: "Entfernen fehlgeschlagen." };
+  revalidatePath(`/boards/${boardId}`);
+  return { ok: true, message: "Zugriff entfernt." };
 }
