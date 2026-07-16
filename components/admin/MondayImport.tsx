@@ -16,6 +16,7 @@ type Person = { id: string; name: string };
 const IGNORE = "__ignore";
 const TITLE = "__title";
 const GROUP = "__group";
+const CUSTOMER = "__customer";
 
 // --- CSV parsing ----------------------------------------------------------
 function detectDelimiter(line: string): string {
@@ -73,7 +74,70 @@ function parseDate(raw: string): string {
   m = /^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/.exec(s);
   if (m)
     return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  // Excel serial date (e.g. "46217" or "46217.0") — epoch 1899-12-30.
+  const num = /^(\d{4,6})(?:\.0+)?$/.exec(s);
+  if (num) {
+    const d = new Date(Date.UTC(1899, 11, 30) + Number(num[1]) * 86400000);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  }
   return s;
+}
+
+// Normalize a monday board export into a clean table with a leading "Gruppe"
+// column. Handles: board-title row, section rows, repeated "Name" headers, and
+// subitem blocks (skipped — a different sub-schema). A single-cell row is a
+// section only when the next non-blank row is a "Name" header; otherwise it's a
+// title-only task.
+function normalizeMonday(raw: string[][]): {
+  rows: string[][];
+  monday: boolean;
+  skippedSubitems: number;
+} {
+  const headerIdx = raw.findIndex((r) => (r[0] ?? "").trim() === "Name");
+  const singleCol = raw.some(
+    (r) => r.filter((c) => (c ?? "").trim() !== "").length === 1,
+  );
+  if (headerIdx < 0 || (headerIdx === 0 && !singleCol)) {
+    return { rows: raw, monday: false, skippedSubitems: 0 };
+  }
+  const header = ["Gruppe", ...raw[headerIdx]];
+  const out: string[][] = [header];
+  let group = "";
+  let sawHeader = false;
+  let skippedSubitems = 0;
+  const blank = (r: string[]) => r.every((c) => (c ?? "").trim() === "");
+
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i];
+    const c0 = (row[0] ?? "").trim();
+    const filled = row.filter((c) => (c ?? "").trim() !== "");
+    if (c0 === "Name") {
+      sawHeader = true;
+      continue; // repeated header
+    }
+    if (c0 === "Subitems") continue; // subitem sub-header
+    if (filled.length === 0) continue;
+    if (filled.length === 1) {
+      // Section header only if the next non-blank row is a "Name" header.
+      let j = i + 1;
+      while (j < raw.length && blank(raw[j])) j++;
+      const nextHeader = j < raw.length && (raw[j][0] ?? "").trim() === "Name";
+      if (nextHeader) {
+        group = c0;
+        continue;
+      }
+      if (!sawHeader) continue; // board title before any header
+      out.push([group, ...row]); // title-only task
+      continue;
+    }
+    // A subitem row has an empty first (Name) cell — skip it.
+    if (c0 === "") {
+      skippedSubitems++;
+      continue;
+    }
+    out.push([group, ...row]);
+  }
+  return { rows: out, monday: true, skippedSubitems };
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -85,6 +149,7 @@ export default function MondayImport({
   boards: Board[];
   people: Person[];
 }) {
+  const [fileMsg, setFileMsg] = useState<string | null>(null);
   const [boardId, setBoardId] = useState("");
   const [columns, setColumns] = useState<ImportColumn[]>([]);
   const [raw, setRaw] = useState("");
@@ -113,6 +178,7 @@ export default function MondayImport({
       if (["name", "titel", "aufgabe", "task", "item", "element"].includes(hn))
         return TITLE;
       if (["gruppe", "group"].includes(hn)) return GROUP;
+      if (["kunde", "customer", "kunden"].includes(hn)) return CUSTOMER;
       const byLabel = cols.find(
         (c) => norm(c.label) === hn || norm(c.key) === hn,
       );
@@ -128,12 +194,21 @@ export default function MondayImport({
       return IGNORE;
     });
 
-  const doParse = () => {
-    const rows = parseCsv(raw);
+  const ingest = (raw2d: string[][]) => {
+    const { rows, monday, skippedSubitems } = normalizeMonday(raw2d);
     setParsed(rows);
     setResult(null);
+    setFileMsg(
+      monday
+        ? `monday-Format erkannt: Gruppen als Abschnitte übernommen${
+            skippedSubitems ? `, ${skippedSubitems} Subitems übersprungen` : ""
+          }.`
+        : null,
+    );
     if (rows.length) setMapping(autoMap(columns, rows[0]));
   };
+
+  const doParse = () => ingest(parseCsv(raw));
 
   // Distinct person-cell values across all columns mapped to a person column.
   const personColIdx = useMemo(
@@ -162,13 +237,20 @@ export default function MondayImport({
   const buildRows = (): ImportRow[] => {
     const titleIdx = mapping.indexOf(TITLE);
     const groupIdx = mapping.indexOf(GROUP);
+    const customerIdx = mapping.indexOf(CUSTOMER);
     const out: ImportRow[] = [];
     for (const r of dataRows) {
       const title = titleIdx >= 0 ? (r[titleIdx] ?? "").trim() : "";
       if (!title) continue;
       const values: { columnId: string; value: unknown }[] = [];
       mapping.forEach((target, i) => {
-        if (target === IGNORE || target === TITLE || target === GROUP) return;
+        if (
+          target === IGNORE ||
+          target === TITLE ||
+          target === GROUP ||
+          target === CUSTOMER
+        )
+          return;
         const col = columns.find((c) => c.id === target);
         if (!col) return;
         const cell = (r[i] ?? "").trim();
@@ -187,6 +269,8 @@ export default function MondayImport({
       });
       out.push({
         group: groupIdx >= 0 ? (r[groupIdx] ?? "").trim() : undefined,
+        customerName:
+          customerIdx >= 0 ? (r[customerIdx] ?? "").trim() || undefined : undefined,
         title,
         values,
       });
@@ -217,6 +301,7 @@ export default function MondayImport({
     { v: IGNORE, l: "— ignorieren —" },
     { v: TITLE, l: "Titel (Name)" },
     { v: GROUP, l: "Gruppe" },
+    { v: CUSTOMER, l: "Kunde (Zuordnung)" },
     ...columns.map((c) => ({ v: c.id, l: `${c.label} (${c.type})` })),
   ];
 
@@ -251,20 +336,32 @@ export default function MondayImport({
             rows={6}
             style={{ ...input, fontFamily: "monospace", fontSize: 12 }}
           />
-          <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="file"
               accept=".csv,text/csv,text/plain"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) f.text().then((t) => setRaw(t));
+                if (!f) return;
+                f.text().then((t) => {
+                  setRaw(t);
+                  ingest(parseCsv(t));
+                });
               }}
               style={{ fontSize: 13, color: "var(--muted)" }}
             />
             <button onClick={doParse} disabled={!raw.trim()} style={button}>
-              Einlesen
+              CSV einlesen
             </button>
+            {fileMsg && (
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>{fileMsg}</span>
+            )}
           </div>
+          <p style={{ fontSize: 12, color: "var(--faint)", marginTop: 6 }}>
+            In Excel/Numbers/Google Sheets als <strong>CSV</strong> speichern, dann
+            hier hochladen oder einfügen. monday-Gruppen werden automatisch als
+            Abschnitte erkannt, Subitems werden übersprungen.
+          </p>
         </div>
       )}
 

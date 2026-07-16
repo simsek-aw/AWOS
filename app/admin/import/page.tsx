@@ -5,6 +5,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { Board } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // large imports run as a server action here
 
 export default async function ImportPage() {
   const ctx = await requireEmployee();

@@ -33,6 +33,7 @@ export async function getImportColumns(
 export type ImportRow = {
   group?: string;
   title: string;
+  customerName?: string;
   values: { columnId: string; value: unknown }[];
 };
 
@@ -114,6 +115,35 @@ export async function importBoardRows(
   let defaultGroupId = existingGroups?.[0]?.id ?? null;
   let createdGroups = 0;
 
+  // Customer-tag resolution (for the "Kunde" column). Match by name
+  // (case-insensitive); create a customer record if it doesn't exist yet.
+  const needCustomers = rows.some((r) => r.customerName?.trim());
+  const customerIdByName = new Map<string, string>();
+  if (needCustomers) {
+    const { data: custs } = await supabase
+      .from("customers")
+      .select("id, name")
+      .returns<{ id: string; name: string }[]>();
+    for (const c of custs ?? [])
+      customerIdByName.set(c.name.trim().toLowerCase(), c.id);
+  }
+  const resolveCustomer = async (name?: string): Promise<string | null> => {
+    const n = (name ?? "").trim();
+    if (!n) return null;
+    const hit = customerIdByName.get(n.toLowerCase());
+    if (hit) return hit;
+    const { data: created } = await supabase
+      .from("customers")
+      .insert({ name: n })
+      .select("id")
+      .single<{ id: string }>();
+    if (created) {
+      customerIdByName.set(n.toLowerCase(), created.id);
+      return created.id;
+    }
+    return null;
+  };
+
   const ensureGroup = async (name?: string): Promise<string | null> => {
     const n = (name ?? "").trim();
     if (!n) {
@@ -143,33 +173,68 @@ export async function importBoardRows(
     return defaultGroupId;
   };
 
-  const createdIds: string[] = [];
-  for (const row of rows) {
-    const title = String(row.title ?? "").trim();
-    if (!title) continue;
-    const groupId = await ensureGroup(row.group);
-    const { data: task } = await supabase
-      .from("tasks")
-      .insert({ board_id: boardId, group_id: groupId, title })
-      .select("id")
-      .single<{ id: string }>();
-    if (!task) continue;
-    createdIds.push(task.id);
+  // Pre-resolve every distinct group + customer once (creates missing), then
+  // BULK insert tasks and values in chunks — a per-row loop would time out on
+  // large boards (1000+ rows).
+  const valid = rows.filter((r) => String(r.title ?? "").trim());
+  const distinctGroups = new Set(valid.map((r) => (r.group ?? "").trim()));
+  for (const g of distinctGroups) await ensureGroup(g || undefined);
+  const distinctCust = new Set(
+    valid.map((r) => (r.customerName ?? "").trim()).filter(Boolean),
+  );
+  for (const c of distinctCust) await resolveCustomer(c);
 
-    const valueRows = (row.values ?? [])
-      .filter(
-        (v) =>
+  const groupIdFor = (name?: string) => {
+    const n = (name ?? "").trim();
+    return n ? (groupByName.get(n.toLowerCase()) ?? defaultGroupId) : defaultGroupId;
+  };
+  const custIdFor = (name?: string) => {
+    const n = (name ?? "").trim();
+    return n ? (customerIdByName.get(n.toLowerCase()) ?? null) : null;
+  };
+  const chunk = <T>(arr: T[], n: number): T[][] => {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+    return out;
+  };
+
+  const createdIds: string[] = [];
+  const valueRows: { task_id: string; column_id: string; value: unknown }[] = [];
+  for (const batch of chunk(valid, 400)) {
+    const objs = batch.map((r) => ({
+      board_id: boardId,
+      group_id: groupIdFor(r.group),
+      title: String(r.title).trim(),
+      customer_id: custIdFor(r.customerName),
+    }));
+    const { data: inserted, error } = await supabase
+      .from("tasks")
+      .insert(objs)
+      .select("id")
+      .returns<{ id: string }[]>();
+    if (error) {
+      console.error("import: task insert failed", error);
+      throw new Error(`Import fehlgeschlagen: ${error.message}`);
+    }
+    const ids = (inserted ?? []).map((x) => x.id);
+    for (let i = 0; i < batch.length; i++) {
+      const id = ids[i];
+      if (!id) continue;
+      createdIds.push(id);
+      for (const v of batch[i].values ?? []) {
+        if (
           validCols.has(v.columnId) &&
           v.value != null &&
           !(typeof v.value === "string" && v.value.trim() === "") &&
-          !(Array.isArray(v.value) && v.value.length === 0),
-      )
-      .map((v) => ({ task_id: task.id, column_id: v.columnId, value: v.value }));
-    if (valueRows.length) {
-      await supabase
-        .from("task_values")
-        .upsert(valueRows, { onConflict: "task_id,column_id" });
+          !(Array.isArray(v.value) && v.value.length === 0)
+        ) {
+          valueRows.push({ task_id: id, column_id: v.columnId, value: v.value });
+        }
+      }
     }
+  }
+  for (const vb of chunk(valueRows, 500)) {
+    await supabase.from("task_values").upsert(vb, { onConflict: "task_id,column_id" });
   }
 
   return { created: createdIds.length, groups: createdGroups, createdIds };
