@@ -1,29 +1,30 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { deleteTask, duplicateTask } from "@/app/(app)/boards/[id]/actions";
 import Icon, { type IconName } from "@/components/icons";
 import { toast } from "@/components/toast";
 import type { Group } from "@/lib/types";
 import Popover from "./Popover";
 
-export default function RowMenu({
-  boardId,
-  taskId,
-  taskTitle,
-  groups,
-  currentGroupId,
-  onOpenDrawer,
-  onMove,
-}: {
-  boardId: string;
-  taskId: string;
-  taskTitle: string;
-  groups: Group[];
-  currentGroupId: string;
-  onOpenDrawer: () => void;
-  onMove: (groupId: string) => void;
-}) {
+// Imperative handle so a row can open this menu at the cursor on right-click.
+export type RowMenuHandle = { openAt: (x: number, y: number) => void };
+
+const RowMenu = forwardRef<
+  RowMenuHandle,
+  {
+    boardId: string;
+    taskId: string;
+    taskTitle: string;
+    groups: Group[];
+    currentGroupId: string;
+    onOpenDrawer: () => void;
+    onMove: (groupId: string) => void;
+  }
+>(function RowMenu(
+  { boardId, taskId, taskTitle, groups, currentGroupId, onOpenDrawer, onMove },
+  ref,
+) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [view, setView] = useState<"root" | "move" | "dup">("root");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -33,6 +34,14 @@ export default function RowMenu({
     setView("root");
   };
   const close = () => setRect(null);
+
+  // Open the same menu anchored at an arbitrary point (used for right-click).
+  useImperativeHandle(ref, () => ({
+    openAt: (x: number, y: number) => {
+      setRect(new DOMRect(x, y, 0, 0));
+      setView("root");
+    },
+  }));
 
   const taskHref = `/boards/${boardId}/tasks/${taskId}`;
 
@@ -164,7 +173,9 @@ export default function RowMenu({
       )}
     </>
   );
-}
+});
+
+export default RowMenu;
 
 function Item({
   icon,

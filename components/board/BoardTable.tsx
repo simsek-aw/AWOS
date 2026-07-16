@@ -27,7 +27,7 @@ import { AvatarStack } from "./Avatar";
 import CustomerCell from "./CustomerCell";
 import EditableCell from "./EditableCell";
 import { statusPillStyle, urgencyPillStyle } from "./pills";
-import RowMenu from "./RowMenu";
+import RowMenu, { type RowMenuHandle } from "./RowMenu";
 import TaskDrawer from "./TaskDrawer";
 
 const INTERACTIVE = "input, select, textarea, button, a, [contenteditable='true']";
@@ -143,6 +143,10 @@ export default function BoardTable({
   // must NOT hijack it as a row drag — this lets the whole row be draggable
   // while cell editing still works.
   const dragBlocked = useRef(false);
+
+  // One imperative handle per rendered RowMenu, so a right-click on the row can
+  // open the very same menu at the cursor.
+  const menuRefs = useRef<Map<string, RowMenuHandle>>(new Map());
 
   const valueMap = useMemo(() => {
     const m = new Map<string, Map<string, unknown>>();
@@ -324,6 +328,18 @@ export default function BoardTable({
         {...dragProps}
         onMouseEnter={() => setHoveredId(t.id)}
         onMouseLeave={() => setHoveredId((cur) => (cur === t.id ? null : cur))}
+        onContextMenu={(e) => {
+          // Right-click opens the same actions menu at the cursor. Leave native
+          // context menus intact inside editable fields (copy/paste).
+          if (
+            (e.target as HTMLElement).closest(
+              "input, textarea, [contenteditable='true']",
+            )
+          )
+            return;
+          e.preventDefault();
+          menuRefs.current.get(t.id)?.openAt(e.clientX, e.clientY);
+        }}
         style={{
           background: isOpen
             ? "var(--active)"
@@ -349,6 +365,10 @@ export default function BoardTable({
             }}
           >
             <RowMenu
+              ref={(h) => {
+                if (h) menuRefs.current.set(t.id, h);
+                else menuRefs.current.delete(t.id);
+              }}
               boardId={boardId}
               taskId={t.id}
               taskTitle={t.title}
