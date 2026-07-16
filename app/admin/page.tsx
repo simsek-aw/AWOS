@@ -4,14 +4,18 @@ import TeamImport from "@/components/admin/TeamImport";
 import UserRow from "@/components/admin/UserRow";
 import { requireAdmin } from "@/lib/auth";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
-import type { Board, Customer, Profile } from "@/lib/types";
+import type { Board, Customer, Profile, Tool } from "@/lib/types";
 import {
   createCustomer,
   createCustomerBoard,
   createInternalBoard,
+  createTool,
+  deleteTool,
   inviteUser,
+  moveTool,
   renameBoard,
   setBoardArchived,
+  updateTool,
 } from "./actions";
 
 const deptLabel: Record<string, string> = {
@@ -39,6 +43,20 @@ export default async function AdminPage({
         .order("created_at")
         .returns<Profile[]>(),
     ]);
+
+  // Tools registry (product switcher). Fetched separately so the page still
+  // works before migration 0027 is applied.
+  let toolList: Tool[] = [];
+  try {
+    const { data: toolsData } = await supabase
+      .from("tools")
+      .select("*")
+      .order("position", { ascending: true })
+      .returns<Tool[]>();
+    toolList = toolsData ?? [];
+  } catch {
+    toolList = [];
+  }
 
   const customerList = customers ?? [];
   const customerName = new Map(customerList.map((c) => [c.id, c.name]));
@@ -132,6 +150,163 @@ export default async function AdminPage({
         {/* --- Team import --- */}
         <Section title="Team-Import (CSV)">
           <TeamImport />
+        </Section>
+
+        {/* --- Tools (product switcher) --- */}
+        <Section title="Tools (Plattform-Switcher)">
+          <p style={{ color: "var(--muted)", fontSize: 13, margin: "0 0 12px" }}>
+            Diese Tools erscheinen im Umschalter neben dem AWOS-Logo. „Intern" =
+            Seite in AWOS, „Link" = externes Tool im neuen Tab, „Einbetten" =
+            externes Tool im iframe unter /tools/[key].
+          </p>
+          <div style={{ display: "grid", gap: 10 }}>
+            {toolList.map((t, i) => (
+              <form
+                key={t.id}
+                action={updateTool}
+                style={{
+                  display: "grid",
+                  gap: 6,
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  padding: 10,
+                  opacity: t.enabled ? 1 : 0.7,
+                }}
+              >
+                <input type="hidden" name="id" value={t.id} />
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <input
+                    name="icon"
+                    defaultValue={t.icon ?? ""}
+                    placeholder="Icon"
+                    style={{ ...input, width: 56, textAlign: "center" }}
+                  />
+                  <input
+                    name="name"
+                    defaultValue={t.name}
+                    placeholder="Name"
+                    required
+                    style={{ ...input, width: 130 }}
+                  />
+                  <select name="kind" defaultValue={t.kind} style={{ ...input, width: 120 }}>
+                    <option value="internal">Intern</option>
+                    <option value="link">Link</option>
+                    <option value="embed">Einbetten</option>
+                  </select>
+                  <input
+                    name="color"
+                    defaultValue={t.color ?? ""}
+                    placeholder="#579bfc"
+                    style={{ ...input, width: 90 }}
+                  />
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 13,
+                      color: "var(--muted)",
+                    }}
+                  >
+                    <input type="checkbox" name="enabled" defaultChecked={t.enabled} />
+                    Aktiv
+                  </label>
+                  <span
+                    style={{ color: "var(--faint)", fontSize: 12, alignSelf: "center" }}
+                  >
+                    key: {t.key}
+                  </span>
+                </div>
+                <input
+                  name="url"
+                  defaultValue={t.url ?? ""}
+                  placeholder="URL bzw. Pfad (z. B. https://… oder /my)"
+                  style={input}
+                />
+                <input
+                  name="description"
+                  defaultValue={t.description ?? ""}
+                  placeholder="Kurzbeschreibung"
+                  style={input}
+                />
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button style={{ ...button, padding: "6px 12px" }}>Speichern</button>
+                  <button
+                    formAction={moveTool}
+                    name="dir"
+                    value="up"
+                    disabled={i === 0}
+                    style={{ ...ghostSmall, opacity: i === 0 ? 0.4 : 1 }}
+                    title="Nach oben"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    formAction={moveTool}
+                    name="dir"
+                    value="down"
+                    disabled={i === toolList.length - 1}
+                    style={{ ...ghostSmall, opacity: i === toolList.length - 1 ? 0.4 : 1 }}
+                    title="Nach unten"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    formAction={deleteTool}
+                    style={{ ...ghostSmall, color: "var(--danger)", marginLeft: "auto" }}
+                    title="Tool löschen"
+                  >
+                    Löschen
+                  </button>
+                </div>
+              </form>
+            ))}
+            {toolList.length === 0 && (
+              <Empty>Noch keine Tools. Migration 0027 anwenden, dann anlegen.</Empty>
+            )}
+          </div>
+
+          {/* Add tool */}
+          <form
+            action={createTool}
+            style={{
+              display: "grid",
+              gap: 6,
+              marginTop: 14,
+              borderTop: "1px solid var(--border)",
+              paddingTop: 14,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)" }}>
+              Neues Tool
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <input name="icon" placeholder="Icon (Emoji)" style={{ ...input, width: 90, textAlign: "center" }} />
+              <input name="name" placeholder="Name (z. B. AWscribe)" required style={{ ...input, width: 180 }} />
+              <select name="kind" defaultValue="link" style={{ ...input, width: 120 }}>
+                <option value="internal">Intern</option>
+                <option value="link">Link</option>
+                <option value="embed">Einbetten</option>
+              </select>
+              <input name="color" placeholder="#579bfc" style={{ ...input, width: 90 }} />
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  color: "var(--muted)",
+                }}
+              >
+                <input type="checkbox" name="enabled" defaultChecked /> Aktiv
+              </label>
+            </div>
+            <input name="url" placeholder="URL bzw. Pfad" style={input} />
+            <input name="description" placeholder="Kurzbeschreibung" style={input} />
+            <div>
+              <button style={button}>Tool hinzufügen</button>
+            </div>
+          </form>
         </Section>
 
         {/* --- Customers with their boards --- */}
@@ -383,4 +558,14 @@ const button: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   whiteSpace: "nowrap",
+};
+
+const ghostSmall: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "6px 10px",
+  color: "var(--muted)",
+  fontSize: 13,
+  cursor: "pointer",
 };

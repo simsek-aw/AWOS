@@ -376,3 +376,103 @@ export async function inviteUser(formData: FormData) {
   revalidatePath("/admin");
   ok(`Einladung an ${email} gesendet`);
 }
+
+// --- Tools registry (product switcher) --------------------------------------
+
+function slugifyKey(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 40);
+}
+
+export async function createTool(formData: FormData) {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) fail("Tool-Name fehlt");
+  const key =
+    slugifyKey(String(formData.get("key") ?? "").trim() || name) ||
+    `tool${Date.now()}`;
+  const kind = String(formData.get("kind") ?? "link");
+  const svc = createServiceClient();
+  const { data: last } = await svc
+    .from("tools")
+    .select("position")
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ position: number }>();
+  const { error } = await svc.from("tools").insert({
+    key,
+    name,
+    description: String(formData.get("description") ?? "").trim() || null,
+    icon: String(formData.get("icon") ?? "").trim() || null,
+    color: String(formData.get("color") ?? "").trim() || null,
+    kind: ["internal", "link", "embed"].includes(kind) ? kind : "link",
+    url: String(formData.get("url") ?? "").trim() || null,
+    position: (last?.position ?? -1) + 1,
+    enabled: formData.get("enabled") === "on",
+  });
+  if (error) fail(`Tool konnte nicht angelegt werden (${error.message})`);
+  revalidatePath("/admin");
+  ok(`Tool „${name}" angelegt`);
+}
+
+export async function updateTool(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!id || !name) fail("Tool-Daten unvollständig");
+  const kind = String(formData.get("kind") ?? "link");
+  const svc = createServiceClient();
+  const { error } = await svc
+    .from("tools")
+    .update({
+      name,
+      description: String(formData.get("description") ?? "").trim() || null,
+      icon: String(formData.get("icon") ?? "").trim() || null,
+      color: String(formData.get("color") ?? "").trim() || null,
+      kind: ["internal", "link", "embed"].includes(kind) ? kind : "link",
+      url: String(formData.get("url") ?? "").trim() || null,
+      enabled: formData.get("enabled") === "on",
+    })
+    .eq("id", id);
+  if (error) fail(`Tool konnte nicht gespeichert werden (${error.message})`);
+  revalidatePath("/admin");
+  ok("Tool gespeichert");
+}
+
+export async function deleteTool(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) fail("Tool fehlt");
+  const svc = createServiceClient();
+  await svc.from("tools").delete().eq("id", id);
+  revalidatePath("/admin");
+  ok("Tool entfernt");
+}
+
+export async function moveTool(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const dir = String(formData.get("dir") ?? "");
+  if (!id) fail("Tool fehlt");
+  const svc = createServiceClient();
+  const { data: all } = await svc
+    .from("tools")
+    .select("id, position")
+    .order("position", { ascending: true })
+    .returns<{ id: string; position: number }[]>();
+  const list = all ?? [];
+  const idx = list.findIndex((t) => t.id === id);
+  const swapWith = dir === "up" ? idx - 1 : idx + 1;
+  if (idx < 0 || swapWith < 0 || swapWith >= list.length) {
+    revalidatePath("/admin");
+    return;
+  }
+  const a = list[idx];
+  const b = list[swapWith];
+  await svc.from("tools").update({ position: b.position }).eq("id", a.id);
+  await svc.from("tools").update({ position: a.position }).eq("id", b.id);
+  revalidatePath("/admin");
+}

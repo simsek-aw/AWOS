@@ -2,16 +2,20 @@
 
 import { useEffect, useState } from "react";
 import type { SessionContext } from "@/lib/auth";
+import { CURRENT_TOOL_KEY, type Tool } from "@/lib/types";
 import GlobalSearch from "./GlobalSearch";
 import Icon from "./icons";
 import NotificationBell from "./NotificationBell";
+import ProductSwitcher from "./ProductSwitcher";
 import UserMenu from "./UserMenu";
 
 export default function AppHeader({
   ctx,
+  tools = [],
   onMenuClick,
 }: {
   ctx: SessionContext;
+  tools?: Tool[];
   onMenuClick?: () => void;
 }) {
   const admin = ctx.profile.is_admin ?? ctx.profile.role === "employee";
@@ -85,6 +89,9 @@ export default function AppHeader({
             AWOS
           </span>
         </a>
+        {tools.length > 0 && (
+          <ProductSwitcher tools={tools} currentKey={CURRENT_TOOL_KEY} />
+        )}
       </div>
 
       {/* Middle: global search (full bar on desktop) */}

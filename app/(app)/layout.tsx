@@ -1,6 +1,7 @@
 import Shell from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { listTools } from "@/lib/tools";
 import type { Board } from "@/lib/types";
 
 export default async function AppLayout({
@@ -64,8 +65,17 @@ export default async function AppLayout({
   // the archived_at migration is applied — undefined = not archived).
   const activeBoards = (boards ?? []).filter((b) => !b.archived_at);
 
+  // Tools for the product switcher (only for employees; customers stay in the CMS).
+  const tools =
+    ctx.profile.role === "employee" ? await listTools() : [];
+
   return (
-    <Shell ctx={ctx} boards={activeBoards} unreadByBoard={unreadByBoard}>
+    <Shell
+      ctx={ctx}
+      boards={activeBoards}
+      unreadByBoard={unreadByBoard}
+      tools={tools}
+    >
       {children}
     </Shell>
   );

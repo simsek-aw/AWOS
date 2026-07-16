@@ -27,6 +27,27 @@ export interface Customer {
   created_at: string;
 }
 
+export type ToolKind = "internal" | "link" | "embed";
+
+// The registry key of the tool this app itself is (AWcms). Lives here (a
+// server-free module) so client components can import it without pulling in
+// server-only code.
+export const CURRENT_TOOL_KEY = "awcms";
+
+export interface Tool {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  kind: ToolKind;
+  url: string | null;
+  position: number;
+  enabled: boolean;
+  created_at: string;
+}
+
 export interface Board {
   id: string;
   name: string;

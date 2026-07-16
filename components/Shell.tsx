@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { SessionContext } from "@/lib/auth";
-import type { Board } from "@/lib/types";
+import type { Board, Tool } from "@/lib/types";
 import AppHeader from "./AppHeader";
 import Sidebar from "./Sidebar";
 import Toaster from "./Toaster";
@@ -14,11 +14,13 @@ export default function Shell({
   ctx,
   boards,
   unreadByBoard = {},
+  tools = [],
   children,
 }: {
   ctx: SessionContext;
   boards: Board[];
   unreadByBoard?: Record<string, number>;
+  tools?: Tool[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -31,7 +33,7 @@ export default function Shell({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <AppHeader ctx={ctx} onMenuClick={() => setOpen(true)} />
+      <AppHeader ctx={ctx} tools={tools} onMenuClick={() => setOpen(true)} />
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Sidebar
