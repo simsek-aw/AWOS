@@ -157,7 +157,14 @@ export async function setUserAdmin(formData: FormData) {
     .from("profiles")
     .update({ is_admin: makeAdmin })
     .eq("id", userId);
-  if (error) fail("Admin-Recht konnte nicht geändert werden");
+  if (error) {
+    console.error("setUserAdmin failed", error);
+    fail(
+      /is_admin/.test(error.message)
+        ? "Migration 0025 (is_admin) ist noch nicht angewendet."
+        : `Admin-Recht konnte nicht geändert werden: ${error.message}`,
+    );
+  }
 
   revalidatePath("/admin");
   ok(makeAdmin ? "Admin-Recht erteilt" : "Admin-Recht entzogen");
