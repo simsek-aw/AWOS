@@ -302,6 +302,30 @@ function LabelEditor({
       >
         + Label
       </button>
+      <button
+        onClick={() =>
+          setItems([
+            { label: "Offen", color: "#9e9e9e" },
+            { label: "In Arbeit", color: "#fdab3d" },
+            { label: "Review", color: "#579bfc", kind: "review" },
+            { label: "Fertig", color: "#00c875", kind: "done" },
+          ])
+        }
+        title="Setzt die Labels auf die 4 Standard-Stati zurück"
+        style={{
+          marginTop: 6,
+          background: "transparent",
+          border: "1px solid var(--border)",
+          color: "var(--muted)",
+          borderRadius: 6,
+          padding: "6px 10px",
+          fontSize: 12,
+          cursor: "pointer",
+          width: "100%",
+        }}
+      >
+        Auf Standard zurücksetzen (4)
+      </button>
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button
           onClick={save}

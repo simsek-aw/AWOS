@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 // Renders a popover into document.body (via portal) positioned under an anchor
@@ -19,13 +19,21 @@ export default function Popover({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const close = () => onClose();
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
+    // Close when the page scrolls the anchor away — but NOT when the user
+    // scrolls inside the popover itself (e.g. a long label list).
+    const onScroll = (e: Event) => {
+      if (ref.current && e.target instanceof Node && ref.current.contains(e.target))
+        return;
+      onClose();
+    };
+    const onResize = () => onClose();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     return () => {
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [onClose]);
 
@@ -44,6 +52,7 @@ export default function Popover({
         style={{ position: "fixed", inset: 0, zIndex: 1000 }}
       />
       <div
+        ref={ref}
         style={{
           position: "fixed",
           left,
