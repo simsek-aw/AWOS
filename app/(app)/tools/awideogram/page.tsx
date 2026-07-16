@@ -9,7 +9,14 @@ export default async function AWideogramPage() {
   const ctx = await requireSession();
   if (ctx.profile.role !== "employee") notFound();
 
-  const initial = await listGenerations();
+  // Never let a failing gallery load (e.g. migration 0028 not applied yet)
+  // white-screen the whole tool — degrade to an empty gallery instead.
+  let initial: Awaited<ReturnType<typeof listGenerations>> = [];
+  try {
+    initial = await listGenerations();
+  } catch (e) {
+    console.error("awideogram: listGenerations failed", e);
+  }
   const hasKey = !!process.env.IDEOGRAM_API_KEY;
 
   return <AWideogramStudio initial={initial} hasKey={hasKey} />;

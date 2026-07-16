@@ -80,7 +80,7 @@ export async function generateImage(
 export async function listGenerations(limit = 24): Promise<GenerationView[]> {
   await requireSession();
   const svc = createServiceClient();
-  const { data } = await svc
+  const { data, error } = await svc
     .from("awideogram_generations")
     .select("id, storage_path, high_level_description, created_at")
     .order("created_at", { ascending: false })
@@ -93,6 +93,11 @@ export async function listGenerations(limit = 24): Promise<GenerationView[]> {
         created_at: string;
       }[]
     >();
+  if (error) {
+    // Most likely migration 0028 hasn't been applied yet — don't crash the page.
+    console.error("awideogram: listGenerations query error", error);
+    return [];
+  }
   const rows = data ?? [];
   const out: GenerationView[] = [];
   for (const r of rows) {
