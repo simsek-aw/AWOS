@@ -20,6 +20,7 @@ import {
   notifyMentions,
   notifyNewInternalTask,
   notifyReaction,
+  notifyReviewRequest,
   notifyStatusChange,
 } from "@/lib/notifications";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
@@ -306,7 +307,57 @@ export async function setCellValue(
   value: string,
 ) {
   const v = value.trim() === "" ? null : value;
+  const ctx = await requireSession();
   const supabase = await createServerSupabase();
+  const actorId = ctx.userId;
+
+  // Determine the status option's workflow kind + enforce the done-gate BEFORE
+  // writing, so a rejected change never persists.
+  let statusKind: "review" | "done" | undefined;
+  if (columnKey === "status" && v) {
+    const { data: col } = await supabase
+      .from("columns")
+      .select("options")
+      .eq("id", columnId)
+      .maybeSingle<{
+        options: { options?: { label: string; kind?: "review" | "done" }[] };
+      }>();
+    statusKind = col?.options?.options?.find((o) => o.label === v)?.kind;
+
+    if (statusKind === "done") {
+      // Only the task's PM or an admin may complete it.
+      const admin = ctx.profile.is_admin ?? ctx.profile.role === "employee";
+      let allowed = admin;
+      if (!allowed) {
+        const { data: pmCol } = await supabase
+          .from("columns")
+          .select("id")
+          .eq("board_id", boardId)
+          .eq("key", "pm")
+          .maybeSingle<{ id: string }>();
+        if (pmCol) {
+          const { data: pmVal } = await supabase
+            .from("task_values")
+            .select("value")
+            .eq("task_id", taskId)
+            .eq("column_id", pmCol.id)
+            .maybeSingle<{ value: unknown }>();
+          const pmIds = Array.isArray(pmVal?.value)
+            ? pmVal!.value.map(String)
+            : pmVal?.value
+              ? [String(pmVal.value)]
+              : [];
+          allowed = pmIds.includes(ctx.userId);
+        }
+      }
+      if (!allowed) {
+        throw new Error(
+          "Nur PM oder Admin dürfen einen Task als erledigt markieren.",
+        );
+      }
+    }
+  }
+
   await supabase
     .from("task_values")
     .upsert(
@@ -314,10 +365,6 @@ export async function setCellValue(
       { onConflict: "task_id,column_id" },
     );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const actorId = user?.id ?? null;
   // Notify the newly assigned "Macher" (person column). RLS-safe: notifyAssignment
   // only notifies users who can access this board.
   if (columnKey === "macher" && v) {
@@ -326,25 +373,35 @@ export async function setCellValue(
     );
   }
 
-  // Status automations: notify the task's PM/Macher, auto-move a finished task
-  // into a "Done"/"Fertig" group if the board has one, and (for a mirrored
-  // internal task marked done) draft a customer reply for review.
+  // Status workflow: review → ping the PM for sign-off; done → move to the
+  // board's "Erledigt" group (created if missing) + draft a customer reply for
+  // mirrored tasks; otherwise the normal status notification.
   if (columnKey === "status" && v) {
-    after(() => notifyStatusChange({ boardId, taskId, actorId, status: v }));
-    if (v === "Fertig") {
-      const { data: doneGroup } = await supabase
+    if (statusKind === "review") {
+      after(() => notifyReviewRequest({ boardId, taskId, actorId, status: v }));
+    } else {
+      after(() => notifyStatusChange({ boardId, taskId, actorId, status: v }));
+    }
+    if (statusKind === "done") {
+      const { data: groups } = await supabase
         .from("groups")
-        .select("id, name")
+        .select("id, name, position")
         .eq("board_id", boardId)
-        .returns<{ id: string; name: string }[]>();
-      const target = (doneGroup ?? []).find((g) =>
-        /fertig|done|erledigt|archiv/i.test(g.name),
+        .returns<{ id: string; name: string; position: number }[]>();
+      let target = (groups ?? []).find((g) =>
+        /erledigt|fertig|done|archiv/i.test(g.name),
       );
+      if (!target) {
+        const maxPos = Math.max(-1, ...(groups ?? []).map((g) => g.position));
+        const { data: g } = await supabase
+          .from("groups")
+          .insert({ board_id: boardId, name: "Erledigt", position: maxPos + 1 })
+          .select("id, name, position")
+          .single<{ id: string; name: string; position: number }>();
+        target = g ?? undefined;
+      }
       if (target) {
-        await supabase
-          .from("tasks")
-          .update({ group_id: target.id })
-          .eq("id", taskId);
+        await supabase.from("tasks").update({ group_id: target.id }).eq("id", taskId);
       }
       after(() => draftCustomerReply(taskId));
     }
@@ -478,11 +535,15 @@ export async function setTaskCustomer(
 export async function updateColumnOptions(
   boardId: string,
   columnId: string,
-  options: { label: string; color: string }[],
+  options: { label: string; color: string; kind?: "review" | "done" }[],
 ) {
   await requireEmployee();
   const clean = options
-    .map((o) => ({ label: o.label.trim(), color: o.color }))
+    .map((o) => ({
+      label: o.label.trim(),
+      color: o.color,
+      ...(o.kind ? { kind: o.kind } : {}),
+    }))
     .filter((o) => o.label.length > 0);
   const supabase = await createServerSupabase();
   await supabase

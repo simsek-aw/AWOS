@@ -321,6 +321,57 @@ export async function notifyStatusChange(opts: {
   );
 }
 
+/** Notify the task's PM(s) that a task is ready for review/sign-off. */
+export async function notifyReviewRequest(opts: {
+  boardId: string;
+  taskId: string;
+  actorId: string | null;
+  status: string;
+}) {
+  const { boardId, taskId, actorId, status } = opts;
+  const svc = createServiceClient();
+
+  const { data: pmCol } = await svc
+    .from("columns")
+    .select("id")
+    .eq("board_id", boardId)
+    .eq("key", "pm")
+    .maybeSingle<{ id: string }>();
+  if (!pmCol) return;
+
+  const { data: val } = await svc
+    .from("task_values")
+    .select("value")
+    .eq("task_id", taskId)
+    .eq("column_id", pmCol.id)
+    .maybeSingle<{ value: unknown }>();
+  const ids = new Set<string>(
+    Array.isArray(val?.value)
+      ? val!.value.map(String)
+      : val?.value
+        ? [String(val.value)]
+        : [],
+  );
+  if (actorId) ids.delete(actorId);
+  if (ids.size === 0) return;
+
+  const [{ data: task }, from] = await Promise.all([
+    svc.from("tasks").select("title").eq("id", taskId).single(),
+    actorName(svc, actorId),
+  ]);
+  const by = from ? ` (${from})` : "";
+  await svc.from("notifications").insert(
+    [...ids].map((uid) => ({
+      user_id: uid,
+      type: "status" as const,
+      task_id: taskId,
+      board_id: boardId,
+      actor_id: actorId,
+      body: `Zur Abnahme bereit${by} – „${status}": „${task?.title ?? "Task"}".`,
+    })),
+  );
+}
+
 /** Notify a comment's author that someone reacted (liked) their comment. */
 export async function notifyReaction(opts: {
   boardId: string;

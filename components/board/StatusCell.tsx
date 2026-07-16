@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { setCellValue, updateColumnOptions } from "@/app/(app)/boards/[id]/actions";
+import { toast } from "@/components/toast";
 import type { Column, StatusOption } from "@/lib/types";
 import { darken, emptyPillStyle, statusPillStyle } from "./pills";
 import Popover from "./Popover";
@@ -42,8 +43,12 @@ export default function StatusCell({
 
   const pick = (label: string) => {
     setRect(null);
+    const prev = current;
     setDraft(label); // instant UI update
-    setCellValue(boardId, taskId, column.id, column.key, label);
+    setCellValue(boardId, taskId, column.id, column.key, label).catch((e) => {
+      setDraft(prev); // revert on rejection (e.g. done-gate)
+      toast(e?.message ?? "Änderung nicht möglich.");
+    });
   };
 
   return (
@@ -235,6 +240,7 @@ function LabelEditor({
               placeholder="Label"
               style={{
                 flex: 1,
+                minWidth: 0,
                 background: "var(--input-bg)",
                 border: "1px solid var(--border)",
                 borderRadius: 6,
@@ -243,6 +249,27 @@ function LabelEditor({
                 fontSize: 13,
               }}
             />
+            <select
+              value={it.kind ?? ""}
+              onChange={(e) =>
+                patch(i, {
+                  kind: (e.target.value || undefined) as StatusOption["kind"],
+                })
+              }
+              title="Typ: Normal · Review · Erledigt"
+              style={{
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "6px 4px",
+                color: "var(--text)",
+                fontSize: 12,
+              }}
+            >
+              <option value="">Normal</option>
+              <option value="review">Review</option>
+              <option value="done">Erledigt</option>
+            </select>
             <button
               onClick={() => del(i)}
               title="Löschen"

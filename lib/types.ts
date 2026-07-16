@@ -40,6 +40,9 @@ export interface Board {
 export interface StatusOption {
   label: string;
   color: string;
+  // Workflow type: undefined/normal, "review" (awaiting sign-off) or
+  // "done" (completed). Drives notifications, done-group move and archiving.
+  kind?: "review" | "done";
 }
 
 export interface Column {

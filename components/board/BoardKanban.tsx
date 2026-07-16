@@ -7,6 +7,7 @@ import {
   setPeople,
 } from "@/app/(app)/boards/[id]/actions";
 import Icon from "@/components/icons";
+import { toast } from "@/components/toast";
 import { deadlineUrgency, formatDate } from "@/lib/format";
 import type { Column, Group, Person, Task, TaskValue } from "@/lib/types";
 import { AvatarStack } from "./Avatar";
@@ -104,13 +105,23 @@ export default function BoardKanban({
 
   const drop = (t: Task, colKey: string) => {
     setMoved((m) => ({ ...m, [t.id]: colKey }));
+    const revert = (e: unknown) => {
+      setMoved((m) => {
+        const n = { ...m };
+        delete n[t.id];
+        return n;
+      });
+      toast((e as Error)?.message ?? "Änderung nicht möglich.");
+    };
+    let p: Promise<unknown> | undefined;
     if (groupBy === "status" && statusCol)
-      setCellValue(boardId, t.id, statusCol.id, "status", colKey);
+      p = setCellValue(boardId, t.id, statusCol.id, "status", colKey);
     else if (groupBy === "pm" && pmCol)
-      setPeople(boardId, t.id, pmCol.id, "pm", colKey ? [colKey] : []);
+      p = setPeople(boardId, t.id, pmCol.id, "pm", colKey ? [colKey] : []);
     else if (groupBy === "macher" && macherCol)
-      setPeople(boardId, t.id, macherCol.id, "macher", colKey ? [colKey] : []);
-    else if (groupBy === "group" && colKey) moveTask(boardId, t.id, colKey);
+      p = setPeople(boardId, t.id, macherCol.id, "macher", colKey ? [colKey] : []);
+    else if (groupBy === "group" && colKey) p = moveTask(boardId, t.id, colKey);
+    p?.catch(revert);
   };
 
   const [overCol, setOverCol] = useState<string | null>(null);

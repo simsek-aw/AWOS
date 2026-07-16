@@ -33,6 +33,14 @@ interface Ctx {
   // task_id -> column_id -> value
   vals: Map<string, Map<string, unknown>>;
   tasks: { id: string; board_id: string; title: string }[];
+  // board_id -> set of status labels that count as "done"
+  doneLabels: Map<string, Set<string>>;
+}
+
+/** Whether a status label counts as done on a board (kind:"done" or "Fertig"). */
+function isDone(ctx: Ctx, boardId: string, status: string): boolean {
+  const set = ctx.doneLabels.get(boardId);
+  return set ? set.has(status) : status === DONE_LABEL;
 }
 
 async function buildContext(svc: Svc): Promise<Ctx> {
@@ -45,6 +53,22 @@ async function buildContext(svc: Svc): Promise<Ctx> {
   for (const c of cols ?? []) {
     if (!colMap.has(c.board_id)) colMap.set(c.board_id, {});
     colMap.get(c.board_id)![c.key] = c.id;
+  }
+
+  // Which status labels count as "done" per board (kind:"done" + legacy "Fertig").
+  const { data: statusCols } = await svc
+    .from("columns")
+    .select("board_id, options")
+    .eq("key", "status")
+    .returns<
+      { board_id: string; options: { options?: { label: string; kind?: string }[] } }[]
+    >();
+  const doneLabels = new Map<string, Set<string>>();
+  for (const c of statusCols ?? []) {
+    const set = new Set<string>([DONE_LABEL]);
+    for (const o of c.options?.options ?? [])
+      if (o.kind === "done") set.add(o.label);
+    doneLabels.set(c.board_id, set);
   }
 
   const { data: tasks } = await svc
@@ -71,7 +95,7 @@ async function buildContext(svc: Svc): Promise<Ctx> {
     }
   }
 
-  return { svc, cols: colMap, vals, tasks: tasks ?? [] };
+  return { svc, cols: colMap, vals, tasks: tasks ?? [], doneLabels };
 }
 
 function fieldOf(ctx: Ctx, taskId: string, boardId: string, key: string): unknown {
@@ -131,7 +155,7 @@ export async function runReminders(): Promise<{ sent: number; archived: number }
 
   for (const t of ctx.tasks) {
     const status = fieldOf(ctx, t.id, t.board_id, "status");
-    const done = String(status ?? "") === DONE_LABEL;
+    const done = isDone(ctx, t.board_id, String(status ?? ""));
     const deadline = fieldOf(ctx, t.id, t.board_id, "deadline");
     const dl = deadline ? String(deadline).slice(0, 10) : "";
     const assignees = [
@@ -248,7 +272,7 @@ export async function runBoardHealth(): Promise<{ boards: number }> {
 
     for (const t of list) {
       const status = String(fieldOf(ctx, t.id, b.id, "status") ?? "");
-      if (status === DONE_LABEL) continue;
+      if (isDone(ctx, b.id, status)) continue;
       const dl = String(fieldOf(ctx, t.id, b.id, "deadline") ?? "").slice(0, 10);
       const assignees = [
         ...toIds(fieldOf(ctx, t.id, b.id, "pm")),
@@ -308,7 +332,7 @@ export async function runDigest(): Promise<{ users: number }> {
   const overdue = new Map<string, string[]>();
   for (const t of ctx.tasks) {
     const status = String(fieldOf(ctx, t.id, t.board_id, "status") ?? "");
-    if (status === DONE_LABEL) continue;
+    if (isDone(ctx, t.board_id, status)) continue;
     const dl = String(fieldOf(ctx, t.id, t.board_id, "deadline") ?? "").slice(0, 10);
     if (!dl) continue;
     const assignees = new Set([
