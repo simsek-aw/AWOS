@@ -95,6 +95,8 @@ export default function BoardView({
   const [groupBy, setGroupBy] = useState<"status" | "pm" | "macher" | "group">(
     "status",
   );
+  // Mobile: the filter/menu controls collapse behind a toggle button.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
   // Remember the last view/grouping per board (per device).
@@ -509,7 +511,31 @@ export default function BoardView({
           </label>
         )}
 
-        <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 4px" }} />
+        <button
+          type="button"
+          className="board-filterbar-toggle"
+          onClick={() => setFiltersOpen((o) => !o)}
+          style={{
+            ...toolBtn,
+            borderColor:
+              activeFilterCount > 0 || search ? "var(--accent)" : "var(--border)",
+            color:
+              activeFilterCount > 0 || search ? "var(--text)" : "var(--muted)",
+          }}
+        >
+          <Icon name="filter" size={16} /> Filter &amp; Menü
+          {activeFilterCount > 0 ? ` / ${activeFilterCount}` : ""}
+          <Icon name="chevron-down" size={13} style={{ opacity: 0.7 }} />
+        </button>
+
+        <div
+          className={`board-filterbar${filtersOpen ? " open" : ""}`}
+          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}
+        >
+        <div
+          className="board-desktop-inline"
+          style={{ width: 1, height: 22, background: "var(--border)", margin: "0 4px" }}
+        />
 
         <ToolbarMenu icon="search" label="Suchen" active={!!search} width={280}>
           {() => (
@@ -775,6 +801,7 @@ export default function BoardView({
             ))}
           </>
         )}
+        </div>
       </div>
 
       {view === "table" && (

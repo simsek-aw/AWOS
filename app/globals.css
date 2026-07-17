@@ -167,3 +167,16 @@ button {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Board toolbar: collapse filters/menus behind a toggle on mobile */
+.board-filterbar-toggle { display: none; }
+@media (max-width: 760px) {
+  .board-filterbar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .board-filterbar { display: none !important; width: 100%; }
+  .board-filterbar.open { display: flex !important; }
+  .board-desktop-inline { display: none !important; }
+}
