@@ -75,10 +75,8 @@ export function buildJsonPrompt(input: StudioInput): Record<string, unknown> {
       medium: input.medium || "high-quality digital render",
     },
     compositional_deconstruction: {
-      background: {
-        desc: input.backgroundDesc || "simple, uncluttered background",
-        ...(input.palette?.length ? { colors: input.palette.slice(0, 16) } : {}),
-      },
+      // The API expects `background` to be a plain string description.
+      background: input.backgroundDesc || "simple, uncluttered background",
       elements,
     },
   };
