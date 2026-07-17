@@ -34,8 +34,38 @@ export async function generateImage(
     if (!input.highLevelDescription?.trim())
       return { images: [], error: "Bitte eine Bildbeschreibung angeben." };
 
+    // Validate reference images server-side (never trust the client): only real
+    // PNG/JPEG/WebP data URLs, each under 10 MB decoded.
+    const MAX_REF_BYTES = 10 * 1024 * 1024;
+    for (const du of input.referenceImages ?? []) {
+      const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(
+        du,
+      );
+      if (!m)
+        return {
+          images: [],
+          error: "Referenzbild: nur PNG, JPEG oder WebP erlaubt.",
+        };
+      if (Math.floor((m[2].length * 3) / 4) > MAX_REF_BYTES)
+        return { images: [], error: "Referenzbild ist zu groß (max 10 MB)." };
+    }
+
     const svc = createServiceClient();
     const rounds = Math.max(1, Math.min(4, Math.round(count)));
+
+    // Per-user daily cap to protect the Ideogram credit budget.
+    const DAILY_LIMIT = Number(process.env.AWIDEOGRAM_DAILY_LIMIT ?? 100);
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: usedToday } = await svc
+      .from("awideogram_generations")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", ctx.userId)
+      .gte("created_at", since);
+    if ((usedToday ?? 0) + rounds > DAILY_LIMIT)
+      return {
+        images: [],
+        error: `Tageslimit erreicht (${DAILY_LIMIT} Bilder/24 h). Bitte später erneut versuchen.`,
+      };
 
     // Persist one Ideogram result to storage + DB, returning a display view or
     // an error string.

@@ -7,9 +7,13 @@ import { createServiceClient } from "@/lib/supabase/server";
 const BUCKET = "awideogram"; // shared image gallery/storage
 const SIGNED_TTL = 60 * 60 * 24 * 7;
 
+const MAX_COMPOSITE_BYTES = 16 * 1024 * 1024;
+
 function dataUrlToBytes(dataUrl: string): Uint8Array | null {
-  const m = dataUrl.match(/^data:.*?;base64,(.*)$/);
+  // Only accept a PNG data URL (what the compositor exports), size-capped.
+  const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!m) return null;
+  if (Math.floor((m[1].length * 3) / 4) > MAX_COMPOSITE_BYTES) return null;
   return new Uint8Array(Buffer.from(m[1], "base64"));
 }
 
