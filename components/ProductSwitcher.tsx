@@ -15,6 +15,7 @@ export default function ProductSwitcher({
   currentKey: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [recents, setRecents] = useState<string[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +32,38 @@ export default function ProductSwitcher({
     };
   }, [open]);
 
+  // Cmd/Ctrl+. toggles the switcher from anywhere; load recents when opening.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        e.preventDefault();
+        setOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem("awos-tool-recents");
+      setRecents(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      setRecents([]);
+    }
+  }, [open]);
+
+  const recordRecent = (key: string) => {
+    try {
+      const raw = localStorage.getItem("awos-tool-recents");
+      const prev = raw ? (JSON.parse(raw) as string[]) : [];
+      const next = [key, ...prev.filter((k) => k !== key)].slice(0, 5);
+      localStorage.setItem("awos-tool-recents", JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const current = tools.find((t) => t.key === currentKey);
 
   const hrefFor = (t: Tool): string | undefined => {
@@ -45,7 +78,7 @@ export default function ProductSwitcher({
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button
         onClick={() => setOpen((o) => !o)}
-        title="Tools wechseln"
+        title="Tools wechseln (⌘/Strg + .)"
         aria-label="Tools wechseln"
         style={{
           display: "inline-flex",
@@ -82,6 +115,61 @@ export default function ProductSwitcher({
             padding: 10,
           }}
         >
+          {(() => {
+            const recentTools = recents
+              .map((k) => tools.find((t) => t.key === k))
+              .filter((t): t is Tool => !!t && !!hrefFor(t))
+              .slice(0, 3);
+            if (!recentTools.length) return null;
+            return (
+              <div style={{ padding: "2px 6px 8px" }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    color: "var(--faint)",
+                    fontWeight: 700,
+                    marginBottom: 6,
+                  }}
+                >
+                  Zuletzt
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {recentTools.map((t) => (
+                    <a
+                      key={t.key}
+                      href={hrefFor(t)}
+                      target={external(t) ? "_blank" : undefined}
+                      rel={external(t) ? "noopener noreferrer" : undefined}
+                      onClick={() => {
+                        recordRecent(t.key);
+                        setOpen(false);
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "4px 10px 4px 6px",
+                        borderRadius: 999,
+                        border: "1px solid var(--border)",
+                        background: "var(--surface-2)",
+                        textDecoration: "none",
+                        color: "var(--text)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>
+                        {t.icon || t.name.slice(0, 1)}
+                      </span>
+                      {t.name}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <div
             style={{
               fontSize: 11,
@@ -209,7 +297,10 @@ export default function ProductSwitcher({
                   href={href}
                   target={external(t) ? "_blank" : undefined}
                   rel={external(t) ? "noopener noreferrer" : undefined}
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    recordRecent(t.key);
+                    setOpen(false);
+                  }}
                   style={baseStyle}
                   onMouseEnter={(e) => {
                     if (!isCurrent)

@@ -24,6 +24,7 @@ export type GenerationView = {
  */
 export async function generateImage(
   input: StudioInput,
+  count = 1,
 ): Promise<{ images: GenerationView[]; error: string | null }> {
   try {
     const ctx = await requireSession();
@@ -32,30 +33,27 @@ export async function generateImage(
     if (!input.highLevelDescription?.trim())
       return { images: [], error: "Bitte eine Bildbeschreibung angeben." };
 
-    const { results, body } = await generateIdeogram(input);
     const svc = createServiceClient();
+    const rounds = Math.max(1, Math.min(4, Math.round(count)));
 
-    const images: GenerationView[] = [];
-    for (const r of results) {
-      // Ideogram's URLs expire — download and store the bytes ourselves.
+    // Persist one Ideogram result to storage + DB, returning a display view or
+    // an error string.
+    const store = async (
+      r: { url: string },
+      body: Record<string, unknown>,
+    ): Promise<{ view?: GenerationView; error?: string }> => {
       const imgRes = await fetch(r.url);
       if (!imgRes.ok)
-        return {
-          images: [],
-          error: `Bild-Download von Ideogram fehlgeschlagen (${imgRes.status}).`,
-        };
+        return { error: `Bild-Download fehlgeschlagen (${imgRes.status}).` };
       const bytes = new Uint8Array(await imgRes.arrayBuffer());
       const path = `${ctx.userId}/${crypto.randomUUID()}.png`;
       const { error: upErr } = await svc.storage
         .from(BUCKET)
         .upload(path, bytes, { contentType: "image/png", upsert: false });
-      if (upErr) {
-        console.error("awideogram: upload failed", upErr);
+      if (upErr)
         return {
-          images: [],
           error: `Storage-Upload fehlgeschlagen: ${upErr.message} (Bucket 'awideogram' angelegt?)`,
         };
-      }
       const { data: row, error: insErr } = await svc
         .from("awideogram_generations")
         .insert({
@@ -69,34 +67,47 @@ export async function generateImage(
         .select("id, created_at")
         .single<{ id: string; created_at: string }>();
       if (insErr || !row)
-        return {
-          images: [],
-          error: `DB-Eintrag fehlgeschlagen: ${insErr?.message ?? "unbekannt"}`,
-        };
-
+        return { error: `DB-Eintrag fehlgeschlagen: ${insErr?.message ?? "?"}` };
       const { data: signed, error: signErr } = await svc.storage
         .from(BUCKET)
         .createSignedUrl(path, SIGNED_TTL);
       if (signErr || !signed?.signedUrl)
-        return {
-          images: [],
-          error: `Signed-URL fehlgeschlagen: ${signErr?.message ?? "unbekannt"}`,
-        };
+        return { error: `Signed-URL fehlgeschlagen: ${signErr?.message ?? "?"}` };
+      return {
+        view: {
+          id: row.id,
+          url: signed.signedUrl,
+          highLevelDescription: input.highLevelDescription,
+          createdAt: row.created_at,
+        },
+      };
+    };
 
-      images.push({
-        id: row.id,
-        url: signed.signedUrl,
-        highLevelDescription: input.highLevelDescription,
-        createdAt: row.created_at,
-      });
+    const images: GenerationView[] = [];
+    let lastError: string | null = null;
+    // Each round is a fresh call → a distinct variation.
+    for (let i = 0; i < rounds; i++) {
+      let results: { url: string }[];
+      let body: Record<string, unknown>;
+      try {
+        const g = await generateIdeogram(input);
+        results = g.results;
+        body = g.body;
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : "Generierung fehlgeschlagen.";
+        break; // stop the batch on an API error (e.g. out of credits)
+      }
+      for (const r of results) {
+        const { view, error } = await store(r, body);
+        if (view) images.push(view);
+        else if (error) lastError = error;
+      }
     }
 
     if (!images.length)
-      return {
-        images: [],
-        error: "Ideogram lieferte keine Bilder zurück.",
-      };
-    return { images, error: null };
+      return { images: [], error: lastError ?? "Ideogram lieferte keine Bilder zurück." };
+    // Partial success: return what we have, but surface the last issue.
+    return { images, error: lastError };
   } catch (e) {
     console.error("awideogram: generateImage failed", e);
     return {

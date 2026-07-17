@@ -212,6 +212,15 @@ export async function generateIdeogram(
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    // Friendlier message when the account is out of credits.
+    if (
+      res.status === 402 ||
+      /credit|insufficient|balance|quota|payment/i.test(detail)
+    ) {
+      throw new Error(
+        "Ideogram-Credits aufgebraucht. Bitte im Ideogram-Konto Guthaben aufladen, dann klappt die Generierung wieder.",
+      );
+    }
     throw new Error(
       `Ideogram-API-Fehler (${res.status}): ${detail.slice(0, 300) || res.statusText}`,
     );

@@ -65,6 +65,7 @@ export default function AWideogramStudio({
   const [palette, setPalette] = useState("");
   const [aspect, setAspect] = useState("1x1");
   const [speed, setSpeed] = useState<RenderingSpeed>("DEFAULT");
+  const [count, setCount] = useState(1);
   // Style-reference images as compressed data URLs (max 3).
   const [refs, setRefs] = useState<string[]>([]);
 
@@ -239,7 +240,7 @@ export default function AWideogramStudio({
   };
 
   // Downscale a reference image client-side to keep the upload small.
-  const compress = (file: File): Promise<string> =>
+  const compress = (file: File | Blob): Promise<string> =>
     new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
@@ -282,6 +283,23 @@ export default function AWideogramStudio({
     if (out.length) setRefs((prev) => [...prev, ...out].slice(0, 3));
   };
 
+  // Reuse a generated gallery image as a style reference.
+  const useAsReference = async (url: string) => {
+    if (refs.length >= 3) {
+      toast("Maximal 3 Referenzbilder.");
+      return;
+    }
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const dataUrl = await compress(blob);
+      setRefs((prev) => [...prev, dataUrl].slice(0, 3));
+      toast("Als Referenz übernommen");
+    } catch {
+      toast("Bild konnte nicht als Referenz übernommen werden.");
+    }
+  };
+
   const generate = async () => {
     if (!hld.trim()) {
       toast("Bitte eine Bildbeschreibung eingeben.");
@@ -313,11 +331,16 @@ export default function AWideogramStudio({
           desc: b.desc || undefined,
           color: b.color || undefined,
         })),
-      });
+      }, count);
+      // Show any produced images even on partial failure, then surface the error.
+      if (images.length) setGallery((prev) => [...images, ...prev]);
       if (error) {
-        toast(error);
+        toast(
+          images.length
+            ? `${images.length} erstellt · Hinweis: ${error}`
+            : error,
+        );
       } else {
-        setGallery((prev) => [...images, ...prev]);
         toast(`${images.length} Bild${images.length > 1 ? "er" : ""} erstellt`);
       }
     } catch (e) {
@@ -413,6 +436,19 @@ export default function AWideogramStudio({
                       : s === "QUALITY"
                         ? "Qualität"
                         : "Standard"}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Anzahl">
+              <select
+                value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
+                style={inputStyle}
+              >
+                {[1, 2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    {n} Variante{n > 1 ? "n" : ""}
                   </option>
                 ))}
               </select>
@@ -830,6 +866,13 @@ export default function AWideogramStudio({
                 >
                   {g.highLevelDescription ?? "—"}
                 </span>
+                <button
+                  onClick={() => useAsReference(g.url)}
+                  title="Als Referenz übernehmen"
+                  style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", display: "inline-flex" }}
+                >
+                  <Icon name="copy" size={15} />
+                </button>
                 <a
                   href={g.url}
                   download
