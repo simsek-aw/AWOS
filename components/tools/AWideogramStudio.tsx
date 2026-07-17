@@ -507,11 +507,18 @@ export default function AWideogramStudio({
                   placeholder={
                     selected.type === "text"
                       ? "fette serifenlose Schrift, weiß"
-                      : "Produktfoto einer Sonnencreme"
+                      : "minimalistischer Alu-Bleistift, grau, edel"
                   }
                   style={inputStyle}
                 />
               </Field>
+              {selected.type === "object" && (
+                <p style={{ fontSize: 11, color: "var(--faint)", margin: 0 }}>
+                  Objekt wird aus deiner Beschreibung generiert (Text-zu-Bild) —
+                  <strong> kein Bild-Upload/Link</strong>. Echte Produktfotos
+                  einsetzen kommt später über Referenzbilder.
+                </p>
+              )}
               <Field label="Farbe (optional)">
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input

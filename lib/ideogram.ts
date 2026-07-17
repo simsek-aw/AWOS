@@ -57,12 +57,23 @@ function toBbox(b: LayoutBox): [number, number, number, number] {
 // Assemble the structured json_prompt from the studio input.
 export function buildJsonPrompt(input: StudioInput): Record<string, unknown> {
   const elements = input.boxes.map((b) => {
+    if (b.type === "text") {
+      const el: Record<string, unknown> = {
+        type: "text",
+        text: b.text ?? "",
+        desc: b.desc || "clean, legible text",
+        bbox: toBbox(b),
+      };
+      if (b.color) el.colors = [b.color];
+      return el;
+    }
+    // Non-text (object/subject): a textual description placed by bbox. Ideogram
+    // is text-to-image, so this describes the object in words — it cannot embed
+    // an uploaded photo. (Real product photos need a reference-image flow.)
     const el: Record<string, unknown> = {
-      type: b.type,
-      desc: b.desc || (b.type === "text" ? "clean, legible text" : "object"),
+      desc: b.desc || "object",
       bbox: toBbox(b),
     };
-    if (b.type === "text") el.text = b.text ?? "";
     if (b.color) el.colors = [b.color];
     return el;
   });
