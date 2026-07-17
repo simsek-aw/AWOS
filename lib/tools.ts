@@ -122,11 +122,11 @@ function canSeeTool(
   return viewer.department === vis; // department-scoped
 }
 
-// The registry is identical for everyone (visibility is applied per-viewer in
-// JS), so it's cached across requests and only refetched when a tool changes
-// (revalidateTag(TOOLS_TAG)). Uses the service role — no cookies — so it's safe
-// inside unstable_cache.
-const fetchToolsRaw = unstable_cache(
+// Cache ONLY the DB rows (service role — no cookies — so it's safe inside
+// unstable_cache), invalidated when a tool changes (revalidateTag(TOOLS_TAG)).
+// The built-in DEFAULT_TOOLS are merged in per request below, so adding a new
+// default tool in code takes effect immediately (the cache doesn't freeze it).
+const fetchToolsDb = unstable_cache(
   async (): Promise<Tool[]> => {
     try {
       const svc = createServiceClient();
@@ -135,17 +135,12 @@ const fetchToolsRaw = unstable_cache(
         .select("*")
         .order("position", { ascending: true })
         .returns<Tool[]>();
-      const db = data ?? [];
-      const byKey = new Map(db.map((t) => [t.key, t]));
-      const merged = [...db];
-      for (const d of DEFAULT_TOOLS) if (!byKey.has(d.key)) merged.push(d);
-      merged.sort((a, b) => a.position - b.position);
-      return merged;
+      return data ?? [];
     } catch {
-      return DEFAULT_TOOLS;
+      return [];
     }
   },
-  ["awos-tools-registry"],
+  ["awos-tools-db"],
   { tags: [TOOLS_TAG] },
 );
 
@@ -159,6 +154,10 @@ export async function listTools(viewer?: {
   department: string | null;
   isAdmin: boolean;
 }): Promise<Tool[]> {
-  const merged = await fetchToolsRaw();
+  const db = await fetchToolsDb();
+  const byKey = new Map(db.map((t) => [t.key, t]));
+  const merged = [...db];
+  for (const d of DEFAULT_TOOLS) if (!byKey.has(d.key)) merged.push(d);
+  merged.sort((a, b) => a.position - b.position);
   return merged.filter((t) => canSeeTool(t, viewer));
 }
