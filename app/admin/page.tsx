@@ -1,4 +1,5 @@
 import AppHeader from "@/components/AppHeader";
+import AdminTabs from "@/components/admin/AdminTabs";
 import DeleteCustomerButton from "@/components/admin/DeleteCustomerButton";
 import TeamImport from "@/components/admin/TeamImport";
 import UserRow from "@/components/admin/UserRow";
@@ -167,12 +168,13 @@ export default async function AdminPage({
         {error && <Banner tone="error">{error}</Banner>}
         {ok && <Banner tone="ok">{ok}</Banner>}
 
-        {/* --- Team import --- */}
-        <Section title="Team-Import (CSV)">
-          <TeamImport />
-        </Section>
-
-        {/* --- Tools (product switcher) --- */}
+        <AdminTabs
+          defaultKey="customers"
+          tabs={[
+            {
+              key: "tools",
+              label: "Tools",
+              content: (
         <Section title="Tools (Plattform-Switcher)">
           <p style={{ color: "var(--muted)", fontSize: 13, margin: "0 0 12px" }}>
             Diese Tools erscheinen im Umschalter neben dem AWOS-Logo. „Intern" =
@@ -361,7 +363,12 @@ export default async function AdminPage({
           </form>
         </Section>
 
-        {/* --- Audit log --- */}
+              ),
+            },
+            {
+              key: "log",
+              label: "Protokoll",
+              content: (
         <Section title="Aktivitätsprotokoll">
           {auditRows.length === 0 ? (
             <p style={{ color: "var(--faint)", fontSize: 13, margin: 0 }}>
@@ -413,7 +420,13 @@ export default async function AdminPage({
           )}
         </Section>
 
-        {/* --- Customers with their boards --- */}
+              ),
+            },
+            {
+              key: "customers",
+              label: "Kunden & Boards",
+              content: (
+                <>
         <Section title="Kunden & Boards">
           <div style={{ display: "grid", gap: 12 }}>
             {customerList.map((c) => {
@@ -497,7 +510,14 @@ export default async function AdminPage({
           </form>
         </Section>
 
-        {/* --- Users (split into employees + customers) --- */}
+                </>
+              ),
+            },
+            {
+              key: "users",
+              label: "Nutzer",
+              content: (
+                <>
         <Section title="Nutzer">
           {(() => {
             const all = profiles ?? [];
@@ -571,6 +591,14 @@ export default async function AdminPage({
             zeigen. Der direkte Weg „Passwort setzen" umgeht das komplett.
           </p>
         </Section>
+        <Section title="Team-Import (CSV)">
+          <TeamImport />
+        </Section>
+                </>
+              ),
+            },
+          ]}
+        />
       </main>
     </>
   );
