@@ -65,6 +65,8 @@ export default function AWideogramStudio({
   const [palette, setPalette] = useState("");
   const [aspect, setAspect] = useState("1x1");
   const [speed, setSpeed] = useState<RenderingSpeed>("DEFAULT");
+  // Style-reference images as compressed data URLs (max 3).
+  const [refs, setRefs] = useState<string[]>([]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
@@ -185,6 +187,50 @@ export default function AWideogramStudio({
     if (selectedId === id) setSelectedId(null);
   };
 
+  // Downscale a reference image client-side to keep the upload small.
+  const compress = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const max = 1280;
+        let { width, height } = img;
+        if (width > max || height > max) {
+          const s = Math.min(max / width, max / height);
+          width = Math.round(width * s);
+          height = Math.round(height * s);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        URL.revokeObjectURL(url);
+        if (!ctx) return reject(new Error("no canvas"));
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Bild konnte nicht gelesen werden"));
+      };
+      img.src = url;
+    });
+
+  const addRefs = async (files: FileList | null) => {
+    if (!files) return;
+    const slots = 3 - refs.length;
+    const chosen = Array.from(files).slice(0, Math.max(0, slots));
+    const out: string[] = [];
+    for (const f of chosen) {
+      try {
+        out.push(await compress(f));
+      } catch {
+        toast("Ein Referenzbild konnte nicht verarbeitet werden.");
+      }
+    }
+    if (out.length) setRefs((prev) => [...prev, ...out].slice(0, 3));
+  };
+
   const generate = async () => {
     if (!hld.trim()) {
       toast("Bitte eine Bildbeschreibung eingeben.");
@@ -205,6 +251,7 @@ export default function AWideogramStudio({
           .map((s) => (s.startsWith("#") ? s : `#${s}`)),
         aspectRatio: aspect,
         renderingSpeed: speed,
+        referenceImages: refs,
         boxes: boxes.map((b) => ({
           type: b.type,
           x: b.x,
@@ -569,6 +616,96 @@ export default function AWideogramStudio({
               </div>
             </details>
           )}
+
+          {/* Style-reference images */}
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              Referenzbild (Style) — bis 3
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {refs.map((src, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`Referenz ${i + 1}`}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      objectFit: "cover",
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                    }}
+                  />
+                  <button
+                    onClick={() => setRefs((p) => p.filter((_, idx) => idx !== i))}
+                    title="Entfernen"
+                    style={{
+                      position: "absolute",
+                      top: -6,
+                      right: -6,
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      background: "var(--danger)",
+                      color: "#fff",
+                      border: "2px solid var(--surface)",
+                      cursor: "pointer",
+                      fontSize: 11,
+                      lineHeight: 1,
+                      padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {refs.length < 3 && (
+                <label
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 8,
+                    border: "1px dashed var(--border)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    color: "var(--muted)",
+                    fontSize: 22,
+                  }}
+                  title="Referenzbild hinzufügen"
+                >
+                  +
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    onChange={(e) => {
+                      addRefs(e.target.files);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              )}
+            </div>
+            {refs.length > 0 && (
+              <p style={{ fontSize: 11, color: "var(--faint)", margin: 0 }}>
+                Look, Farben und Komposition des Referenzbildes werden
+                übernommen. In diesem Modus steuert die Beschreibung das Layout
+                (die Kästen fließen als Text ein).
+              </p>
+            )}
+          </div>
 
           <button
             onClick={generate}

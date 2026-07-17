@@ -45,7 +45,47 @@ export type StudioInput = {
   aspectRatio: string; // e.g. "1x1", "16x9"
   renderingSpeed: RenderingSpeed;
   boxes: LayoutBox[];
+  // Optional style-reference images as data URLs (compressed client-side). When
+  // present, Ideogram borrows their look/palette/composition (multipart mode).
+  referenceImages?: string[];
 };
+
+// Rough position word for a box, so layout intent survives when we fall back to
+// a text prompt (multipart / style-reference mode).
+function positionWord(b: LayoutBox): string {
+  const cx = b.x + b.w / 2;
+  const cy = b.y + b.h / 2;
+  const v = cy < 0.34 ? "oben" : cy > 0.66 ? "unten" : "mittig";
+  const h = cx < 0.34 ? "links" : cx > 0.66 ? "rechts" : "zentriert";
+  return `${v} ${h}`;
+}
+
+// Build a natural-language prompt (used in multipart/style-reference mode, where
+// the structured json_prompt isn't sent).
+function promptFromInput(input: StudioInput): string {
+  const parts = [input.highLevelDescription.trim()];
+  if (input.boxes.length) {
+    const layout = input.boxes
+      .map((b) =>
+        b.type === "text"
+          ? `Text „${b.text ?? ""}" ${positionWord(b)}${b.desc ? ` (${b.desc})` : ""}`
+          : `${b.desc || "Objekt"} ${positionWord(b)}`,
+      )
+      .join("; ");
+    parts.push(`Layout: ${layout}.`);
+  }
+  if (input.backgroundDesc) parts.push(`Hintergrund: ${input.backgroundDesc}.`);
+  return parts.join(" ");
+}
+
+// Decode a data URL to a Blob for multipart upload.
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  const m = dataUrl.match(/^data:(.*?);base64,(.*)$/);
+  if (!m) return null;
+  const [, mime, b64] = m;
+  const bytes = Buffer.from(b64, "base64");
+  return new Blob([bytes], { type: mime || "image/png" });
+}
 
 // Convert a 0..1 box to Ideogram's [y_min, x_min, y_max, x_max] on a 0–1000
 // top-left canvas.
@@ -114,25 +154,61 @@ export async function generateIdeogram(
     );
   }
 
+  const hasRef = (input.referenceImages?.length ?? 0) > 0;
   const hasLayout = input.boxes.length > 0;
-  const body: Record<string, unknown> = {
-    aspect_ratio: input.aspectRatio,
-    rendering_speed: input.renderingSpeed,
-  };
-  if (hasLayout) {
-    // Structured layout control. Magic Prompt MUST stay off or it rewrites the
-    // layout into plain text and destroys the bounding boxes.
-    body.json_prompt = buildJsonPrompt(input);
-    body.expand_prompt = false;
-  } else {
-    body.text_prompt = input.highLevelDescription;
-  }
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Api-Key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  let body: Record<string, unknown>;
+
+  if (hasRef) {
+    // Style-reference mode: multipart form with the reference image(s). The
+    // structured json_prompt isn't sent here, so layout intent is folded into
+    // the text prompt. Let fetch set the multipart boundary — do NOT set
+    // Content-Type manually.
+    const prompt = promptFromInput(input);
+    const fd = new FormData();
+    fd.set("prompt", prompt);
+    fd.set("aspect_ratio", input.aspectRatio);
+    fd.set("rendering_speed", input.renderingSpeed);
+    let n = 0;
+    for (const dataUrl of input.referenceImages ?? []) {
+      const blob = dataUrlToBlob(dataUrl);
+      if (blob) {
+        fd.append("style_reference_images", blob, `reference-${n}.png`);
+        n++;
+      }
+    }
+    body = {
+      mode: "style_reference",
+      prompt,
+      aspect_ratio: input.aspectRatio,
+      rendering_speed: input.renderingSpeed,
+      reference_count: n,
+    };
+    res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Api-Key": apiKey },
+      body: fd,
+    });
+  } else {
+    body = {
+      aspect_ratio: input.aspectRatio,
+      rendering_speed: input.renderingSpeed,
+    };
+    if (hasLayout) {
+      // Structured layout control. Magic Prompt MUST stay off or it rewrites
+      // the layout into plain text and destroys the bounding boxes.
+      body.json_prompt = buildJsonPrompt(input);
+      body.expand_prompt = false;
+    } else {
+      body.text_prompt = input.highLevelDescription;
+    }
+    res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Api-Key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
