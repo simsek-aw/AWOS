@@ -191,6 +191,10 @@ export default function ProductSwitcher({
                 background: isCurrent ? "var(--active)" : "transparent",
                 cursor: disabled ? "default" : "pointer",
                 opacity: disabled ? 0.55 : 1,
+                // Let the tile shrink to its grid column so long descriptions
+                // truncate instead of overflowing the panel.
+                minWidth: 0,
+                overflow: "hidden",
               };
               if (disabled) {
                 return (
