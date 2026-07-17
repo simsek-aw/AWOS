@@ -42,6 +42,35 @@ const ASPECTS = [
   "10x16",
 ];
 const SPEEDS: RenderingSpeed[] = ["TURBO", "DEFAULT", "QUALITY"];
+
+// Quick-start prompt templates for common formats.
+const TEMPLATES: { label: string; value: string; aspect?: string }[] = [
+  { label: "Vorlage wählen …", value: "" },
+  {
+    label: "Produkt-Ad (minimal, weiß)",
+    value:
+      "minimalistische Produkt-Anzeige auf weißem Hintergrund, klare Typografie, viel Weißraum, Apple-Stil, fotorealistisch",
+    aspect: "1x1",
+  },
+  {
+    label: "Sale-Poster",
+    value:
+      "auffälliges Sale-Poster, große fette Typografie, kräftige Farben, moderner Rabatt-Look",
+    aspect: "4x3",
+  },
+  {
+    label: "Social-Media-Story",
+    value:
+      "vertikale Social-Media-Story, moderne Ästhetik, Platz für Text oben, Produkt mittig",
+    aspect: "9x16",
+  },
+  {
+    label: "Event-Ankündigung",
+    value:
+      "elegante Event-Ankündigung, Datum und Titel prominent, hochwertige Typografie",
+    aspect: "16x9",
+  },
+];
 const clamp = (n: number, min = 0, max = 1) => Math.max(min, Math.min(max, n));
 
 export default function AWideogramStudio({
@@ -565,6 +594,25 @@ export default function AWideogramStudio({
 
         {/* Settings panel */}
         <div style={{ display: "grid", gap: 12 }}>
+          <Field label="Vorlage">
+            <select
+              value=""
+              onChange={(e) => {
+                const t = TEMPLATES.find((x) => x.value === e.target.value);
+                if (t?.value) {
+                  setHld(t.value);
+                  if (t.aspect) setAspect(t.aspect);
+                }
+              }}
+              style={inputStyle}
+            >
+              {TEMPLATES.map((t) => (
+                <option key={t.label} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Bildbeschreibung *">
             <textarea
               value={hld}
@@ -871,6 +919,7 @@ export default function AWideogramStudio({
                 <button
                   onClick={() => useAsReference(g.url)}
                   title="Als Referenz übernehmen"
+                  aria-label="Als Referenz übernehmen"
                   style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", display: "inline-flex" }}
                 >
                   <Icon name="copy" size={15} />
@@ -879,6 +928,7 @@ export default function AWideogramStudio({
                   href={g.url}
                   download
                   title="Herunterladen"
+                  aria-label="Bild herunterladen"
                   style={{ color: "var(--muted)", display: "inline-flex" }}
                 >
                   <Icon name="external" size={15} />
@@ -886,6 +936,7 @@ export default function AWideogramStudio({
                 <button
                   onClick={() => onDelete(g.id)}
                   title="Löschen"
+                  aria-label="Bild löschen"
                   style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", display: "inline-flex" }}
                 >
                   <Icon name="trash" size={15} />

@@ -30,7 +30,20 @@ export default async function Home() {
         Willkommen{first ? `, ${first}` : ""} bei AWOS
       </h1>
       <p style={{ color: "var(--muted)", marginTop: 6 }}>
-        Deine zentrale Plattform. Wähle ein Tool.
+        Deine zentrale Plattform. Wähle ein Tool — oder wechsle jederzeit oben
+        links über den Umschalter neben dem Logo{" "}
+        <kbd
+          style={{
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            padding: "1px 6px",
+            fontSize: 12,
+          }}
+        >
+          ⌘/Strg + .
+        </kbd>
+        . Mit „Bald" markierte Tools sind in Vorbereitung.
       </p>
 
       <div
