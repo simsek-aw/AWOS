@@ -72,8 +72,15 @@ export default async function AppLayout({
     // before the archived_at migration is applied — undefined = not archived).
     activeBoards = (boards ?? []).filter((b) => !b.archived_at);
 
-    // Tools for the product switcher (employees only; customers stay in the CMS).
-    tools = ctx.profile.role === "employee" ? await listTools() : [];
+    // Tools for the product switcher (employees only; customers stay in the CMS),
+    // filtered by per-tool visibility (department / admins).
+    tools =
+      ctx.profile.role === "employee"
+        ? await listTools({
+            department: ctx.profile.department,
+            isAdmin: ctx.profile.is_admin ?? true,
+          })
+        : [];
   } catch (e) {
     console.error("AppLayout: data load failed", e);
   }

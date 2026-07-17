@@ -34,6 +34,14 @@ export type ToolKind = "internal" | "link" | "embed";
 // server-only code.
 export const CURRENT_TOOL_KEY = "awcms";
 
+export type ToolVisibility =
+  | "all"
+  | "admins"
+  | "marketing"
+  | "content"
+  | "grafik";
+export type ToolStatus = "active" | "maintenance";
+
 export interface Tool {
   id: string;
   key: string;
@@ -45,6 +53,8 @@ export interface Tool {
   url: string | null;
   position: number;
   enabled: boolean;
+  visibility?: ToolVisibility;
+  status?: ToolStatus;
   created_at: string;
 }
 

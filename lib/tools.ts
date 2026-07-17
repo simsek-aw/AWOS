@@ -79,12 +79,29 @@ export const DEFAULT_TOOLS: Tool[] = [
 // Kept for compatibility: the anchor tool if nothing else is available.
 export const AWCMS_FALLBACK: Tool = DEFAULT_TOOLS[0];
 
+/** Whether a viewer may see a tool, given its visibility setting. */
+function canSeeTool(
+  tool: Tool,
+  viewer?: { department: string | null; isAdmin: boolean },
+): boolean {
+  const vis = tool.visibility ?? "all";
+  if (vis === "all") return true;
+  if (!viewer) return true; // no viewer context → don't hide
+  if (viewer.isAdmin) return true; // admins see everything
+  if (vis === "admins") return false;
+  return viewer.department === vis; // department-scoped
+}
+
 /**
  * All tools for the product switcher: the DB registry merged with the built-in
  * defaults (DB wins per key). Disabled tools are included — the switcher shows
- * them as "coming soon". Safe if the tools table doesn't exist yet.
+ * them as "coming soon". When a viewer is given, department/admin-restricted
+ * tools are filtered out. Safe if the tools table doesn't exist yet.
  */
-export async function listTools(): Promise<Tool[]> {
+export async function listTools(viewer?: {
+  department: string | null;
+  isAdmin: boolean;
+}): Promise<Tool[]> {
   let db: Tool[] = [];
   try {
     const supabase = await createServerSupabase();
@@ -102,5 +119,5 @@ export async function listTools(): Promise<Tool[]> {
   const merged = [...db];
   for (const d of DEFAULT_TOOLS) if (!byKey.has(d.key)) merged.push(d);
   merged.sort((a, b) => a.position - b.position);
-  return merged;
+  return merged.filter((t) => canSeeTool(t, viewer));
 }

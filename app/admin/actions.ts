@@ -402,6 +402,8 @@ export async function createTool(formData: FormData) {
     .order("position", { ascending: false })
     .limit(1)
     .maybeSingle<{ position: number }>();
+  const visibility = String(formData.get("visibility") ?? "all");
+  const status = String(formData.get("status") ?? "active");
   const { error } = await svc.from("tools").insert({
     key,
     name,
@@ -412,6 +414,12 @@ export async function createTool(formData: FormData) {
     url: String(formData.get("url") ?? "").trim() || null,
     position: (last?.position ?? -1) + 1,
     enabled: formData.get("enabled") === "on",
+    visibility: ["all", "admins", "marketing", "content", "grafik"].includes(
+      visibility,
+    )
+      ? visibility
+      : "all",
+    status: status === "maintenance" ? "maintenance" : "active",
   });
   if (error) fail(`Tool konnte nicht angelegt werden (${error.message})`);
   revalidatePath("/admin");
@@ -424,6 +432,8 @@ export async function updateTool(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   if (!id || !name) fail("Tool-Daten unvollständig");
   const kind = String(formData.get("kind") ?? "link");
+  const visibility = String(formData.get("visibility") ?? "all");
+  const status = String(formData.get("status") ?? "active");
   const svc = createServiceClient();
   const { error } = await svc
     .from("tools")
@@ -435,6 +445,12 @@ export async function updateTool(formData: FormData) {
       kind: ["internal", "link", "embed"].includes(kind) ? kind : "link",
       url: String(formData.get("url") ?? "").trim() || null,
       enabled: formData.get("enabled") === "on",
+      visibility: ["all", "admins", "marketing", "content", "grafik"].includes(
+        visibility,
+      )
+        ? visibility
+        : "all",
+      status: status === "maintenance" ? "maintenance" : "active",
     })
     .eq("id", id);
   if (error) fail(`Tool konnte nicht gespeichert werden (${error.message})`);

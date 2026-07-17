@@ -211,6 +211,27 @@ export default async function AdminPage({
                     <input type="checkbox" name="enabled" defaultChecked={t.enabled} />
                     Aktiv
                   </label>
+                  <select
+                    name="visibility"
+                    defaultValue={t.visibility ?? "all"}
+                    title="Sichtbarkeit"
+                    style={{ ...input, width: 150 }}
+                  >
+                    <option value="all">Alle Mitarbeiter</option>
+                    <option value="admins">Nur Admins</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="content">Content</option>
+                    <option value="grafik">Grafik</option>
+                  </select>
+                  <select
+                    name="status"
+                    defaultValue={t.status ?? "active"}
+                    title="Status"
+                    style={{ ...input, width: 130 }}
+                  >
+                    <option value="active">Aktiv</option>
+                    <option value="maintenance">Wartung</option>
+                  </select>
                   <span
                     style={{ color: "var(--faint)", fontSize: 12, alignSelf: "center" }}
                   >
@@ -300,6 +321,17 @@ export default async function AdminPage({
               >
                 <input type="checkbox" name="enabled" defaultChecked /> Aktiv
               </label>
+              <select name="visibility" defaultValue="all" title="Sichtbarkeit" style={{ ...input, width: 150 }}>
+                <option value="all">Alle Mitarbeiter</option>
+                <option value="admins">Nur Admins</option>
+                <option value="marketing">Marketing</option>
+                <option value="content">Content</option>
+                <option value="grafik">Grafik</option>
+              </select>
+              <select name="status" defaultValue="active" title="Status" style={{ ...input, width: 130 }}>
+                <option value="active">Aktiv</option>
+                <option value="maintenance">Wartung</option>
+              </select>
             </div>
             <input name="url" placeholder="URL bzw. Pfad" style={input} />
             <input name="description" placeholder="Kurzbeschreibung" style={input} />

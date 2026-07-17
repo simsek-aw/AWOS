@@ -192,7 +192,13 @@ export default function ProductSwitcher({
             {tools.map((t) => {
               const href = hrefFor(t);
               const isCurrent = t.key === currentKey;
-              const disabled = !href;
+              const maintenance = t.status === "maintenance";
+              const disabled = !href || maintenance;
+              const badge = maintenance
+                ? "Wartung"
+                : !href
+                  ? "Bald"
+                  : null;
               const tile = (
                 <>
                   <span
@@ -234,7 +240,7 @@ export default function ProductSwitcher({
                       {external(t) && !disabled && (
                         <Icon name="external" size={11} style={{ opacity: 0.6 }} />
                       )}
-                      {disabled && (
+                      {badge && (
                         <span
                           style={{
                             flexShrink: 0,
@@ -242,14 +248,14 @@ export default function ProductSwitcher({
                             fontWeight: 700,
                             textTransform: "uppercase",
                             letterSpacing: 0.4,
-                            color: "var(--muted)",
+                            color: maintenance ? "#fdab3d" : "var(--muted)",
                             background: "var(--surface-2)",
-                            border: "1px solid var(--border)",
+                            border: `1px solid ${maintenance ? "#fdab3d55" : "var(--border)"}`,
                             borderRadius: 999,
                             padding: "1px 6px",
                           }}
                         >
-                          Bald
+                          {badge}
                         </span>
                       )}
                     </span>
