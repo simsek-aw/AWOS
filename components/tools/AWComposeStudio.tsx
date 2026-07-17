@@ -21,7 +21,10 @@ type Layer = {
   opacity: number; // 0..1
   flip: boolean;
   whiteRemoved: boolean;
+  shadow: boolean;
 };
+
+const SNAP = 8; // px snap threshold to canvas center
 
 const uid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -77,6 +80,10 @@ export default function AWComposeStudio({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [desc, setDesc] = useState("");
+  const [guides, setGuides] = useState<{ v: boolean; h: boolean }>({
+    v: false,
+    h: false,
+  });
   const drag = useRef<
     null | { id: string; sx: number; sy: number; ox: number; oy: number }
   >(null);
@@ -86,17 +93,56 @@ export default function AWComposeStudio({
   const patch = (id: string, p: Partial<Layer>) =>
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...p } : l)));
 
+  // --- Undo / redo history --------------------------------------------------
+  const layersRef = useRef(layers);
+  useEffect(() => {
+    layersRef.current = layers;
+  }, [layers]);
+  const [past, setPast] = useState<Layer[][]>([]);
+  const [future, setFuture] = useState<Layer[][]>([]);
+  // Snapshot the current layers before a mutation, so it can be undone.
+  const commit = () => {
+    setPast((p) => [...p.slice(-49), layersRef.current]);
+    setFuture([]);
+  };
+  const undo = () => {
+    setPast((p) => {
+      if (!p.length) return p;
+      const prev = p[p.length - 1];
+      setFuture((f) => [layersRef.current, ...f]);
+      setLayers(prev);
+      return p.slice(0, -1);
+    });
+  };
+  const redo = () => {
+    setFuture((f) => {
+      if (!f.length) return f;
+      const next = f[0];
+      setPast((p) => [...p, layersRef.current]);
+      setLayers(next);
+      return f.slice(1);
+    });
+  };
+
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const g = drag.current;
       if (!g) return;
-      patch(g.id, {
-        x: g.ox + (e.clientX - g.sx),
-        y: g.oy + (e.clientY - g.sy),
-      });
+      let x = g.ox + (e.clientX - g.sx);
+      let y = g.oy + (e.clientY - g.sy);
+      // Snap to canvas center with a small threshold + show a guide.
+      const cx = DISPLAY_W / 2;
+      const cy = displayH / 2;
+      const v = Math.abs(x - cx) < SNAP;
+      const h = Math.abs(y - cy) < SNAP;
+      if (v) x = cx;
+      if (h) y = cy;
+      setGuides({ v, h });
+      patch(g.id, { x, y });
     };
     const onUp = () => {
       drag.current = null;
+      setGuides({ v: false, h: false });
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -104,7 +150,38 @@ export default function AWComposeStudio({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayH]);
+
+  // Keyboard: arrow-nudge the selected layer; Ctrl/Cmd+Z undo, +Shift redo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && el.closest("input, textarea, select")) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (!selectedId) return;
+      const step = e.shiftKey ? 10 : 1;
+      const map: Record<string, [number, number]> = {
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
+      };
+      const d = map[e.key];
+      if (!d) return;
+      e.preventDefault();
+      const l = layersRef.current.find((x) => x.id === selectedId);
+      if (l) patch(selectedId, { x: l.x + d[0], y: l.y + d[1] });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   const setBackgroundFromDataUrl = async (dataUrl: string) => {
     try {
@@ -134,6 +211,7 @@ export default function AWComposeStudio({
       const img = await loadImage(src);
       const ratio = img.naturalWidth / Math.max(1, img.naturalHeight);
       const id = uid();
+      commit();
       setLayers((prev) => [
         ...prev,
         {
@@ -148,6 +226,7 @@ export default function AWComposeStudio({
           opacity: 1,
           flip: false,
           whiteRemoved: false,
+          shadow: false,
         },
       ]);
       setSelectedId(id);
@@ -157,6 +236,7 @@ export default function AWComposeStudio({
   };
 
   const toggleWhite = async (l: Layer) => {
+    commit();
     if (l.whiteRemoved) {
       patch(l.id, { src: l.origSrc, whiteRemoved: false });
     } else {
@@ -169,7 +249,8 @@ export default function AWComposeStudio({
     }
   };
 
-  const move = (id: string, dir: -1 | 1) =>
+  const move = (id: string, dir: -1 | 1) => {
+    commit();
     setLayers((prev) => {
       const i = prev.findIndex((l) => l.id === id);
       const j = i + dir;
@@ -178,8 +259,10 @@ export default function AWComposeStudio({
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+  };
 
   const remove = (id: string) => {
+    commit();
     setLayers((prev) => prev.filter((l) => l.id !== id));
     if (selectedId === id) setSelectedId(null);
   };
@@ -207,6 +290,11 @@ export default function AWComposeStudio({
       ctx.rotate((l.rotation * Math.PI) / 180);
       ctx.scale(l.flip ? -1 : 1, 1);
       ctx.globalAlpha = l.opacity;
+      if (l.shadow) {
+        ctx.shadowColor = "rgba(0,0,0,0.35)";
+        ctx.shadowBlur = 0.04 * w;
+        ctx.shadowOffsetY = 0.03 * w;
+      }
       ctx.drawImage(img, -w / 2, -h / 2, w, h);
       ctx.restore();
     }
@@ -290,6 +378,22 @@ export default function AWComposeStudio({
                 style={{ display: "none" }}
               />
             </label>
+            <button
+              onClick={undo}
+              disabled={past.length === 0}
+              title="Rückgängig (⌘/Strg+Z)"
+              style={{ ...btn, opacity: past.length ? 1 : 0.4 }}
+            >
+              ↶ Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={future.length === 0}
+              title="Wiederholen (⌘/Strg+Shift+Z)"
+              style={{ ...btn, opacity: future.length ? 1 : 0.4 }}
+            >
+              ↷ Redo
+            </button>
           </div>
 
           <div style={{ overflow: "auto" }}>
@@ -340,6 +444,7 @@ export default function AWComposeStudio({
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setSelectedId(l.id);
+                    commit();
                     drag.current = {
                       id: l.id,
                       sx: e.clientX,
@@ -360,9 +465,39 @@ export default function AWComposeStudio({
                     outline:
                       selectedId === l.id ? "2px solid var(--accent)" : "none",
                     userSelect: "none",
+                    filter: l.shadow
+                      ? "drop-shadow(0 6px 10px rgba(0,0,0,0.35))"
+                      : undefined,
                   }}
                 />
               ))}
+              {/* Center alignment guides while dragging */}
+              {guides.v && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    background: "var(--accent)",
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
+              {guides.h && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: 0,
+                    right: 0,
+                    height: 1,
+                    background: "var(--accent)",
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
             </div>
           </div>
 
@@ -411,17 +546,18 @@ export default function AWComposeStudio({
                   Entfernen
                 </button>
               </div>
-              <Slider label={`Größe ${Math.round((selected.w / DISPLAY_W) * 100)}%`} min={5} max={150} value={Math.round((selected.w / DISPLAY_W) * 100)} onChange={(v) => patch(selected.id, { w: (v / 100) * DISPLAY_W })} />
-              <Slider label={`Drehung ${selected.rotation}°`} min={-180} max={180} value={selected.rotation} onChange={(v) => patch(selected.id, { rotation: v })} />
-              <Slider label={`Deckkraft ${Math.round(selected.opacity * 100)}%`} min={0} max={100} value={Math.round(selected.opacity * 100)} onChange={(v) => patch(selected.id, { opacity: v / 100 })} />
+              <Slider label={`Größe ${Math.round((selected.w / DISPLAY_W) * 100)}%`} min={5} max={150} value={Math.round((selected.w / DISPLAY_W) * 100)} onStart={commit} onChange={(v) => patch(selected.id, { w: (v / 100) * DISPLAY_W })} />
+              <Slider label={`Drehung ${selected.rotation}°`} min={-180} max={180} value={selected.rotation} onStart={commit} onChange={(v) => patch(selected.id, { rotation: v })} />
+              <Slider label={`Deckkraft ${Math.round(selected.opacity * 100)}%`} min={0} max={100} value={Math.round(selected.opacity * 100)} onStart={commit} onChange={(v) => patch(selected.id, { opacity: v / 100 })} />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <button onClick={() => patch(selected.id, { flip: !selected.flip })} style={chip(selected.flip)}>Spiegeln</button>
+                <button onClick={() => { commit(); patch(selected.id, { flip: !selected.flip }); }} style={chip(selected.flip)}>Spiegeln</button>
+                <button onClick={() => { commit(); patch(selected.id, { shadow: !selected.shadow }); }} style={chip(selected.shadow)}>Schatten</button>
                 <button onClick={() => toggleWhite(selected)} style={chip(selected.whiteRemoved)}>Weiß entfernen</button>
                 <button onClick={() => move(selected.id, 1)} style={chip(false)}>Nach vorne</button>
                 <button onClick={() => move(selected.id, -1)} style={chip(false)}>Nach hinten</button>
               </div>
               <p style={{ fontSize: 11, color: "var(--faint)", margin: 0 }}>
-                Tipp: „Weiß entfernen" stellt Produktfotos auf weißem Hintergrund frei.
+                Tipp: „Weiß entfernen" stellt Produktfotos auf weißem Hintergrund frei. Pfeiltasten verschieben, Ziehen rastet an der Mitte ein.
               </p>
             </div>
           ) : (
@@ -455,12 +591,14 @@ function Slider({
   max,
   value,
   onChange,
+  onStart,
 }: {
   label: string;
   min: number;
   max: number;
   value: number;
   onChange: (v: number) => void;
+  onStart?: () => void;
 }) {
   return (
     <label style={{ display: "grid", gap: 4, fontSize: 12, color: "var(--muted)" }}>
@@ -470,6 +608,8 @@ function Slider({
         min={min}
         max={max}
         value={value}
+        onPointerDown={onStart}
+        onKeyDown={onStart}
         onChange={(e) => onChange(Number(e.target.value))}
       />
     </label>
