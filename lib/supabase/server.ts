@@ -10,6 +10,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { withCookieDomain } from "./cookie";
 
 export async function createServerSupabase() {
   const cookieStore = await cookies();
@@ -30,7 +31,7 @@ export async function createServerSupabase() {
         ) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              cookieStore.set(name, value, withCookieDomain(options)),
             );
           } catch {
             // Called from a Server Component — safe to ignore; middleware

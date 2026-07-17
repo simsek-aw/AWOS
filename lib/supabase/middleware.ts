@@ -3,6 +3,7 @@
 // Supabase auth cookie, and redirects unauthenticated users to /login.
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { withCookieDomain } from "./cookie";
 
 // /api/cron is protected by its own CRON_SECRET check, not the session.
 const PUBLIC_PREFIXES = ["/login", "/auth", "/api/cron"];
@@ -113,7 +114,7 @@ export async function updateSession(request: NextRequest) {
           );
           response = NextResponse.next({ request: { headers: requestHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            response.cookies.set(name, value, withCookieDomain(options)),
           );
         },
       },
