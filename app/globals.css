@@ -160,3 +160,10 @@ button {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* Dashboard: stack the two columns on narrow screens */
+@media (max-width: 760px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
