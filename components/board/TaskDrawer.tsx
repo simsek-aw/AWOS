@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { shortId } from "@/components/columns";
 import Icon from "@/components/icons";
 import { toast } from "@/components/toast";
@@ -39,9 +39,36 @@ export default function TaskDrawer({
     const id = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(id);
   }, []);
-  const close = () => {
+
+  const animateOut = useRef(() => {
     setShown(false);
     setTimeout(onClose, 240);
+  });
+  animateOut.current = () => {
+    setShown(false);
+    setTimeout(onClose, 240);
+  };
+
+  // Push a history entry while the drawer is open so the mobile/browser Back
+  // button closes the drawer (returning to the board) instead of navigating
+  // away. Both Back and the ✕/backdrop close route through popstate so the
+  // pushed entry is always cleaned up.
+  useEffect(() => {
+    window.history.pushState({ awosDrawer: true }, "");
+    const onPop = () => animateOut.current();
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const close = () => {
+    if (
+      typeof window !== "undefined" &&
+      (window.history.state as { awosDrawer?: boolean } | null)?.awosDrawer
+    ) {
+      window.history.back(); // → popstate → animateOut
+    } else {
+      animateOut.current();
+    }
   };
 
   const nameColumn = columns.find((c) => c.key === "name");
