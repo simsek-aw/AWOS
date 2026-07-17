@@ -150,6 +150,18 @@ export default async function AdminPage({
           >
             📊 Nutzung →
           </a>
+          <a
+            href="/api/admin/export?format=csv"
+            style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)" }}
+          >
+            ⬇ Export CSV
+          </a>
+          <a
+            href="/api/admin/export?format=json"
+            style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)" }}
+          >
+            ⬇ Export JSON
+          </a>
         </div>
 
         {error && <Banner tone="error">{error}</Banner>}
