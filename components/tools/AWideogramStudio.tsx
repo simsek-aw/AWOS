@@ -4,6 +4,7 @@ import NextImage from "next/image";
 import { useEffect, useRef, useState } from "react";
 import {
   deleteGeneration,
+  fetchGenerations,
   generateImage,
   type GenerationView,
 } from "@/app/(app)/tools/awideogram/actions";
@@ -85,6 +86,13 @@ export default function AWideogramStudio({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [gallery, setGallery] = useState<GenerationView[]>(initial);
   const [busy, setBusy] = useState(false);
+  // Gallery search / filter / paging.
+  const GAL_PAGE = 24;
+  const [galQ, setGalQ] = useState("");
+  const [galMine, setGalMine] = useState(false);
+  const [galHasMore, setGalHasMore] = useState(initial.length >= GAL_PAGE);
+  const [galLoading, setGalLoading] = useState(false);
+  const galInit = useRef(true);
 
   // Prompt / style state.
   const [hld, setHld] = useState("");
@@ -386,6 +394,54 @@ export default function AWideogramStudio({
       await deleteGeneration(id);
     } catch {
       toast("Löschen fehlgeschlagen");
+    }
+  };
+
+  // Refetch the first gallery page when the search term or "mine" filter change.
+  useEffect(() => {
+    // Skip the very first run — `initial` is already the first page.
+    if (galInit.current) {
+      galInit.current = false;
+      return;
+    }
+    let active = true;
+    setGalLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const { items, hasMore } = await fetchGenerations({
+          q: galQ,
+          mine: galMine,
+          offset: 0,
+          limit: GAL_PAGE,
+        });
+        if (active) {
+          setGallery(items);
+          setGalHasMore(hasMore);
+        }
+      } finally {
+        if (active) setGalLoading(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [galQ, galMine]);
+
+  const loadMore = async () => {
+    setGalLoading(true);
+    try {
+      const { items, hasMore } = await fetchGenerations({
+        q: galQ,
+        mine: galMine,
+        offset: gallery.length,
+        limit: GAL_PAGE,
+      });
+      setGallery((prev) => [...prev, ...items]);
+      setGalHasMore(hasMore);
+    } finally {
+      setGalLoading(false);
     }
   };
 
@@ -868,10 +924,45 @@ export default function AWideogramStudio({
       </div>
 
       {/* Gallery */}
-      <h2 style={{ fontSize: 16, marginTop: 32 }}>Galerie</h2>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginTop: 32,
+          flexWrap: "wrap",
+        }}
+      >
+        <h2 style={{ fontSize: 16, margin: 0 }}>Galerie</h2>
+        <input
+          value={galQ}
+          onChange={(e) => setGalQ(e.target.value)}
+          placeholder="Galerie durchsuchen …"
+          style={{ ...inputStyle, width: 220 }}
+        />
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            color: "var(--muted)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={galMine}
+            onChange={(e) => setGalMine(e.target.checked)}
+          />
+          Nur meine
+        </label>
+        {galLoading && (
+          <span style={{ color: "var(--faint)", fontSize: 12 }}>lädt …</span>
+        )}
+      </div>
       {gallery.length === 0 ? (
-        <p style={{ color: "var(--faint)", fontSize: 14 }}>
-          Noch keine Bilder erstellt.
+        <p style={{ color: "var(--faint)", fontSize: 14, marginTop: 12 }}>
+          {galQ || galMine ? "Keine Treffer." : "Noch keine Bilder erstellt."}
         </p>
       ) : (
         <div
@@ -954,6 +1045,13 @@ export default function AWideogramStudio({
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {galHasMore && (
+        <div style={{ textAlign: "center", marginTop: 14 }}>
+          <button onClick={loadMore} disabled={galLoading} style={ghostBtn}>
+            {galLoading ? "Lädt …" : "Mehr laden"}
+          </button>
         </div>
       )}
     </div>

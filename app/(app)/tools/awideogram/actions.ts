@@ -154,31 +154,19 @@ export async function generateImage(
   }
 }
 
-/** Recent generations for the gallery, with fresh signed URLs. */
-export async function listGenerations(limit = 24): Promise<GenerationView[]> {
-  await requireSession();
-  const svc = createServiceClient();
-  const { data, error } = await svc
-    .from("awideogram_generations")
-    .select("id, storage_path, high_level_description, created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit)
-    .returns<
-      {
-        id: string;
-        storage_path: string;
-        high_level_description: string | null;
-        created_at: string;
-      }[]
-    >();
-  if (error) {
-    // Most likely migration 0028 hasn't been applied yet — don't crash the page.
-    console.error("awideogram: listGenerations query error", error);
-    return [];
-  }
-  const rows = data ?? [];
+type GenRow = {
+  id: string;
+  storage_path: string;
+  high_level_description: string | null;
+  created_at: string;
+};
+
+// Batch-sign a set of rows into display views.
+async function signRows(
+  svc: ReturnType<typeof createServiceClient>,
+  rows: GenRow[],
+): Promise<GenerationView[]> {
   if (!rows.length) return [];
-  // One batched request for all signed URLs instead of one per row.
   const { data: signedList } = await svc.storage
     .from(BUCKET)
     .createSignedUrls(
@@ -203,6 +191,47 @@ export async function listGenerations(limit = 24): Promise<GenerationView[]> {
         : null;
     })
     .filter((x): x is GenerationView => x !== null);
+}
+
+/**
+ * Gallery query with search, "mine only" filter and offset paging. Returns the
+ * page plus whether more exist.
+ */
+export async function fetchGenerations(opts: {
+  q?: string;
+  mine?: boolean;
+  offset?: number;
+  limit?: number;
+} = {}): Promise<{ items: GenerationView[]; hasMore: boolean }> {
+  const ctx = await requireSession();
+  const limit = Math.min(48, Math.max(1, opts.limit ?? 24));
+  const offset = Math.max(0, opts.offset ?? 0);
+  const svc = createServiceClient();
+  let query = svc
+    .from("awideogram_generations")
+    .select("id, storage_path, high_level_description, created_at")
+    .order("created_at", { ascending: false })
+    // fetch one extra to detect whether there's another page
+    .range(offset, offset + limit);
+  if (opts.mine) query = query.eq("user_id", ctx.userId);
+  const q = (opts.q ?? "").replace(/[%_(),]/g, " ").trim();
+  if (q) query = query.ilike("high_level_description", `%${q}%`);
+
+  const { data, error } = await query.returns<GenRow[]>();
+  if (error) {
+    console.error("awideogram: fetchGenerations error", error);
+    return { items: [], hasMore: false };
+  }
+  const rows = data ?? [];
+  const hasMore = rows.length > limit;
+  const items = await signRows(svc, rows.slice(0, limit));
+  return { items, hasMore };
+}
+
+/** Recent generations for the initial gallery load. */
+export async function listGenerations(limit = 24): Promise<GenerationView[]> {
+  const { items } = await fetchGenerations({ limit });
+  return items;
 }
 
 export async function deleteGeneration(id: string): Promise<void> {
