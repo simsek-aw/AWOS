@@ -132,14 +132,24 @@ export async function generateIdeogram(
     );
   }
 
-  const json = (await res.json()) as {
+  const raw = await res.text();
+  let json: {
     data?: { url?: string; resolution?: string; seed?: number }[];
   };
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    throw new Error(`Ideogram-Antwort war kein JSON: ${raw.slice(0, 200)}`);
+  }
   const results: IdeogramResult[] = (json.data ?? [])
     .filter((d) => d.url)
     .map((d) => ({ url: d.url!, resolution: d.resolution, seed: d.seed }));
   if (!results.length) {
-    throw new Error("Ideogram hat kein Bild zurückgegeben.");
+    // Surface the actual response so we can see the real shape / field names.
+    console.error("awideogram: no image in response", raw.slice(0, 500));
+    throw new Error(
+      `Ideogram-Antwort ohne Bild-URL. Rohantwort: ${raw.slice(0, 300)}`,
+    );
   }
   return { results, body };
 }

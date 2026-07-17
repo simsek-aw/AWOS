@@ -39,7 +39,11 @@ export async function generateImage(
     for (const r of results) {
       // Ideogram's URLs expire — download and store the bytes ourselves.
       const imgRes = await fetch(r.url);
-      if (!imgRes.ok) continue;
+      if (!imgRes.ok)
+        return {
+          images: [],
+          error: `Bild-Download von Ideogram fehlgeschlagen (${imgRes.status}).`,
+        };
       const bytes = new Uint8Array(await imgRes.arrayBuffer());
       const path = `${ctx.userId}/${crypto.randomUUID()}.png`;
       const { error: upErr } = await svc.storage
@@ -49,10 +53,10 @@ export async function generateImage(
         console.error("awideogram: upload failed", upErr);
         return {
           images: [],
-          error: `Bild konnte nicht gespeichert werden: ${upErr.message}`,
+          error: `Storage-Upload fehlgeschlagen: ${upErr.message} (Bucket 'awideogram' angelegt?)`,
         };
       }
-      const { data: row } = await svc
+      const { data: row, error: insErr } = await svc
         .from("awideogram_generations")
         .insert({
           user_id: ctx.userId,
@@ -64,24 +68,33 @@ export async function generateImage(
         })
         .select("id, created_at")
         .single<{ id: string; created_at: string }>();
+      if (insErr || !row)
+        return {
+          images: [],
+          error: `DB-Eintrag fehlgeschlagen: ${insErr?.message ?? "unbekannt"}`,
+        };
 
-      const { data: signed } = await svc.storage
+      const { data: signed, error: signErr } = await svc.storage
         .from(BUCKET)
         .createSignedUrl(path, SIGNED_TTL);
+      if (signErr || !signed?.signedUrl)
+        return {
+          images: [],
+          error: `Signed-URL fehlgeschlagen: ${signErr?.message ?? "unbekannt"}`,
+        };
 
-      if (row && signed?.signedUrl)
-        images.push({
-          id: row.id,
-          url: signed.signedUrl,
-          highLevelDescription: input.highLevelDescription,
-          createdAt: row.created_at,
-        });
+      images.push({
+        id: row.id,
+        url: signed.signedUrl,
+        highLevelDescription: input.highLevelDescription,
+        createdAt: row.created_at,
+      });
     }
 
     if (!images.length)
       return {
         images: [],
-        error: "Bild wurde erzeugt, konnte aber nicht gespeichert werden.",
+        error: "Ideogram lieferte keine Bilder zurück.",
       };
     return { images, error: null };
   } catch (e) {
