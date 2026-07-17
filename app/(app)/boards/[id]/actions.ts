@@ -1454,3 +1454,159 @@ export async function removeBoardCustomer(
   revalidatePath(`/boards/${boardId}`);
   return { ok: true, message: "Zugriff entfernt." };
 }
+
+// --- Task templates ---------------------------------------------------------
+
+export type TaskTemplate = {
+  id: string;
+  name: string;
+  title: string;
+  recurrence: "none" | "weekly" | "monthly";
+  nextRun: string | null;
+};
+
+// Create a task from a template's title in the board's first group, seeding the
+// usual defaults (status + PM). Works with any Supabase client (user or service).
+async function createTaskFromTemplate(
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  boardId: string,
+  title: string,
+  actorId: string | null,
+): Promise<string | null> {
+  const { data: g } = await supabase
+    .from("groups")
+    .select("id")
+    .eq("board_id", boardId)
+    .order("position", { ascending: true })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+  const { data: task } = await supabase
+    .from("tasks")
+    .insert({ board_id: boardId, group_id: g?.id ?? null, title })
+    .select("id")
+    .single<{ id: string }>();
+  if (!task) return null;
+  const { data: cols } = await supabase
+    .from("columns")
+    .select("id, key, options")
+    .eq("board_id", boardId)
+    .in("key", ["status", "pm"])
+    .returns<
+      { id: string; key: string; options: { options?: { label: string }[] } }[]
+    >();
+  const statusCol = cols?.find((c) => c.key === "status");
+  const pmCol = cols?.find((c) => c.key === "pm");
+  const seed: { task_id: string; column_id: string; value: unknown }[] = [];
+  if (statusCol)
+    seed.push({
+      task_id: task.id,
+      column_id: statusCol.id,
+      value: statusCol.options?.options?.[0]?.label ?? "Offen",
+    });
+  if (pmCol && actorId)
+    seed.push({ task_id: task.id, column_id: pmCol.id, value: [actorId] });
+  if (seed.length) await supabase.from("task_values").insert(seed);
+  return task.id;
+}
+
+export async function listTemplates(boardId: string): Promise<TaskTemplate[]> {
+  const supabase = await createServerSupabase();
+  const { data } = await supabase
+    .from("task_templates")
+    .select("id, name, title, recurrence, next_run")
+    .eq("board_id", boardId)
+    .order("created_at", { ascending: true })
+    .returns<
+      {
+        id: string;
+        name: string;
+        title: string;
+        recurrence: "none" | "weekly" | "monthly";
+        next_run: string | null;
+      }[]
+    >();
+  return (data ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    title: t.title,
+    recurrence: t.recurrence,
+    nextRun: t.next_run,
+  }));
+}
+
+export async function createTemplate(boardId: string, formData: FormData) {
+  const ctx = await requireSession();
+  if (ctx.profile.role !== "employee") return;
+  const name = String(formData.get("name") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim() || name;
+  const rec = String(formData.get("recurrence") ?? "none");
+  const recurrence = ["weekly", "monthly"].includes(rec) ? rec : "none";
+  if (!name) return;
+  const supabase = await createServerSupabase();
+  const today = new Date().toISOString().slice(0, 10);
+  await supabase.from("task_templates").insert({
+    board_id: boardId,
+    name,
+    title,
+    recurrence,
+    next_run: recurrence === "none" ? null : today,
+    created_by: ctx.userId,
+  });
+  revalidatePath(`/boards/${boardId}`);
+}
+
+export async function applyTemplate(boardId: string, templateId: string) {
+  const ctx = await requireSession();
+  const supabase = await createServerSupabase();
+  const { data: tpl } = await supabase
+    .from("task_templates")
+    .select("title")
+    .eq("id", templateId)
+    .maybeSingle<{ title: string }>();
+  if (!tpl) return;
+  await createTaskFromTemplate(supabase, boardId, tpl.title, ctx.userId);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+export async function deleteTemplate(boardId: string, templateId: string) {
+  await requireSession();
+  const supabase = await createServerSupabase();
+  await supabase.from("task_templates").delete().eq("id", templateId);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+// Materialize all due recurring templates. Called by the cron route (service
+// client) — advances next_run by the recurrence interval.
+export async function runDueTemplates(
+  svc: Awaited<ReturnType<typeof createServerSupabase>>,
+): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: due } = await svc
+    .from("task_templates")
+    .select("id, board_id, title, recurrence, next_run")
+    .neq("recurrence", "none")
+    .not("next_run", "is", null)
+    .lte("next_run", today)
+    .returns<
+      {
+        id: string;
+        board_id: string;
+        title: string;
+        recurrence: "weekly" | "monthly";
+        next_run: string;
+      }[]
+    >();
+  let created = 0;
+  for (const t of due ?? []) {
+    await createTaskFromTemplate(svc, t.board_id, t.title, null);
+    created++;
+    const next = new Date(t.next_run + "T00:00:00Z");
+    if (t.recurrence === "weekly") next.setUTCDate(next.getUTCDate() + 7);
+    else next.setUTCMonth(next.getUTCMonth() + 1);
+    await svc
+      .from("task_templates")
+      .update({ next_run: next.toISOString().slice(0, 10) })
+      .eq("id", t.id);
+  }
+  return created;
+}
