@@ -125,7 +125,7 @@ export default async function AdminPage({
     <>
       <AppHeader ctx={ctx} />
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px" }}>
-        <a href="/" style={{ color: "var(--muted)", fontSize: 14 }}>
+        <a href="/boards" style={{ color: "var(--muted)", fontSize: 14 }}>
           ← Boards
         </a>
         <h1 style={{ fontSize: 24, marginTop: 8 }}>Administration</h1>

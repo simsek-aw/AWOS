@@ -17,7 +17,7 @@ export const DEFAULT_TOOLS: Tool[] = [
     icon: "🗂️",
     color: "#00c875",
     kind: "internal",
-    url: "/my",
+    url: "/boards",
     position: 0,
     enabled: true,
     created_at: "",

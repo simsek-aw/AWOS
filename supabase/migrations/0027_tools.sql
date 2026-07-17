@@ -34,7 +34,7 @@ create policy tools_select on tools
 -- the team fills in (or renames) from the admin UI.
 insert into tools (key, name, description, icon, color, kind, url, position, enabled)
 values
-  ('awcms', 'AWcms', 'Boards, Aufgaben und Kunden', '🗂️', '#00c875', 'internal', '/my', 0, true),
+  ('awcms', 'AWcms', 'Boards, Aufgaben und Kunden', '🗂️', '#00c875', 'internal', '/boards', 0, true),
   ('awideogram', 'AWideogram', 'Bildgenerierung mit Layout-Kontrolle (Ideogram 4.0)', '🖼️', '#a25ddc', 'internal', '/tools/awideogram', 1, true),
   ('awmeet', 'AWmeet', 'Meetings transkribieren, zusammenfassen und To-Dos ableiten', '🎙️', '#579bfc', 'link', null, 2, false),
   ('awcreative', 'AWcreative', 'Produkte zu einer Bilderserie / Ads generieren', '🎨', '#fdab3d', 'link', null, 3, false),
