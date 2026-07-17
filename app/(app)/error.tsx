@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 // Friendly error boundary for the app area. Shows a recoverable message instead
 // of an opaque crash, with a retry.
 export default function AppError({
@@ -9,6 +11,19 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    fetch("/api/client-error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        context: "app-error",
+        message: error?.message,
+        digest: error?.digest,
+        url: typeof location !== "undefined" ? location.href : undefined,
+      }),
+    }).catch(() => {});
+  }, [error]);
+
   return (
     <div
       style={{

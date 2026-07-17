@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 // Root-level error boundary. Unlike app/(app)/error.tsx (which lives *inside*
 // the app layout and can't catch errors thrown by the layout itself), this
 // catches crashes at the very top — including the app shell — so the user never
@@ -11,6 +13,19 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    fetch("/api/client-error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        context: "global-error",
+        message: error?.message,
+        digest: error?.digest,
+        url: typeof location !== "undefined" ? location.href : undefined,
+      }),
+    }).catch(() => {});
+  }, [error]);
+
   return (
     <html lang="de">
       <body
