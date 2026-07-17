@@ -192,7 +192,7 @@ export default function AWideogramStudio({
     }
     setBusy(true);
     try {
-      const { images } = await generateImage({
+      const { images, error } = await generateImage({
         highLevelDescription: hld.trim(),
         aesthetics: aesthetics.trim() || undefined,
         lighting: lighting.trim() || undefined,
@@ -216,8 +216,12 @@ export default function AWideogramStudio({
           color: b.color || undefined,
         })),
       });
-      setGallery((prev) => [...images, ...prev]);
-      toast(`${images.length} Bild${images.length > 1 ? "er" : ""} erstellt`);
+      if (error) {
+        toast(error);
+      } else {
+        setGallery((prev) => [...images, ...prev]);
+        toast(`${images.length} Bild${images.length > 1 ? "er" : ""} erstellt`);
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : "Generierung fehlgeschlagen");
     } finally {

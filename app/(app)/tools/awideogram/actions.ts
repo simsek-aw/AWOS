@@ -16,64 +16,81 @@ export type GenerationView = {
 
 /**
  * Generate an image with Ideogram, persist it to storage, and record it.
- * Employee-only. Returns display-ready (signed) URLs for the new images.
+ * Employee-only.
+ *
+ * Errors are returned as data (not thrown): Next.js sanitizes thrown Server
+ * Action errors in production into an opaque "digest" message, which would hide
+ * the actual Ideogram API detail we need. Returning them keeps the real message.
  */
 export async function generateImage(
   input: StudioInput,
-): Promise<{ images: GenerationView[] }> {
-  const ctx = await requireSession();
-  if (ctx.profile.role !== "employee")
-    throw new Error("Nur für Mitarbeiter.");
+): Promise<{ images: GenerationView[]; error: string | null }> {
+  try {
+    const ctx = await requireSession();
+    if (ctx.profile.role !== "employee")
+      return { images: [], error: "Nur für Mitarbeiter." };
+    if (!input.highLevelDescription?.trim())
+      return { images: [], error: "Bitte eine Bildbeschreibung angeben." };
 
-  if (!input.highLevelDescription?.trim())
-    throw new Error("Bitte eine Bildbeschreibung angeben.");
+    const { results, body } = await generateIdeogram(input);
+    const svc = createServiceClient();
 
-  const { results, body } = await generateIdeogram(input);
-  const svc = createServiceClient();
+    const images: GenerationView[] = [];
+    for (const r of results) {
+      // Ideogram's URLs expire — download and store the bytes ourselves.
+      const imgRes = await fetch(r.url);
+      if (!imgRes.ok) continue;
+      const bytes = new Uint8Array(await imgRes.arrayBuffer());
+      const path = `${ctx.userId}/${crypto.randomUUID()}.png`;
+      const { error: upErr } = await svc.storage
+        .from(BUCKET)
+        .upload(path, bytes, { contentType: "image/png", upsert: false });
+      if (upErr) {
+        console.error("awideogram: upload failed", upErr);
+        return {
+          images: [],
+          error: `Bild konnte nicht gespeichert werden: ${upErr.message}`,
+        };
+      }
+      const { data: row } = await svc
+        .from("awideogram_generations")
+        .insert({
+          user_id: ctx.userId,
+          storage_path: path,
+          high_level_description: input.highLevelDescription,
+          request: body,
+          aspect_ratio: input.aspectRatio,
+          rendering_speed: input.renderingSpeed,
+        })
+        .select("id, created_at")
+        .single<{ id: string; created_at: string }>();
 
-  const images: GenerationView[] = [];
-  for (const r of results) {
-    // Ideogram's URLs expire — download and store the bytes ourselves.
-    const imgRes = await fetch(r.url);
-    if (!imgRes.ok) continue;
-    const bytes = new Uint8Array(await imgRes.arrayBuffer());
-    const path = `${ctx.userId}/${crypto.randomUUID()}.png`;
-    const { error: upErr } = await svc.storage
-      .from(BUCKET)
-      .upload(path, bytes, { contentType: "image/png", upsert: false });
-    if (upErr) {
-      console.error("awideogram: upload failed", upErr);
-      throw new Error(`Bild konnte nicht gespeichert werden: ${upErr.message}`);
+      const { data: signed } = await svc.storage
+        .from(BUCKET)
+        .createSignedUrl(path, SIGNED_TTL);
+
+      if (row && signed?.signedUrl)
+        images.push({
+          id: row.id,
+          url: signed.signedUrl,
+          highLevelDescription: input.highLevelDescription,
+          createdAt: row.created_at,
+        });
     }
-    const { data: row } = await svc
-      .from("awideogram_generations")
-      .insert({
-        user_id: ctx.userId,
-        storage_path: path,
-        high_level_description: input.highLevelDescription,
-        request: body,
-        aspect_ratio: input.aspectRatio,
-        rendering_speed: input.renderingSpeed,
-      })
-      .select("id, created_at")
-      .single<{ id: string; created_at: string }>();
 
-    const { data: signed } = await svc.storage
-      .from(BUCKET)
-      .createSignedUrl(path, SIGNED_TTL);
-
-    if (row && signed?.signedUrl)
-      images.push({
-        id: row.id,
-        url: signed.signedUrl,
-        highLevelDescription: input.highLevelDescription,
-        createdAt: row.created_at,
-      });
+    if (!images.length)
+      return {
+        images: [],
+        error: "Bild wurde erzeugt, konnte aber nicht gespeichert werden.",
+      };
+    return { images, error: null };
+  } catch (e) {
+    console.error("awideogram: generateImage failed", e);
+    return {
+      images: [],
+      error: e instanceof Error ? e.message : "Generierung fehlgeschlagen.",
+    };
   }
-
-  if (!images.length)
-    throw new Error("Bild wurde erzeugt, konnte aber nicht gespeichert werden.");
-  return { images };
 }
 
 /** Recent generations for the gallery, with fresh signed URLs. */
