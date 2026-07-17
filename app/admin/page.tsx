@@ -138,33 +138,6 @@ export default async function AdminPage({
         </a>
         <h1 style={{ fontSize: 24, marginTop: 8 }}>Administration</h1>
 
-        <div style={{ display: "flex", gap: 16, marginTop: 8, marginBottom: 4 }}>
-          <a
-            href="/admin/import"
-            style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)" }}
-          >
-            ↥ Import aus monday →
-          </a>
-          <a
-            href="/admin/usage"
-            style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)" }}
-          >
-            📊 Nutzung →
-          </a>
-          <a
-            href="/api/admin/export?format=csv"
-            style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)" }}
-          >
-            ⬇ Export CSV
-          </a>
-          <a
-            href="/api/admin/export?format=json"
-            style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)" }}
-          >
-            ⬇ Export JSON
-          </a>
-        </div>
-
         {error && <Banner tone="error">{error}</Banner>}
         {ok && <Banner tone="ok">{ok}</Banner>}
 
@@ -597,6 +570,26 @@ export default async function AdminPage({
                 </>
               ),
             },
+            {
+              key: "data",
+              label: "Daten & Import",
+              content: (
+                <div style={{ display: "grid", gap: 10, maxWidth: 460 }}>
+                  <a href="/admin/import" style={dataLink}>
+                    ↥ Import aus monday
+                  </a>
+                  <a href="/admin/usage" style={dataLink}>
+                    📊 Nutzung / Statistik
+                  </a>
+                  <a href="/api/admin/export?format=csv" style={dataLink}>
+                    ⬇ Export als CSV (Boards &amp; Tasks)
+                  </a>
+                  <a href="/api/admin/export?format=json" style={dataLink}>
+                    ⬇ Export als JSON (vollständig)
+                  </a>
+                </div>
+              ),
+            },
           ]}
         />
       </main>
@@ -690,6 +683,18 @@ const button: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
   whiteSpace: "nowrap",
+};
+
+const dataLink: React.CSSProperties = {
+  display: "block",
+  background: "var(--panel)",
+  border: "1px solid var(--border)",
+  borderRadius: 10,
+  padding: "12px 14px",
+  color: "var(--accent)",
+  fontWeight: 600,
+  fontSize: 14,
+  textDecoration: "none",
 };
 
 const ghostSmall: React.CSSProperties = {
