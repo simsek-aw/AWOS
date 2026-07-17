@@ -180,3 +180,22 @@ button {
   .board-filterbar.open { display: flex !important; }
   .board-desktop-inline { display: none !important; }
 }
+
+/* Product switcher: full-screen overlay on mobile instead of a dropdown */
+.product-switcher-close { display: none; }
+@media (max-width: 760px) {
+  .product-switcher-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+    padding: 16px !important;
+    z-index: 1000 !important;
+  }
+  .product-switcher-close { display: inline-flex; }
+  .switcher-grid { grid-template-columns: 1fr !important; }
+}

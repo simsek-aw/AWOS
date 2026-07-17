@@ -101,6 +101,7 @@ export default function ProductSwitcher({
 
       {open && (
         <div
+          className="product-switcher-panel"
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",
@@ -172,17 +173,40 @@ export default function ProductSwitcher({
           })()}
           <div
             style={{
-              fontSize: 11,
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              color: "var(--faint)",
-              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               padding: "4px 6px 8px",
             }}
           >
-            AWOS · Tools
+            <span
+              style={{
+                fontSize: 11,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                color: "var(--faint)",
+                fontWeight: 700,
+              }}
+            >
+              AWOS · Tools
+            </span>
+            <button
+              className="product-switcher-close"
+              onClick={() => setOpen(false)}
+              aria-label="Schließen"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--muted)",
+                cursor: "pointer",
+                padding: 4,
+              }}
+            >
+              <Icon name="x" size={20} />
+            </button>
           </div>
           <div
+            className="switcher-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
