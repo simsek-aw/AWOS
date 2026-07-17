@@ -390,6 +390,8 @@ export default function AWComposeStudio({
                     <img
                       src={b.url}
                       alt="AWideogram"
+                      loading="lazy"
+                      decoding="async"
                       style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 7, display: "block" }}
                     />
                   </button>

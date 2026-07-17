@@ -848,6 +848,8 @@ export default function AWideogramStudio({
                 <img
                   src={g.url}
                   alt={g.highLevelDescription ?? "AWideogram"}
+                  loading="lazy"
+                  decoding="async"
                   style={{ width: "100%", display: "block", aspectRatio: "1 / 1", objectFit: "cover" }}
                 />
               </a>

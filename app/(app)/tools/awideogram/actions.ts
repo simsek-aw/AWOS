@@ -147,20 +147,32 @@ export async function listGenerations(limit = 24): Promise<GenerationView[]> {
     return [];
   }
   const rows = data ?? [];
-  const out: GenerationView[] = [];
-  for (const r of rows) {
-    const { data: signed } = await svc.storage
-      .from(BUCKET)
-      .createSignedUrl(r.storage_path, SIGNED_TTL);
-    if (signed?.signedUrl)
-      out.push({
-        id: r.id,
-        url: signed.signedUrl,
-        highLevelDescription: r.high_level_description,
-        createdAt: r.created_at,
-      });
-  }
-  return out;
+  if (!rows.length) return [];
+  // One batched request for all signed URLs instead of one per row.
+  const { data: signedList } = await svc.storage
+    .from(BUCKET)
+    .createSignedUrls(
+      rows.map((r) => r.storage_path),
+      SIGNED_TTL,
+    );
+  const urlByPath = new Map(
+    (signedList ?? [])
+      .filter((s) => s.signedUrl && s.path)
+      .map((s) => [s.path as string, s.signedUrl]),
+  );
+  return rows
+    .map((r) => {
+      const url = urlByPath.get(r.storage_path);
+      return url
+        ? {
+            id: r.id,
+            url,
+            highLevelDescription: r.high_level_description,
+            createdAt: r.created_at,
+          }
+        : null;
+    })
+    .filter((x): x is GenerationView => x !== null);
 }
 
 export async function deleteGeneration(id: string): Promise<void> {
