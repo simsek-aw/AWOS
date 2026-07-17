@@ -54,6 +54,7 @@ export async function personTaskRows(
     .select("id, title, board_id")
     .in("id", taskIds)
     .is("archived_at", null)
+    .is("deleted_at", null)
     .returns<{ id: string; title: string; board_id: string }[]>();
   const boardIds = [...new Set((tasks ?? []).map((t) => t.board_id))];
   if (!boardIds.length) return [];

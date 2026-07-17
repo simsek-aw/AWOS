@@ -104,6 +104,7 @@ export async function GET(req: Request) {
           .select("id, title, board_id")
           .ilike("title", like)
           .is("archived_at", null)
+          .is("deleted_at", null)
           .limit(6)
           .returns<{ id: string; title: string; board_id: string }[]>()
       : Promise.resolve({ data: [] as { id: string; title: string; board_id: string }[] }),

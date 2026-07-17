@@ -1,7 +1,11 @@
-import { createServerSupabase } from "@/lib/supabase/server";
+import { unstable_cache } from "next/cache";
+import { createServiceClient } from "@/lib/supabase/server";
 import { CURRENT_TOOL_KEY, type Tool } from "@/lib/types";
 
 export { CURRENT_TOOL_KEY };
+
+/** Cache tag for the tools registry; revalidate it when tools change. */
+export const TOOLS_TAG = "tools";
 
 // The tools the platform ships with by default. AWcms is this app (the anchor);
 // the others are "coming soon" placeholders that always show in the switcher so
@@ -105,32 +109,43 @@ function canSeeTool(
   return viewer.department === vis; // department-scoped
 }
 
+// The registry is identical for everyone (visibility is applied per-viewer in
+// JS), so it's cached across requests and only refetched when a tool changes
+// (revalidateTag(TOOLS_TAG)). Uses the service role — no cookies — so it's safe
+// inside unstable_cache.
+const fetchToolsRaw = unstable_cache(
+  async (): Promise<Tool[]> => {
+    try {
+      const svc = createServiceClient();
+      const { data } = await svc
+        .from("tools")
+        .select("*")
+        .order("position", { ascending: true })
+        .returns<Tool[]>();
+      const db = data ?? [];
+      const byKey = new Map(db.map((t) => [t.key, t]));
+      const merged = [...db];
+      for (const d of DEFAULT_TOOLS) if (!byKey.has(d.key)) merged.push(d);
+      merged.sort((a, b) => a.position - b.position);
+      return merged;
+    } catch {
+      return DEFAULT_TOOLS;
+    }
+  },
+  ["awos-tools-registry"],
+  { tags: [TOOLS_TAG] },
+);
+
 /**
  * All tools for the product switcher: the DB registry merged with the built-in
  * defaults (DB wins per key). Disabled tools are included — the switcher shows
  * them as "coming soon". When a viewer is given, department/admin-restricted
- * tools are filtered out. Safe if the tools table doesn't exist yet.
+ * tools are filtered out.
  */
 export async function listTools(viewer?: {
   department: string | null;
   isAdmin: boolean;
 }): Promise<Tool[]> {
-  let db: Tool[] = [];
-  try {
-    const supabase = await createServerSupabase();
-    const { data, error } = await supabase
-      .from("tools")
-      .select("*")
-      .order("position", { ascending: true })
-      .returns<Tool[]>();
-    if (!error && data) db = data;
-  } catch {
-    db = [];
-  }
-
-  const byKey = new Map(db.map((t) => [t.key, t]));
-  const merged = [...db];
-  for (const d of DEFAULT_TOOLS) if (!byKey.has(d.key)) merged.push(d);
-  merged.sort((a, b) => a.position - b.position);
+  const merged = await fetchToolsRaw();
   return merged.filter((t) => canSeeTool(t, viewer));
 }

@@ -18,6 +18,7 @@ import BoardAccess from "./BoardAccess";
 import BoardCalendar from "./BoardCalendar";
 import BoardKanban from "./BoardKanban";
 import BoardTable from "./BoardTable";
+import BoardTrash from "./BoardTrash";
 import BoardWorkload from "./BoardWorkload";
 import ColumnsManager from "./ColumnsManager";
 import Popover from "./Popover";
@@ -746,6 +747,12 @@ export default function BoardView({
         {isEmployee && (
           <ToolbarMenu icon="more" label="Spalten" width={330}>
             {() => <ColumnsManager boardId={boardId} columns={columns} />}
+          </ToolbarMenu>
+        )}
+
+        {isEmployee && (
+          <ToolbarMenu icon="trash" label="Papierkorb" width={300}>
+            {() => <BoardTrash boardId={boardId} />}
           </ToolbarMenu>
         )}
 

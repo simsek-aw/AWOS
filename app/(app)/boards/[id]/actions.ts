@@ -1211,7 +1211,10 @@ export async function deleteAttachment(
 
 export async function deleteTask(boardId: string, taskId: string) {
   const supabase = await createServerSupabase();
-  await supabase.from("tasks").delete().eq("id", taskId);
+  // Soft-delete: move to trash (with any subitems) so it can be restored.
+  const now = new Date().toISOString();
+  await supabase.from("tasks").update({ deleted_at: now }).eq("id", taskId);
+  await supabase.from("tasks").update({ deleted_at: now }).eq("parent_id", taskId);
   revalidatePath(`/boards/${boardId}`);
   redirect(`/boards/${boardId}`);
 }
@@ -1220,7 +1223,45 @@ export async function deleteTask(boardId: string, taskId: string) {
 export async function deleteTasks(boardId: string, taskIds: string[]) {
   if (!taskIds.length) return;
   const supabase = await createServerSupabase();
-  await supabase.from("tasks").delete().in("id", taskIds);
+  const now = new Date().toISOString();
+  await supabase.from("tasks").update({ deleted_at: now }).in("id", taskIds);
+  await supabase.from("tasks").update({ deleted_at: now }).in("parent_id", taskIds);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Tasks currently in the board's trash (top-level, newest deleted first). */
+export async function listDeletedTasks(
+  boardId: string,
+): Promise<{ id: string; title: string; deletedAt: string }[]> {
+  const supabase = await createServerSupabase();
+  const { data } = await supabase
+    .from("tasks")
+    .select("id, title, deleted_at")
+    .eq("board_id", boardId)
+    .is("parent_id", null)
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false })
+    .limit(50)
+    .returns<{ id: string; title: string; deleted_at: string }[]>();
+  return (data ?? []).map((t) => ({
+    id: t.id,
+    title: t.title,
+    deletedAt: t.deleted_at,
+  }));
+}
+
+/** Restore a task (and its subitems) from the trash. */
+export async function restoreTask(boardId: string, taskId: string) {
+  const supabase = await createServerSupabase();
+  await supabase.from("tasks").update({ deleted_at: null }).eq("id", taskId);
+  await supabase.from("tasks").update({ deleted_at: null }).eq("parent_id", taskId);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Permanently delete a trashed task (subitems + values cascade). */
+export async function purgeTask(boardId: string, taskId: string) {
+  const supabase = await createServerSupabase();
+  await supabase.from("tasks").delete().eq("id", taskId);
   revalidatePath(`/boards/${boardId}`);
 }
 

@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { createServiceClient } from "@/lib/supabase/server";
+import { TOOLS_TAG } from "@/lib/tools";
 import type { Department } from "@/lib/types";
 
 async function siteOrigin(): Promise<string> {
@@ -455,6 +456,7 @@ export async function createTool(formData: FormData) {
     entityId: key,
     summary: `Tool „${name}" angelegt`,
   });
+  revalidateTag(TOOLS_TAG);
   revalidatePath("/admin");
   ok(`Tool „${name}" angelegt`);
 }
@@ -494,6 +496,7 @@ export async function updateTool(formData: FormData) {
     entityId: id,
     summary: `Tool „${name}" bearbeitet`,
   });
+  revalidateTag(TOOLS_TAG);
   revalidatePath("/admin");
   ok("Tool gespeichert");
 }
@@ -511,6 +514,7 @@ export async function deleteTool(formData: FormData) {
     entityId: id,
     summary: "Tool entfernt",
   });
+  revalidateTag(TOOLS_TAG);
   revalidatePath("/admin");
   ok("Tool entfernt");
 }
@@ -537,5 +541,6 @@ export async function moveTool(formData: FormData) {
   const b = list[swapWith];
   await svc.from("tools").update({ position: b.position }).eq("id", a.id);
   await svc.from("tools").update({ position: a.position }).eq("id", b.id);
+  revalidateTag(TOOLS_TAG);
   revalidatePath("/admin");
 }

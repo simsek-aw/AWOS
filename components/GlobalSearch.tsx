@@ -42,10 +42,42 @@ const SCOPES: { key: string; label: string }[] = [
   { key: "people", label: "Personen" },
 ];
 
+// Quick navigation actions (command-palette style) matched against the query.
+const ACTIONS: {
+  label: string;
+  href: string;
+  kw: string;
+  admin?: boolean;
+}[] = [
+  { label: "Startseite (Tools)", href: "/", kw: "start home launcher tools" },
+  { label: "Meine Aufgaben", href: "/my", kw: "aufgaben tasks meine" },
+  { label: "Boards", href: "/boards", kw: "boards awcms" },
+  {
+    label: "Benachrichtigungen",
+    href: "/notifications",
+    kw: "benachrichtigungen notifications glocke",
+  },
+  { label: "Profil", href: "/profile", kw: "profil account einstellungen" },
+  {
+    label: "Administration",
+    href: "/admin",
+    kw: "admin verwaltung nutzer",
+    admin: true,
+  },
+  {
+    label: "Nutzung / Statistik",
+    href: "/admin/usage",
+    kw: "nutzung statistik dashboard analytics",
+    admin: true,
+  },
+];
+
 export default function GlobalSearch({
   autoFocus = false,
+  isAdmin = false,
 }: {
   autoFocus?: boolean;
+  isAdmin?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [scope, setScope] = useState("all");
@@ -96,12 +128,23 @@ export default function GlobalSearch({
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  const q2 = q.trim().toLowerCase();
+  const matchedActions =
+    q2.length >= 2
+      ? ACTIONS.filter(
+          (a) =>
+            (!a.admin || isAdmin) &&
+            (a.label.toLowerCase().includes(q2) || a.kw.includes(q2)),
+        ).slice(0, 5)
+      : [];
+
   const total =
     res.boards.length +
     res.tasks.length +
     res.updates.length +
     res.people.length +
-    res.tools.length;
+    res.tools.length +
+    matchedActions.length;
   const scopeLabel = SCOPES.find((s) => s.key === scope)?.label ?? "Alle";
 
   return (
@@ -230,6 +273,20 @@ export default function GlobalSearch({
           )}
           {!loading && total === 0 && (
             <p style={sectionEmpty}>Keine Treffer für „{q.trim()}".</p>
+          )}
+
+          {matchedActions.length > 0 && (
+            <Section title="Aktionen">
+              {matchedActions.map((a) => (
+                <ResultRow
+                  key={a.href}
+                  href={a.href}
+                  icon="arrow-right"
+                  title={a.label}
+                  sub="Öffnen"
+                />
+              ))}
+            </Section>
           )}
 
           {res.tools.length > 0 && (

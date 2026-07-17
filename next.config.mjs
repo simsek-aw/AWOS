@@ -5,6 +5,10 @@ const nextConfig = {
     // Allow file uploads via server actions up to 10 MB.
     serverActions: { bodySizeLimit: "10mb" },
   },
+  images: {
+    // Optimize images served from Supabase Storage (signed URLs).
+    remotePatterns: [{ protocol: "https", hostname: "*.supabase.co" }],
+  },
   async headers() {
     return [
       {

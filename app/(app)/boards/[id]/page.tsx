@@ -50,6 +50,7 @@ export default async function BoardPage({
       .select("*")
       .eq("board_id", id)
       .is("archived_at", null)
+      .is("deleted_at", null)
       .order("position", { ascending: true })
       .order("created_at", { ascending: true })
       .returns<Task[]>(),

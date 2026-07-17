@@ -1,5 +1,6 @@
 "use client";
 
+import NextImage from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { saveComposite } from "@/app/(app)/tools/awcompose/actions";
 import Icon from "@/components/icons";
@@ -386,12 +387,11 @@ export default function AWComposeStudio({
                       cursor: "pointer",
                     }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <NextImage
                       src={b.url}
                       alt="AWideogram"
-                      loading="lazy"
-                      decoding="async"
+                      width={64}
+                      height={64}
                       style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 7, display: "block" }}
                     />
                   </button>

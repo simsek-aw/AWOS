@@ -1,5 +1,6 @@
 "use client";
 
+import NextImage from "next/image";
 import { useEffect, useRef, useState } from "react";
 import {
   deleteGeneration,
@@ -891,14 +892,23 @@ export default function AWideogramStudio({
                 background: "var(--surface)",
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <a href={g.url} target="_blank" rel="noopener noreferrer">
-                <img
+              <a
+                href={g.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  position: "relative",
+                  display: "block",
+                  width: "100%",
+                  aspectRatio: "1 / 1",
+                }}
+              >
+                <NextImage
                   src={g.url}
                   alt={g.highLevelDescription ?? "AWideogram"}
-                  loading="lazy"
-                  decoding="async"
-                  style={{ width: "100%", display: "block", aspectRatio: "1 / 1", objectFit: "cover" }}
+                  fill
+                  sizes="(max-width: 600px) 50vw, 220px"
+                  style={{ objectFit: "cover" }}
                 />
               </a>
               <div style={{ padding: "8px 10px", display: "flex", gap: 8, alignItems: "center" }}>

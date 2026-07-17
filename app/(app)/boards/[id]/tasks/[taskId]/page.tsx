@@ -38,6 +38,7 @@ export default async function TaskDetail({
     .from("tasks")
     .select("*")
     .eq("id", taskId)
+    .is("deleted_at", null)
     .single<Task>();
   if (!board || !task) notFound();
 

@@ -99,7 +99,7 @@ export default function AppHeader({
         className="header-search"
         style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 0 }}
       >
-        <GlobalSearch />
+        <GlobalSearch isAdmin={admin} />
       </div>
       {/* Mobile: spacer so the right group stays right */}
       <div className="header-search-btn" style={{ flex: 1 }} />
@@ -164,7 +164,7 @@ export default function AppHeader({
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <GlobalSearch autoFocus />
+              <GlobalSearch autoFocus isAdmin={admin} />
             </div>
             <button
               onClick={() => setSearchOpen(false)}
