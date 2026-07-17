@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { listTools } from "@/lib/tools";
+import type { Tool } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+function toolHref(t: Tool): string | undefined {
+  if (t.status === "maintenance" || !t.enabled) return undefined;
+  if (t.kind === "internal") return t.url ?? "/";
+  if (t.kind === "embed") return `/tools/${t.key}`;
+  return t.url ?? undefined;
+}
 
 const roleLabel: Record<string, string> = {
   employee: "Mitarbeiter",
@@ -27,10 +36,58 @@ export async function GET(req: Request) {
   // Strip them so a user's raw query can't break the filter or match everything.
   const q = raw.replace(/[%_(),]/g, " ").trim();
   if (q.length < 2) {
-    return NextResponse.json({ boards: [], tasks: [], updates: [], people: [] });
+    return NextResponse.json({
+      boards: [],
+      tasks: [],
+      updates: [],
+      people: [],
+      tools: [],
+    });
   }
   const like = `%${q}%`;
   const want = (s: string) => scope === "all" || scope === s;
+
+  // Tools (employee-only): match the registry the user can see, in JS.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, department, is_admin")
+    .eq("id", user.id)
+    .maybeSingle<{
+      role: string;
+      department: string | null;
+      is_admin: boolean | null;
+    }>();
+  let tools: {
+    key: string;
+    name: string;
+    description: string | null;
+    icon: string | null;
+    href: string;
+    external: boolean;
+  }[] = [];
+  if (want("tools") && profile?.role === "employee") {
+    const ql = q.toLowerCase();
+    const all = await listTools({
+      department: profile.department,
+      isAdmin: profile.is_admin ?? true,
+    });
+    tools = all
+      .filter(
+        (t) =>
+          t.name.toLowerCase().includes(ql) ||
+          (t.description ?? "").toLowerCase().includes(ql),
+      )
+      .map((t) => ({
+        key: t.key,
+        name: t.name,
+        description: t.description,
+        icon: t.icon,
+        href: toolHref(t) ?? "",
+        external: t.kind === "link",
+      }))
+      .filter((t) => t.href)
+      .slice(0, 6);
+  }
 
   const [boardsRes, tasksRes, commentsRes, peopleRes] = await Promise.all([
     want("boards")
@@ -127,5 +184,5 @@ export async function GET(req: Request) {
     role: roleLabel[p.role] ?? p.role,
   }));
 
-  return NextResponse.json({ boards, tasks, updates, people });
+  return NextResponse.json({ boards, tasks, updates, people, tools });
 }

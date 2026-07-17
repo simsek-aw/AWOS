@@ -1,6 +1,7 @@
 "use server";
 
 import { requireSession } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 import { generateIdeogram, type StudioInput } from "@/lib/ideogram";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -106,6 +107,12 @@ export async function generateImage(
 
     if (!images.length)
       return { images: [], error: lastError ?? "Ideogram lieferte keine Bilder zurück." };
+    await logAudit({
+      actorId: ctx.userId,
+      action: "awideogram.generate",
+      entity: "awideogram",
+      summary: `${images.length} Bild(er) generiert${input.referenceImages?.length ? " (mit Referenz)" : ""}`,
+    });
     // Partial success: return what we have, but surface the last issue.
     return { images, error: lastError };
   } catch (e) {

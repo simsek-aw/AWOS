@@ -15,12 +15,27 @@ type Results = {
     snippet: string;
   }[];
   people: { id: string; name: string; role: string }[];
+  tools: {
+    key: string;
+    name: string;
+    description: string | null;
+    icon: string | null;
+    href: string;
+    external: boolean;
+  }[];
 };
 
-const EMPTY: Results = { boards: [], tasks: [], updates: [], people: [] };
+const EMPTY: Results = {
+  boards: [],
+  tasks: [],
+  updates: [],
+  people: [],
+  tools: [],
+};
 
 const SCOPES: { key: string; label: string }[] = [
   { key: "all", label: "Alle" },
+  { key: "tools", label: "Tools" },
   { key: "boards", label: "Boards" },
   { key: "tasks", label: "Aufgaben" },
   { key: "updates", label: "Updates" },
@@ -82,7 +97,11 @@ export default function GlobalSearch({
   }, []);
 
   const total =
-    res.boards.length + res.tasks.length + res.updates.length + res.people.length;
+    res.boards.length +
+    res.tasks.length +
+    res.updates.length +
+    res.people.length +
+    res.tools.length;
   const scopeLabel = SCOPES.find((s) => s.key === scope)?.label ?? "Alle";
 
   return (
@@ -213,6 +232,22 @@ export default function GlobalSearch({
             <p style={sectionEmpty}>Keine Treffer für „{q.trim()}".</p>
           )}
 
+          {res.tools.length > 0 && (
+            <Section title="Tools">
+              {res.tools.map((t) => (
+                <ResultRow
+                  key={t.key}
+                  href={t.href}
+                  external={t.external}
+                  emoji={t.icon ?? "🧩"}
+                  icon="grid"
+                  title={t.name}
+                  sub={t.description ?? ""}
+                />
+              ))}
+            </Section>
+          )}
+
           {res.boards.length > 0 && (
             <Section title="Boards">
               {res.boards.map((b) => (
@@ -302,11 +337,15 @@ function Section({
 function ResultRow({
   href,
   icon,
+  emoji,
+  external,
   title,
   sub,
 }: {
   href?: string;
   icon: Parameters<typeof Icon>[0]["name"];
+  emoji?: string;
+  external?: boolean;
   title: string;
   sub: string;
 }) {
@@ -317,9 +356,12 @@ function ResultRow({
           display: "inline-flex",
           color: "var(--muted)",
           flexShrink: 0,
+          fontSize: emoji ? 16 : undefined,
+          width: emoji ? 18 : undefined,
+          justifyContent: "center",
         }}
       >
-        <Icon name={icon} size={16} />
+        {emoji ? emoji : <Icon name={icon} size={16} />}
       </span>
       <div style={{ minWidth: 0 }}>
         <div
@@ -358,7 +400,13 @@ function ResultRow({
     return <div style={{ ...style, cursor: "default" }}>{inner}</div>;
   }
   return (
-    <a href={href} style={style} className="search-result">
+    <a
+      href={href}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
+      style={style}
+      className="search-result"
+    >
       {inner}
     </a>
   );

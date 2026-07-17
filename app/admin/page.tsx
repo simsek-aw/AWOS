@@ -2,6 +2,7 @@ import AppHeader from "@/components/AppHeader";
 import DeleteCustomerButton from "@/components/admin/DeleteCustomerButton";
 import TeamImport from "@/components/admin/TeamImport";
 import UserRow from "@/components/admin/UserRow";
+import { listAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 import type { Board, Customer, Profile, Tool } from "@/lib/types";
@@ -58,8 +59,14 @@ export default async function AdminPage({
     toolList = [];
   }
 
+  // Recent platform activity (audit log).
+  const auditRows = await listAudit(50);
+
   const customerList = customers ?? [];
   const customerName = new Map(customerList.map((c) => [c.id, c.name]));
+  const nameById = new Map(
+    (profiles ?? []).map((p) => [p.id, p.full_name ?? "?"]),
+  );
   const allBoards = boards ?? [];
   const internalBoards = allBoards.filter((b) => b.type === "internal");
   const boardsOfCustomer = (cid: string) =>
@@ -339,6 +346,58 @@ export default async function AdminPage({
               <button style={button}>Tool hinzufügen</button>
             </div>
           </form>
+        </Section>
+
+        {/* --- Audit log --- */}
+        <Section title="Aktivitätsprotokoll">
+          {auditRows.length === 0 ? (
+            <p style={{ color: "var(--faint)", fontSize: 13, margin: 0 }}>
+              Noch keine Einträge (oder Migration 0030 noch nicht angewendet).
+            </p>
+          ) : (
+            <div style={{ display: "grid", gap: 4 }}>
+              {auditRows.map((a) => (
+                <div
+                  key={a.id}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "baseline",
+                    padding: "7px 4px",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: 13,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "var(--faint)",
+                      fontSize: 12,
+                      minWidth: 128,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {new Date(a.created_at).toLocaleString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>{a.summary}</span>
+                  <span
+                    style={{
+                      color: "var(--muted)",
+                      fontSize: 12,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {a.actor_id ? (nameById.get(a.actor_id) ?? "?") : "System"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
 
         {/* --- Customers with their boards --- */}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Department } from "@/lib/types";
 
@@ -56,7 +57,7 @@ export async function createCustomer(formData: FormData) {
  * user accounts are removed along with it.
  */
 export async function deleteCustomer(formData: FormData) {
-  await requireAdmin();
+  const ctx = await requireAdmin();
   const customerId = String(formData.get("customer_id") ?? "");
   if (!customerId) fail("Kunde fehlt");
 
@@ -87,6 +88,13 @@ export async function deleteCustomer(formData: FormData) {
   const { error } = await svc.from("customers").delete().eq("id", customerId);
   if (error) fail("Kunde konnte nicht gelöscht werden");
 
+  await logAudit({
+    actorId: ctx.userId,
+    action: "customer.delete",
+    entity: "customer",
+    entityId: customerId,
+    summary: "Kunde gelöscht",
+  });
   revalidatePath("/admin");
   ok("Kunde gelöscht");
 }
@@ -207,6 +215,13 @@ export async function setUserAdmin(formData: FormData) {
     );
   }
 
+  await logAudit({
+    actorId: ctx.userId,
+    action: "user.admin",
+    entity: "user",
+    entityId: userId,
+    summary: makeAdmin ? "Admin-Recht erteilt" : "Admin-Recht entzogen",
+  });
   revalidatePath("/admin");
   ok(makeAdmin ? "Admin-Recht erteilt" : "Admin-Recht entzogen");
 }
@@ -336,7 +351,7 @@ export async function importTeam(
 }
 
 export async function inviteUser(formData: FormData) {
-  await requireAdmin();
+  const ctx = await requireAdmin();
   const email = String(formData.get("email") ?? "").trim();
   const fullName = String(formData.get("full_name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
@@ -373,8 +388,19 @@ export async function inviteUser(formData: FormData) {
     fail("Profil konnte nicht angelegt werden");
   }
 
+  await logAudit({
+    actorId: ctx.userId,
+    action: "user.invite",
+    entity: "user",
+    entityId: created.user.id,
+    summary: `Nutzer eingeladen: ${email} (${roleLabelDe(role)})`,
+  });
   revalidatePath("/admin");
   ok(`Einladung an ${email} gesendet`);
+}
+
+function roleLabelDe(role: string): string {
+  return role === "employee" ? "Mitarbeiter" : "Kunde";
 }
 
 // --- Tools registry (product switcher) --------------------------------------
@@ -388,7 +414,7 @@ function slugifyKey(s: string): string {
 }
 
 export async function createTool(formData: FormData) {
-  await requireAdmin();
+  const ctx = await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) fail("Tool-Name fehlt");
   const key =
@@ -422,12 +448,19 @@ export async function createTool(formData: FormData) {
     status: status === "maintenance" ? "maintenance" : "active",
   });
   if (error) fail(`Tool konnte nicht angelegt werden (${error.message})`);
+  await logAudit({
+    actorId: ctx.userId,
+    action: "tool.create",
+    entity: "tool",
+    entityId: key,
+    summary: `Tool „${name}" angelegt`,
+  });
   revalidatePath("/admin");
   ok(`Tool „${name}" angelegt`);
 }
 
 export async function updateTool(formData: FormData) {
-  await requireAdmin();
+  const ctx = await requireAdmin();
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   if (!id || !name) fail("Tool-Daten unvollständig");
@@ -454,16 +487,30 @@ export async function updateTool(formData: FormData) {
     })
     .eq("id", id);
   if (error) fail(`Tool konnte nicht gespeichert werden (${error.message})`);
+  await logAudit({
+    actorId: ctx.userId,
+    action: "tool.update",
+    entity: "tool",
+    entityId: id,
+    summary: `Tool „${name}" bearbeitet`,
+  });
   revalidatePath("/admin");
   ok("Tool gespeichert");
 }
 
 export async function deleteTool(formData: FormData) {
-  await requireAdmin();
+  const ctx = await requireAdmin();
   const id = String(formData.get("id") ?? "");
   if (!id) fail("Tool fehlt");
   const svc = createServiceClient();
   await svc.from("tools").delete().eq("id", id);
+  await logAudit({
+    actorId: ctx.userId,
+    action: "tool.delete",
+    entity: "tool",
+    entityId: id,
+    summary: "Tool entfernt",
+  });
   revalidatePath("/admin");
   ok("Tool entfernt");
 }
