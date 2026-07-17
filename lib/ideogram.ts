@@ -167,7 +167,7 @@ export async function generateIdeogram(
     // Content-Type manually.
     const prompt = promptFromInput(input);
     const fd = new FormData();
-    fd.set("prompt", prompt);
+    fd.set("text_prompt", prompt);
     fd.set("aspect_ratio", input.aspectRatio);
     fd.set("rendering_speed", input.renderingSpeed);
     let n = 0;

@@ -71,6 +71,57 @@ export default function AWideogramStudio({
   const canvasRef = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
 
+  // Persist the working draft across refreshes (per device).
+  const loaded = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("awideogram-draft");
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (typeof d.hld === "string") setHld(d.hld);
+        if (typeof d.aesthetics === "string") setAesthetics(d.aesthetics);
+        if (typeof d.lighting === "string") setLighting(d.lighting);
+        if (typeof d.medium === "string") setMedium(d.medium);
+        if (typeof d.background === "string") setBackground(d.background);
+        if (typeof d.palette === "string") setPalette(d.palette);
+        if (typeof d.aspect === "string") setAspect(d.aspect);
+        if (typeof d.speed === "string") setSpeed(d.speed);
+        if (Array.isArray(d.boxes)) setBoxes(d.boxes);
+        if (Array.isArray(d.refs)) setRefs(d.refs);
+      }
+    } catch {
+      /* ignore */
+    }
+    loaded.current = true;
+  }, []);
+  useEffect(() => {
+    if (!loaded.current) return;
+    const base = {
+      hld,
+      aesthetics,
+      lighting,
+      medium,
+      background,
+      palette,
+      aspect,
+      speed,
+      boxes,
+    };
+    try {
+      localStorage.setItem(
+        "awideogram-draft",
+        JSON.stringify({ ...base, refs }),
+      );
+    } catch {
+      // Reference images can blow the quota — fall back to saving without them.
+      try {
+        localStorage.setItem("awideogram-draft", JSON.stringify(base));
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [hld, aesthetics, lighting, medium, background, palette, aspect, speed, boxes, refs]);
+
   const selected = boxes.find((b) => b.id === selectedId) ?? null;
   const patch = (id: string, p: Partial<Box>) =>
     setBoxes((prev) => prev.map((b) => (b.id === id ? { ...b, ...p } : b)));
