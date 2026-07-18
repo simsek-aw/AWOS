@@ -463,6 +463,31 @@ button {
   }
 }
 
+/* Task list rows: single-line title with ellipsis on desktop. */
+.tasklist-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* On phones the status/date/urgency don't fit next to the title, so stack the
+   row to two lines: title on top, metadata wrapping below. */
+@media (max-width: 640px) {
+  .tasklist-row {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .tasklist-meta {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .tasklist-title {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* ---- Mobile: dashboard hero + tiles breathe on small screens ---- */
 @media (max-width: 560px) {
   .dashboard-hero-title {

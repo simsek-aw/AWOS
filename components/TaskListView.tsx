@@ -31,7 +31,7 @@ export default function TaskListView({
           <a
             key={t.id}
             href={`/boards/${t.board_id}?task=${t.id}`}
-            className="lift"
+            className="lift tasklist-row"
             style={{
               display: "flex",
               alignItems: "center",
@@ -47,14 +47,7 @@ export default function TaskListView({
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontWeight: 600,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
+              <div className="tasklist-title" style={{ fontWeight: 600 }}>
                 {t.title}
               </div>
               <div style={{ fontSize: 12, color: "var(--muted)" }}>
@@ -62,6 +55,7 @@ export default function TaskListView({
               </div>
             </div>
             <div
+              className="tasklist-meta"
               style={{
                 display: "flex",
                 alignItems: "center",
