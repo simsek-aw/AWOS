@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import BoardView from "@/components/board/BoardView";
+import FavoriteStar from "@/components/FavoriteStar";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
+import RecentBoardTracker from "@/components/RecentBoardTracker";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Board, Column, Group, Task, TaskValue } from "@/lib/types";
@@ -200,6 +202,20 @@ export default async function BoardPage({
     }
   }
 
+  // Is this board favorited by the current user? Resilient: a missing
+  // board_favorites table (migration 0035) never breaks the board.
+  let isFavorite = false;
+  try {
+    const { data: favRow } = await supabase
+      .from("board_favorites")
+      .select("board_id")
+      .eq("board_id", id)
+      .maybeSingle<{ board_id: string }>();
+    isFavorite = !!favRow;
+  } catch {
+    isFavorite = false;
+  }
+
   // The user's saved views for this board.
   const { data: savedViews } = await supabase
     .from("board_views")
@@ -248,6 +264,7 @@ export default async function BoardPage({
           { table: "groups", filter: `board_id=eq.${id}` },
         ]}
       />
+      <RecentBoardTracker id={id} name={board.name} type={board.type} />
       <div
         className="page-pad"
         style={{
@@ -257,9 +274,12 @@ export default async function BoardPage({
           gap: 20,
         }}
       >
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          {board.name}
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+            {board.name}
+          </h1>
+          <FavoriteStar boardId={id} initial={isFavorite} />
+        </div>
 
         {groupsProblem && (
           <div

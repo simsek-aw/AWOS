@@ -481,6 +481,13 @@ button {
   }
 }
 
+/* Personal to-do rows: hover fill + reveal the delete button. */
+.todo-row { transition: background-color 120ms ease; }
+.todo-row:hover { background: var(--surface-2); }
+.todo-del { opacity: 0; transition: opacity 120ms ease; }
+.todo-row:hover .todo-del { opacity: 1; }
+@media (hover: none) { .todo-del { opacity: 0.6; } }
+
 /* Task list rows: single-line title with ellipsis on desktop. */
 .tasklist-title {
   overflow: hidden;

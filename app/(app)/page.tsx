@@ -5,8 +5,11 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { personTaskRows } from "@/lib/tasks";
 import { listTools } from "@/lib/tools";
 import type { Tool } from "@/lib/types";
+import { type Todo } from "@/app/(app)/todos/actions";
 import EmptyState from "@/components/EmptyState";
 import Icon from "@/components/icons";
+import PersonalTodos from "@/components/PersonalTodos";
+import RecentBoards from "@/components/RecentBoards";
 import { statusPillStyle } from "@/components/board/pills";
 
 const isDone = (s: string) => /fertig|done|erledigt|abgeschlossen/i.test(s);
@@ -75,6 +78,20 @@ export default async function Home() {
     }
   } catch {
     favBoards = [];
+  }
+
+  // Personal to-dos (resilient: a missing personal_todos table never breaks
+  // the dashboard).
+  let todos: Todo[] = [];
+  try {
+    const { data } = await supabase
+      .from("personal_todos")
+      .select("id, text, done, created_at")
+      .order("created_at", { ascending: true })
+      .returns<Todo[]>();
+    todos = data ?? [];
+  } catch {
+    todos = [];
   }
 
   const open = myTasks.filter((t) => !isDone(t.status));
@@ -235,6 +252,9 @@ export default async function Home() {
         </section>
       )}
 
+      {/* Zuletzt besucht (client, from localStorage) */}
+      <RecentBoards />
+
       <div
         style={{
           display: "grid",
@@ -302,8 +322,11 @@ export default async function Home() {
           )}
         </section>
 
-        {/* Activity feed */}
-        <section>
+        {/* Right column: personal to-dos + activity feed */}
+        <div style={{ display: "grid", gap: 20 }}>
+          <PersonalTodos initial={todos} />
+
+          <section>
           <div style={sectionHead}>
             <h2 style={h2}>Aktivität</h2>
           </div>
@@ -341,7 +364,8 @@ export default async function Home() {
               ))}
             </div>
           )}
-        </section>
+          </section>
+        </div>
       </div>
 
       {/* Tool launcher */}
