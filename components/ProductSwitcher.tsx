@@ -101,7 +101,7 @@ export default function ProductSwitcher({
 
       {open && (
         <div
-          className="product-switcher-panel"
+          className="product-switcher-panel pop-in"
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",

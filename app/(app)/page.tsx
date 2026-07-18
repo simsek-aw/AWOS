@@ -449,7 +449,10 @@ function Stat({
         overflow: "hidden",
       }}
     >
-      <div style={{ fontSize: 30, fontWeight: 800, color, letterSpacing: -0.5 }}>
+      <div
+        className="font-heading"
+        style={{ fontSize: 30, fontWeight: 800, color, letterSpacing: -0.5 }}
+      >
         {value}
       </div>
       <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>

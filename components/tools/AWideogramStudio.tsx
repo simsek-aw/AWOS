@@ -903,6 +903,7 @@ export default function AWideogramStudio({
           <button
             onClick={generate}
             disabled={busy}
+            className={busy ? undefined : "glow-hover"}
             style={{
               background: "var(--accent)",
               color: "#fff",

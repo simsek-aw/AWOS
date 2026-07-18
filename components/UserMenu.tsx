@@ -60,6 +60,7 @@ export default function UserMenu({ ctx }: { ctx: SessionContext }) {
 
       {open && (
         <div
+          className="pop-in"
           style={{
             position: "absolute",
             right: 0,
@@ -71,6 +72,7 @@ export default function UserMenu({ ctx }: { ctx: SessionContext }) {
             zIndex: 60,
             overflow: "hidden",
             boxShadow: "0 14px 40px rgba(0,0,0,0.55)",
+            transformOrigin: "top right",
           }}
         >
           {/* Identity */}

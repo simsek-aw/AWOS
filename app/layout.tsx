@@ -1,6 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import { Montserrat } from "next/font/google";
 import PWARegister from "@/components/PWARegister";
 import "./globals.css";
+
+// Montserrat for headings / big display type (exposed as --font-heading).
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-heading",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "AWOS — Agency CMS",
@@ -22,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="de">
+    <html lang="de" className={montserrat.variable}>
       <head>
         {/* Apply the saved theme before first paint to avoid a flash. */}
         <script

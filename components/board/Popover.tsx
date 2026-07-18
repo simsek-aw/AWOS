@@ -53,6 +53,7 @@ export default function Popover({
       />
       <div
         ref={ref}
+        className="pop-in"
         style={{
           position: "fixed",
           left,
@@ -64,6 +65,7 @@ export default function Popover({
           border: "1px solid var(--border)",
           borderRadius: 10,
           boxShadow: "var(--shadow)",
+          transformOrigin: openUp ? "bottom center" : "top center",
           ...(openUp
             ? { bottom: vh - rect.top + 4 }
             : { top: rect.bottom + 4 }),
