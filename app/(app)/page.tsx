@@ -109,10 +109,32 @@ export default async function Home() {
     return t.url ?? undefined;
   };
 
+  const today = new Date().toLocaleDateString("de-DE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 28px" }}>
-      <h1 style={{ fontSize: 28, margin: 0 }}>
-        Willkommen{first ? `, ${first}` : ""} bei AWOS
+    <div
+      className="page-enter"
+      style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 28px" }}
+    >
+      <p
+        style={{
+          color: "var(--faint)",
+          fontSize: 13,
+          fontWeight: 600,
+          textTransform: "capitalize",
+          margin: "0 0 4px",
+        }}
+      >
+        {today}
+      </p>
+      <h1 style={{ fontSize: 30, margin: 0, letterSpacing: -0.5 }}>
+        {greeting()}
+        {first ? ", " : ""}
+        <span className="text-gradient">{first}</span>
       </h1>
       <p style={{ color: "var(--muted)", marginTop: 6 }}>
         Dein Überblick für heute.
@@ -164,6 +186,7 @@ export default async function Home() {
                   <a
                     key={t.id}
                     href={`/boards/${t.board_id}?task=${t.id}`}
+                    className="lift"
                     style={rowCard}
                   >
                     <span style={{ flex: 1, minWidth: 0 }}>
@@ -273,6 +296,8 @@ export default async function Home() {
                     gap: 8,
                     fontWeight: 700,
                     fontSize: 15,
+                    flex: 1,
+                    minWidth: 0,
                   }}
                 >
                   {t.name}
@@ -294,6 +319,20 @@ export default async function Home() {
                     </span>
                   )}
                 </div>
+                {href && (
+                  <span
+                    className="reveal-arrow-icon"
+                    aria-hidden
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: 16,
+                      color,
+                      flexShrink: 0,
+                    }}
+                  >
+                    →
+                  </span>
+                )}
               </div>
               <p style={{ color: "var(--muted)", fontSize: 13, margin: "10px 0 0" }}>
                 {t.description ?? ""}
@@ -302,8 +341,10 @@ export default async function Home() {
           );
           const base: React.CSSProperties = {
             display: "block",
+            position: "relative",
             background: "var(--panel)",
             border: "1px solid var(--border)",
+            borderTop: `3px solid ${href ? color : "var(--border)"}`,
             borderRadius: 14,
             padding: 16,
             textDecoration: "none",
@@ -322,6 +363,7 @@ export default async function Home() {
               href={href}
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
+              className="lift reveal-arrow"
               style={base}
             >
               {inner}
@@ -331,6 +373,13 @@ export default async function Home() {
       </div>
     </div>
   );
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 11) return "Guten Morgen";
+  if (h < 18) return "Hallo";
+  return "Guten Abend";
 }
 
 function ago(iso: string): string {
@@ -360,19 +409,33 @@ function Stat({
         : tone === "accent"
           ? "var(--accent)"
           : "var(--text)";
+  const accent =
+    tone === "red"
+      ? "var(--danger)"
+      : tone === "amber"
+        ? "#fdab3d"
+        : tone === "accent"
+          ? "var(--accent)"
+          : "var(--border)";
   return (
     <a
       href={href}
+      className="lift"
       style={{
         display: "block",
+        position: "relative",
         background: "var(--panel)",
         border: "1px solid var(--border)",
+        borderLeft: `3px solid ${accent}`,
         borderRadius: 12,
-        padding: 16,
+        padding: "16px 16px 16px 18px",
         textDecoration: "none",
+        overflow: "hidden",
       }}
     >
-      <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 30, fontWeight: 800, color, letterSpacing: -0.5 }}>
+        {value}
+      </div>
       <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>
         {label}
       </div>
