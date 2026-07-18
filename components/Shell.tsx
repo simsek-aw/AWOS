@@ -39,7 +39,8 @@ export default function Shell({
   // Apply the saved theme (dark default) on load.
   useEffect(() => {
     const t = localStorage.getItem("awos-theme");
-    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    if (t === "light" || t === "dark" || t === "aw")
+      document.documentElement.dataset.theme = t;
   }, []);
 
   return (

@@ -79,6 +79,46 @@
   --radius: 12px;
 }
 
+/* AW Style — warm black + orange brand theme (no blue at all). */
+:root[data-theme="aw"] {
+  --bg: #14100c; /* warm near-black canvas */
+  --surface: #1e1813; /* warm dark panels */
+  --panel: #1e1813;
+  --surface-2: #29211a; /* warm alternate surface */
+  --active: #3d2716; /* selected (orange-tinted) */
+  --border: #362a20;
+  --text: #f5ede4; /* warm white */
+  --muted: #b6a898;
+  --faint: #83766a;
+  --input-bg: #14100c;
+  --sidebar-bg: #120e0a;
+  --topbar-bg: #0d0a07;
+  --accent: #f77828; /* brand orange, a touch brighter on the warm canvas */
+  --accent-contrast: #1a1206;
+  --danger: #f0556b;
+  --danger-bg: #3a1f22;
+  --ok: #35c98a;
+  --ok-text: #8ee6b8;
+  --ok-bg: #143324;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 12px 34px rgba(0, 0, 0, 0.6);
+  --brand: #f2701d;
+  --brand-2: #f7b733;
+  --brand-gradient: linear-gradient(
+    90deg,
+    #1a0b12 0%,
+    #6a0f1a 20%,
+    #b81d0e 40%,
+    #e2431f 58%,
+    #f2701d 74%,
+    #f79420 88%,
+    #f7b733 100%
+  );
+  --brand-text-gradient: linear-gradient(92deg, #f2701d 10%, #f7b733 95%);
+  --radius: 12px;
+}
+
 * {
   box-sizing: border-box;
 }

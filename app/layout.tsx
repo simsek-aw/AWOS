@@ -23,6 +23,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de">
+      <head>
+        {/* Apply the saved theme before first paint to avoid a flash. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('awos-theme');if(t==='light'||t==='dark'||t==='aw')document.documentElement.dataset.theme=t;}catch(e){}",
+          }}
+        />
+      </head>
       <body>
         {children}
         <PWARegister />
