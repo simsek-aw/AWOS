@@ -16,6 +16,7 @@ export default async function AppLayout({
   // everything defensively and fall back to empty state.
   let activeBoards: Board[] = [];
   const unreadByBoard: Record<string, number> = {};
+  let favoriteIds: string[] = [];
   let tools: Awaited<ReturnType<typeof listTools>> = [];
   try {
     const supabase = await createServerSupabase();
@@ -31,6 +32,18 @@ export default async function AppLayout({
         .returns<Board[]>(),
       supabase.rpc("unread_counts"),
     ]);
+
+    // Favorites: fetched separately + defensively, so a missing board_favorites
+    // table (migration 0035 not yet applied) never takes down the whole shell.
+    try {
+      const favRes = await supabase
+        .from("board_favorites")
+        .select("board_id")
+        .returns<{ board_id: string }[]>();
+      favoriteIds = (favRes.data ?? []).map((r) => r.board_id);
+    } catch {
+      favoriteIds = [];
+    }
     const unreadRows = (unreadRes.data ?? []) as {
       board_id: string;
       cnt: number;
@@ -61,6 +74,7 @@ export default async function AppLayout({
       ctx={ctx}
       boards={activeBoards}
       unreadByBoard={unreadByBoard}
+      favoriteIds={favoriteIds}
       tools={tools}
     >
       {children}

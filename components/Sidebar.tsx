@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
+import { toggleBoardFavorite } from "@/app/(app)/boards/favorites";
 import Icon from "@/components/icons";
 import type { Board } from "@/lib/types";
 
@@ -14,12 +15,14 @@ const deptLabel: Record<string, string> = {
 export default function Sidebar({
   boards,
   unreadByBoard = {},
+  favoriteIds = [],
   isEmployee = false,
   open = false,
   onClose,
 }: {
   boards: Board[];
   unreadByBoard?: Record<string, number>;
+  favoriteIds?: string[];
   isEmployee?: boolean;
   open?: boolean;
   onClose?: () => void;
@@ -27,8 +30,10 @@ export default function Sidebar({
   const pathname = usePathname();
   const [q, setQ] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const favSet = new Set(favoriteIds);
   const match = (b: Board) =>
     !q || b.name.toLowerCase().includes(q.toLowerCase());
+  const favorites = boards.filter((b) => favSet.has(b.id) && match(b));
   const customer = boards.filter((b) => b.type === "customer" && match(b));
   const internal = boards.filter((b) => b.type === "internal" && match(b));
 
@@ -117,6 +122,20 @@ export default function Sidebar({
         </div>
       )}
 
+      {favorites.length > 0 && (
+        <Group
+          title="Favoriten"
+          collapsed={!!collapsed.favorites}
+          onToggle={() =>
+            setCollapsed((c) => ({ ...c, favorites: !c.favorites }))
+          }
+        />
+      )}
+      {!collapsed.favorites &&
+        favorites.map((b) => (
+          <BoardLink key={`fav-${b.id}`} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} favorite onNavigate={onClose} />
+        ))}
+
       {customer.length > 0 && (
         <Group
           title="Kunden"
@@ -128,7 +147,7 @@ export default function Sidebar({
       )}
       {!collapsed.customer &&
         customer.map((b) => (
-          <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
+          <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} favorite={favSet.has(b.id)} onNavigate={onClose} />
         ))}
 
       {internal.length > 0 && (
@@ -142,7 +161,7 @@ export default function Sidebar({
       )}
       {!collapsed.internal &&
         internal.map((b) => (
-          <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} onNavigate={onClose} />
+          <BoardLink key={b.id} board={b} active={!!isActive(b.id)} unread={unreadByBoard[b.id] ?? 0} favorite={favSet.has(b.id)} onNavigate={onClose} />
         ))}
 
       {q && customer.length === 0 && internal.length === 0 && (
@@ -198,18 +217,36 @@ function BoardLink({
   board,
   active,
   unread = 0,
+  favorite = false,
   onNavigate,
 }: {
   board: Board;
   active: boolean;
   unread?: number;
+  favorite?: boolean;
   onNavigate?: () => void;
 }) {
+  // Optimistic star: flip immediately, then persist. Re-sync if the prop
+  // changes (e.g. after a server refresh or from another tab).
+  const [fav, setFav] = useState(favorite);
+  const [, startTransition] = useTransition();
+  useEffect(() => setFav(favorite), [favorite]);
+
+  const toggleFav = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !fav;
+    setFav(next);
+    startTransition(() => {
+      toggleBoardFavorite(board.id, next);
+    });
+  };
+
   return (
     <a
       href={`/boards/${board.id}`}
       onClick={onNavigate}
-      className="nav-item"
+      className="nav-item board-link"
       style={{
         display: "flex",
         alignItems: "center",
@@ -232,14 +269,13 @@ function BoardLink({
           background: board.type === "internal" ? "#fdab3d" : "#00c875",
         }}
       />
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
         {board.name}
       </span>
       {unread > 0 ? (
         <span
           title={`${unread} ungelesen`}
           style={{
-            marginLeft: "auto",
             flexShrink: 0,
             background: "var(--accent)",
             color: "#fff",
@@ -255,11 +291,30 @@ function BoardLink({
       ) : (
         board.type === "internal" &&
         board.department && (
-          <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--faint)" }}>
+          <span style={{ fontSize: 11, color: "var(--faint)", flexShrink: 0 }}>
             {deptLabel[board.department]}
           </span>
         )
       )}
+      <button
+        type="button"
+        onClick={toggleFav}
+        className={`fav-star${fav ? " on" : ""}`}
+        title={fav ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}
+        aria-label={fav ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}
+        aria-pressed={fav}
+        style={{
+          flexShrink: 0,
+          background: "transparent",
+          border: "none",
+          padding: 2,
+          cursor: "pointer",
+          display: "inline-flex",
+          color: fav ? "#f5b301" : "var(--faint)",
+        }}
+      >
+        <Icon name="star" size={14} filled={fav} />
+      </button>
     </a>
   );
 }

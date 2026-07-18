@@ -6,6 +6,7 @@ import { personTaskRows } from "@/lib/tasks";
 import { listTools } from "@/lib/tools";
 import type { Tool } from "@/lib/types";
 import EmptyState from "@/components/EmptyState";
+import Icon from "@/components/icons";
 import { statusPillStyle } from "@/components/board/pills";
 
 const isDone = (s: string) => /fertig|done|erledigt|abgeschlossen/i.test(s);
@@ -53,6 +54,28 @@ export default async function Home() {
     (a, r) => a + Number(r.cnt),
     0,
   );
+
+  // Favorited boards (resilient: a missing board_favorites table never breaks
+  // the dashboard).
+  let favBoards: { id: string; name: string; type: string }[] = [];
+  try {
+    const { data: favRows } = await supabase
+      .from("board_favorites")
+      .select("board_id")
+      .returns<{ board_id: string }[]>();
+    const favIds = (favRows ?? []).map((r) => r.board_id);
+    if (favIds.length) {
+      const { data } = await supabase
+        .from("boards")
+        .select("id, name, type")
+        .in("id", favIds)
+        .is("archived_at", null)
+        .returns<{ id: string; name: string; type: string }[]>();
+      favBoards = data ?? [];
+    }
+  } catch {
+    favBoards = [];
+  }
 
   const open = myTasks.filter((t) => !isDone(t.status));
   const overdue = open.filter(
@@ -160,6 +183,57 @@ export default async function Home() {
         <Stat label="Überfällig" value={overdue.length} href="/my" tone={overdue.length ? "red" : undefined} />
         <Stat label="Ungelesen" value={unread} href="/notifications" tone={unread ? "accent" : undefined} />
       </div>
+
+      {/* Favoriten */}
+      {favBoards.length > 0 && (
+        <section style={{ marginTop: 26 }}>
+          <div style={sectionHead}>
+            <h2 style={h2}>Favoriten</h2>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: 12,
+            }}
+          >
+            {favBoards.map((b) => (
+              <a
+                key={b.id}
+                href={`/boards/${b.id}`}
+                className="lift"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background: "var(--panel)",
+                  border: "1px solid var(--border)",
+                  borderLeft: `3px solid ${b.type === "internal" ? "#fdab3d" : "#00c875"}`,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  textDecoration: "none",
+                  color: "var(--text)",
+                }}
+              >
+                <span style={{ color: "#f5b301", display: "inline-flex", flexShrink: 0 }}>
+                  <Icon name="star" size={16} filled />
+                </span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 14,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {b.name}
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div
         style={{

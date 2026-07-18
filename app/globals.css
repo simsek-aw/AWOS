@@ -450,6 +450,24 @@ button {
   color: var(--text);
 }
 
+/* Favorite star on board rows: hidden until hover, always shown once starred.
+   On touch devices (no hover) keep it faintly visible so it's reachable. */
+.fav-star {
+  opacity: 0;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.board-link:hover .fav-star,
+.fav-star.on {
+  opacity: 1;
+}
+.fav-star:hover {
+  transform: scale(1.15);
+}
+@media (hover: none) {
+  .fav-star { opacity: 0.5; }
+  .fav-star.on { opacity: 1; }
+}
+
 /* Table rows: fade the hover/selection background instead of snapping. */
 .board-desktop tbody tr {
   transition: background-color 110ms ease;

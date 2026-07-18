@@ -15,12 +15,14 @@ export default function Shell({
   ctx,
   boards,
   unreadByBoard = {},
+  favoriteIds = [],
   tools = [],
   children,
 }: {
   ctx: SessionContext;
   boards: Board[];
   unreadByBoard?: Record<string, number>;
+  favoriteIds?: string[];
   tools?: Tool[];
   children: React.ReactNode;
 }) {
@@ -56,6 +58,7 @@ export default function Shell({
           <Sidebar
             boards={boards}
             unreadByBoard={unreadByBoard}
+            favoriteIds={favoriteIds}
             isEmployee={ctx.profile.role === "employee"}
             open={open}
             onClose={() => setOpen(false)}
