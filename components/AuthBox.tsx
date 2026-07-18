@@ -33,8 +33,8 @@ export default function AuthBox() {
         variables: {
           default: {
             colors: {
-              brand: "#0073ea",
-              brandAccent: "#0060c9",
+              brand: "#f2691c",
+              brandAccent: "#d9530a",
               brandButtonText: "#ffffff",
               inputBackground: "#12151f",
               inputBorder: "#2c3142",
@@ -43,7 +43,7 @@ export default function AuthBox() {
               inputLabelText: "#9aa1b8",
               inputPlaceholder: "#6b7189",
               messageText: "#e8eaf0",
-              anchorTextColor: "#0073ea",
+              anchorTextColor: "#f2691c",
               dividerBackground: "#2c3142",
             },
             radii: {

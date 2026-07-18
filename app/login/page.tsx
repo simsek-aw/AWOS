@@ -28,6 +28,7 @@ export default function LoginPage() {
           boxShadow: "var(--shadow)",
         }}
       >
+        <div className="brand-bar" style={{ width: 48, marginBottom: 20 }} />
         <img
           src="/logo.svg"
           alt="AWOS"

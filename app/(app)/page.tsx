@@ -143,6 +143,7 @@ export default async function Home() {
       <p style={{ color: "var(--muted)", marginTop: 6 }}>
         Dein Überblick für heute.
       </p>
+      <div className="brand-bar" style={{ width: 56, marginTop: 14 }} />
 
       {/* Stat tiles */}
       <div
