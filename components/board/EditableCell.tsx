@@ -26,11 +26,6 @@ export default function EditableCell({
   canEditLabels?: boolean;
   fullWidthStatus?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [, startTransition] = useTransition();
-  // Optimistic override: show the new value immediately, before the server
-  // round-trip + refetch lands. Reset whenever fresh server data arrives.
-  const [draft, setDraft] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Task-ID: click to copy the full id.
@@ -81,6 +76,36 @@ export default function EditableCell({
       />
     );
   }
+
+  // Text / date / number / link: click to edit. This path owns its own hooks
+  // (editing/draft state, reset effect), so it lives in a child component —
+  // that keeps every hook above the conditional early returns.
+  return (
+    <TextCell
+      boardId={boardId}
+      task={task}
+      column={column}
+      value={value}
+    />
+  );
+}
+
+function TextCell({
+  boardId,
+  task,
+  column,
+  value,
+}: {
+  boardId: string;
+  task: Task;
+  column: Column;
+  value: unknown;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [, startTransition] = useTransition();
+  // Optimistic override: show the new value immediately, before the server
+  // round-trip + refetch lands. Reset whenever fresh server data arrives.
+  const [draft, setDraft] = useState<string | null>(null);
 
   const isName = column.key === "name";
   const serverValue = isName ? task.title : value == null ? "" : String(value);

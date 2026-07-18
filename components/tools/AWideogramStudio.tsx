@@ -322,7 +322,7 @@ export default function AWideogramStudio({
   };
 
   // Reuse a generated gallery image as a style reference.
-  const useAsReference = async (url: string) => {
+  const applyAsReference = async (url: string) => {
     if (refs.length >= 3) {
       toast("Maximal 3 Referenzbilder.");
       return;
@@ -1018,7 +1018,7 @@ export default function AWideogramStudio({
                   {g.highLevelDescription ?? "—"}
                 </span>
                 <button
-                  onClick={() => useAsReference(g.url)}
+                  onClick={() => applyAsReference(g.url)}
                   title="Als Referenz übernehmen"
                   aria-label="Als Referenz übernehmen"
                   style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", display: "inline-flex" }}
