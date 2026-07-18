@@ -8,6 +8,7 @@ import {
   generateImage,
   type GenerationView,
 } from "@/app/(app)/tools/awideogram/actions";
+import EmptyState from "@/components/EmptyState";
 import Icon from "@/components/icons";
 import { toast } from "@/components/toast";
 import type { RenderingSpeed } from "@/lib/ideogram";
@@ -448,7 +449,7 @@ export default function AWideogramStudio({
   const [rw, rh] = aspect.split("x").map(Number);
 
   return (
-    <div className="page-enter" style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <div className="page-enter page-pad" style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ fontSize: 26 }}>🖼️</span>
         <div>
@@ -961,9 +962,16 @@ export default function AWideogramStudio({
         )}
       </div>
       {gallery.length === 0 ? (
-        <p style={{ color: "var(--faint)", fontSize: 14, marginTop: 12 }}>
-          {galQ || galMine ? "Keine Treffer." : "Noch keine Bilder erstellt."}
-        </p>
+        galQ || galMine ? (
+          <EmptyState variant="search" compact title="Keine Treffer" />
+        ) : (
+          <EmptyState
+            variant="inbox"
+            compact
+            title="Noch keine Bilder"
+            hint="Erstelle links dein erstes Bild – es erscheint dann hier."
+          />
+        )
       ) : (
         <div
           style={{

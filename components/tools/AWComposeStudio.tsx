@@ -329,7 +329,7 @@ export default function AWComposeStudio({
   };
 
   return (
-    <div className="page-enter" style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <div className="page-enter page-pad" style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ fontSize: 26 }}>🧩</span>
         <div>

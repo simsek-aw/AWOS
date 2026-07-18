@@ -1,3 +1,4 @@
+import EmptyState from "@/components/EmptyState";
 import { statusPillStyle, urgencyPillStyle } from "@/components/board/pills";
 import { deadlineUrgency, formatDate } from "@/lib/format";
 import type { PersonTaskRow } from "@/lib/tasks";
@@ -14,7 +15,7 @@ export default function TaskListView({
   const today = new Date().toISOString().slice(0, 10);
 
   if (rows.length === 0) {
-    return <p style={{ color: "var(--faint)" }}>{emptyText}</p>;
+    return <EmptyState variant="tasks" title="Alles erledigt" hint={emptyText} />;
   }
 
   return (
@@ -30,6 +31,7 @@ export default function TaskListView({
           <a
             key={t.id}
             href={`/boards/${t.board_id}?task=${t.id}`}
+            className="lift"
             style={{
               display: "flex",
               alignItems: "center",

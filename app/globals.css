@@ -301,6 +301,25 @@ button {
   transition: background-color 110ms ease;
 }
 
+/* ---- Mobile: stack tool studio two-column layouts (canvas + panel) ---- */
+@media (max-width: 860px) {
+  .awideogram-grid,
+  .awcompose-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---- Mobile: dashboard hero + tiles breathe on small screens ---- */
+@media (max-width: 560px) {
+  .dashboard-hero-title {
+    font-size: 24px !important;
+  }
+  .stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+}
+
 /* Gradient heading accent for hero titles. */
 .text-gradient {
   background: linear-gradient(

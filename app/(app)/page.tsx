@@ -5,6 +5,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { personTaskRows } from "@/lib/tasks";
 import { listTools } from "@/lib/tools";
 import type { Tool } from "@/lib/types";
+import EmptyState from "@/components/EmptyState";
 import { statusPillStyle } from "@/components/board/pills";
 
 const isDone = (s: string) => /fertig|done|erledigt|abgeschlossen/i.test(s);
@@ -117,7 +118,7 @@ export default async function Home() {
 
   return (
     <div
-      className="page-enter"
+      className="page-enter page-pad"
       style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 28px" }}
     >
       <p
@@ -131,7 +132,10 @@ export default async function Home() {
       >
         {today}
       </p>
-      <h1 style={{ fontSize: 30, margin: 0, letterSpacing: -0.5 }}>
+      <h1
+        className="dashboard-hero-title"
+        style={{ fontSize: 30, margin: 0, letterSpacing: -0.5 }}
+      >
         {greeting()}
         {first ? ", " : ""}
         <span className="text-gradient">{first}</span>
@@ -142,6 +146,7 @@ export default async function Home() {
 
       {/* Stat tiles */}
       <div
+        className="stat-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
@@ -174,7 +179,12 @@ export default async function Home() {
             </a>
           </div>
           {open.length === 0 ? (
-            <p style={emptyText}>Keine offenen Aufgaben. 🎉</p>
+            <EmptyState
+              variant="tasks"
+              compact
+              title="Keine offenen Aufgaben"
+              hint="Lehn dich zurück – du bist auf dem neuesten Stand."
+            />
           ) : (
             <div style={{ display: "grid", gap: 6 }}>
               {open.slice(0, 8).map((t) => {
@@ -223,7 +233,12 @@ export default async function Home() {
             <h2 style={h2}>Aktivität</h2>
           </div>
           {feed.length === 0 ? (
-            <p style={emptyText}>Noch keine Aktivität.</p>
+            <EmptyState
+              variant="activity"
+              compact
+              title="Noch keine Aktivität"
+              hint="Änderungen an Aufgaben erscheinen hier."
+            />
           ) : (
             <div style={{ display: "grid", gap: 2 }}>
               {feed.map((e) => (
@@ -455,7 +470,6 @@ const moreLink: React.CSSProperties = {
   color: "var(--accent)",
   textDecoration: "none",
 };
-const emptyText: React.CSSProperties = { color: "var(--faint)", fontSize: 14 };
 const rowCard: React.CSSProperties = {
   display: "flex",
   alignItems: "center",

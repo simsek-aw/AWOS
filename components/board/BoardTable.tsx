@@ -549,7 +549,7 @@ export default function BoardTable({
       style={{
         borderLeft: `4px solid ${accent}`,
         borderRadius: 6,
-        overflow: "hidden",
+        // No overflow clip here: it would break the sticky group header below.
         background: "var(--surface)",
         border: `1px solid ${isDropTarget ? "var(--accent)" : "var(--border)"}`,
         borderLeftWidth: 4,
@@ -559,7 +559,8 @@ export default function BoardTable({
         transition: "box-shadow 120ms, border-color 120ms",
       }}
     >
-      {/* Group header */}
+      {/* Group header — sticks to the top while you scroll through the group,
+          so you always see which group (and its name) you're in. */}
       <div
         style={{
           display: "flex",
@@ -567,6 +568,13 @@ export default function BoardTable({
           gap: 8,
           padding: "12px 14px",
           userSelect: "none",
+          position: "sticky",
+          top: 0,
+          zIndex: 3,
+          background: "var(--surface)",
+          borderTopLeftRadius: 4,
+          borderTopRightRadius: 4,
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <span
