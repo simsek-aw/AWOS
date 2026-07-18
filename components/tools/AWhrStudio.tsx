@@ -53,8 +53,8 @@ export default function AWhrStudio({
 
       <div
         role="tablist"
+        className="tab-scroll"
         style={{
-          display: "flex",
           gap: 4,
           borderBottom: "1px solid var(--border)",
           margin: "18px 0 20px",

@@ -1,4 +1,5 @@
 import ProfileNameForm from "@/components/ProfileNameForm";
+import ThemeToggle from "@/components/ThemeToggle";
 import { requireSession } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -29,10 +30,20 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="page-pad" style={{ padding: "24px 28px", maxWidth: 620 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 16px" }}>
-        Mein Profil
+    <div className="page-pad page-enter" style={{ padding: "24px 28px", maxWidth: 620 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 6px" }}>
+        Einstellungen
       </h1>
+      <div className="brand-bar" style={{ width: 48, marginBottom: 20 }} />
+
+      {/* Appearance / theme */}
+      <section style={card}>
+        <h2 style={cardH}>Darstellung</h2>
+        <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 12px" }}>
+          Wähle dein bevorzugtes Design. Die Auswahl gilt für diesen Browser.
+        </p>
+        <ThemeToggle />
+      </section>
 
       {/* Name (editable) */}
       <section style={card}>
@@ -64,6 +75,7 @@ export default async function ProfilePage() {
         </p>
         <a
           href="/auth/update-password"
+          className="lift"
           style={{
             display: "inline-block",
             background: "var(--surface-2)",

@@ -229,17 +229,39 @@ button {
   40% { transform: rotate(6deg); }
 }
 
-/* Skeleton loading shimmer */
+/* Skeleton loading shimmer — warm, brand-tinted sweep over the surface. */
 .skeleton {
-  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
-  background-size: 400% 100%;
-  animation: awos-shimmer 1.4s ease infinite;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    color-mix(in srgb, var(--accent) 7%, var(--surface-2)) 42%,
+    color-mix(in srgb, var(--accent) 16%, var(--surface-2)) 50%,
+    color-mix(in srgb, var(--accent) 7%, var(--surface-2)) 58%,
+    var(--surface-2) 100%
+  );
+  background-size: 300% 100%;
+  animation: awos-shimmer 1.5s ease-in-out infinite;
   border-radius: 6px;
 }
 @keyframes awos-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: 0 0; }
+  0% { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* Horizontally scrollable tab row (tabs slide instead of wrapping on mobile). */
+.tab-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-scroll::-webkit-scrollbar { display: none; }
+.tab-scroll > * { flex-shrink: 0; white-space: nowrap; }
 
 /* Keyboard accessibility: a visible focus ring for keyboard users only
    (mouse clicks don't trigger :focus-visible, so it stays clean visually). */

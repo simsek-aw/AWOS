@@ -120,7 +120,7 @@ export default function UserMenu({ ctx }: { ctx: SessionContext }) {
 
           <a href="/profile" style={menuItem}>
             <Icon name="user" size={16} />
-            Mein Profil
+            Einstellungen
           </a>
           {admin && (
             <a href="/admin" style={menuItem}>

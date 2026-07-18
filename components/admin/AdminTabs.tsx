@@ -39,10 +39,9 @@ export default function AdminTabs({
     <div style={{ marginTop: 20 }}>
       <div
         role="tablist"
+        className="tab-scroll"
         style={{
-          display: "flex",
           gap: 4,
-          flexWrap: "wrap",
           borderBottom: "1px solid var(--border)",
           marginBottom: 20,
         }}
