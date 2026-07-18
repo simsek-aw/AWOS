@@ -80,18 +80,28 @@ export default async function Home() {
     favBoards = [];
   }
 
-  // Personal to-dos (resilient: a missing personal_todos table never breaks
-  // the dashboard).
+  // Personal to-dos + the customer list for tagging (resilient: a missing
+  // personal_todos table never breaks the dashboard).
   let todos: Todo[] = [];
+  let noteCustomers: { id: string; name: string }[] = [];
   try {
-    const { data } = await supabase
-      .from("personal_todos")
-      .select("id, text, done, created_at")
-      .order("created_at", { ascending: true })
-      .returns<Todo[]>();
-    todos = data ?? [];
+    const [todoRes, custRes] = await Promise.all([
+      supabase
+        .from("personal_todos")
+        .select("id, text, done, created_at, customer_id")
+        .order("created_at", { ascending: true })
+        .returns<Todo[]>(),
+      supabase
+        .from("customers")
+        .select("id, name")
+        .order("name", { ascending: true })
+        .returns<{ id: string; name: string }[]>(),
+    ]);
+    todos = todoRes.data ?? [];
+    noteCustomers = custRes.data ?? [];
   } catch {
     todos = [];
+    noteCustomers = [];
   }
 
   const open = myTasks.filter((t) => !isDone(t.status));
@@ -324,7 +334,7 @@ export default async function Home() {
 
         {/* Right column: personal to-dos + activity feed */}
         <div style={{ display: "grid", gap: 20 }}>
-          <PersonalTodos initial={todos} />
+          <PersonalTodos initial={todos} customers={noteCustomers} />
 
           <section>
           <div style={sectionHead}>

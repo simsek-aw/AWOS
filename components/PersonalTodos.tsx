@@ -1,31 +1,54 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { addTodo, deleteTodo, toggleTodo, type Todo } from "@/app/(app)/todos/actions";
+import { useMemo, useState, useTransition } from "react";
+import {
+  addTodo,
+  deleteTodo,
+  setTodoCustomer,
+  toggleTodo,
+  type Todo,
+} from "@/app/(app)/todos/actions";
 import Icon from "@/components/icons";
 
+type Customer = { id: string; name: string };
+
 // Personal scratchpad: a private quick to-do / notes list on the dashboard.
-// Optimistic UI, persisted per user via server actions.
-export default function PersonalTodos({ initial }: { initial: Todo[] }) {
+// Each note can optionally be tagged with a customer. Optimistic UI, persisted
+// per user via server actions.
+export default function PersonalTodos({
+  initial,
+  customers = [],
+}: {
+  initial: Todo[];
+  customers?: Customer[];
+}) {
   const [todos, setTodos] = useState<Todo[]>(initial);
   const [text, setText] = useState("");
+  const [newCustomer, setNewCustomer] = useState("");
+  const [filter, setFilter] = useState<string>("all"); // all | none | <customerId>
   const [, startTransition] = useTransition();
+
+  const custName = useMemo(
+    () => new Map(customers.map((c) => [c.id, c.name])),
+    [customers],
+  );
 
   const add = () => {
     const t = text.trim();
     if (!t) return;
     setText("");
-    // Optimistic row with a temporary id; reconcile when the server responds.
+    const cust = newCustomer || null;
     const tempId = `tmp-${todos.length}-${t.length}-${t.slice(0, 8)}`;
     const optimistic: Todo = {
       id: tempId,
       text: t,
       done: false,
       created_at: "",
+      customer_id: cust,
     };
     setTodos((prev) => [...prev, optimistic]);
     startTransition(async () => {
-      const created = await addTodo(t);
+      const created = await addTodo(t, cust);
       setTodos((prev) =>
         created
           ? prev.map((x) => (x.id === tempId ? created : x))
@@ -48,11 +71,38 @@ export default function PersonalTodos({ initial }: { initial: Todo[] }) {
     });
   };
 
-  // Open items first, then completed.
-  const sorted = [...todos].sort(
-    (a, b) => Number(a.done) - Number(b.done),
+  const reassign = (id: string, customerId: string | null) => {
+    setTodos((prev) =>
+      prev.map((x) => (x.id === id ? { ...x, customer_id: customerId } : x)),
+    );
+    startTransition(() => {
+      setTodoCustomer(id, customerId);
+    });
+  };
+
+  const filtered = todos.filter((t) =>
+    filter === "all"
+      ? true
+      : filter === "none"
+        ? !t.customer_id
+        : t.customer_id === filter,
   );
-  const openCount = todos.filter((t) => !t.done).length;
+  // Open items first, then completed.
+  const sorted = [...filtered].sort((a, b) => Number(a.done) - Number(b.done));
+  const openCount = filtered.filter((t) => !t.done).length;
+
+  const selectChip: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    maxWidth: 120,
+    padding: "2px 6px",
+    borderRadius: 999,
+    border: "1px solid var(--border)",
+    background: "var(--surface-2)",
+    color: "var(--muted)",
+    cursor: "pointer",
+    outline: "none",
+  };
 
   return (
     <div
@@ -66,20 +116,44 @@ export default function PersonalTodos({ initial }: { initial: Todo[] }) {
       <div
         style={{
           display: "flex",
-          alignItems: "baseline",
+          alignItems: "center",
           justifyContent: "space-between",
+          gap: 8,
           marginBottom: 10,
         }}
       >
         <h2 style={{ fontSize: 16, margin: 0 }}>Notizen &amp; To-dos</h2>
-        {openCount > 0 && (
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>
-            {openCount} offen
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {openCount > 0 && (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>
+              {openCount} offen
+            </span>
+          )}
+          {customers.length > 0 && (
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              title="Nach Kunde filtern"
+              style={{
+                ...selectChip,
+                maxWidth: 140,
+                background: filter !== "all" ? "var(--active)" : "var(--surface-2)",
+                color: filter !== "all" ? "var(--accent)" : "var(--muted)",
+              }}
+            >
+              <option value="all">Alle</option>
+              <option value="none">Ohne Kunde</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -92,7 +166,7 @@ export default function PersonalTodos({ initial }: { initial: Todo[] }) {
           placeholder="Notiz oder To-do hinzufügen…"
           style={{
             flex: 1,
-            minWidth: 0,
+            minWidth: 140,
             background: "var(--input-bg)",
             border: "1px solid var(--border)",
             borderRadius: 8,
@@ -102,6 +176,31 @@ export default function PersonalTodos({ initial }: { initial: Todo[] }) {
             outline: "none",
           }}
         />
+        {customers.length > 0 && (
+          <select
+            value={newCustomer}
+            onChange={(e) => setNewCustomer(e.target.value)}
+            title="Kunde zuordnen (optional)"
+            style={{
+              background: "var(--input-bg)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              padding: "0 8px",
+              color: newCustomer ? "var(--text)" : "var(--muted)",
+              fontSize: 13,
+              maxWidth: 130,
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value="">Kunde…</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="button"
           onClick={add}
@@ -118,6 +217,8 @@ export default function PersonalTodos({ initial }: { initial: Todo[] }) {
             cursor: text.trim() ? "pointer" : "default",
             opacity: text.trim() ? 1 : 0.5,
             flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
           }}
         >
           <Icon name="plus" size={16} />
@@ -126,10 +227,12 @@ export default function PersonalTodos({ initial }: { initial: Todo[] }) {
 
       {sorted.length === 0 ? (
         <p style={{ color: "var(--faint)", fontSize: 13, margin: "6px 2px" }}>
-          Noch nichts notiert. Schreib deine erste Notiz oben rein.
+          {filter === "all"
+            ? "Noch nichts notiert. Schreib deine erste Notiz oben rein."
+            : "Keine Notizen für diesen Filter."}
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 2, maxHeight: 260, overflowY: "auto" }}>
+        <div style={{ display: "grid", gap: 2, maxHeight: 300, overflowY: "auto" }}>
           {sorted.map((t) => (
             <div
               key={t.id}
@@ -176,6 +279,28 @@ export default function PersonalTodos({ initial }: { initial: Todo[] }) {
               >
                 {t.text}
               </span>
+              {customers.length > 0 && (
+                <select
+                  value={t.customer_id ?? ""}
+                  onChange={(e) => reassign(t.id, e.target.value || null)}
+                  title="Kunde"
+                  style={{
+                    ...selectChip,
+                    color: t.customer_id ? "var(--accent)" : "var(--faint)",
+                    borderColor: t.customer_id
+                      ? "color-mix(in srgb, var(--accent) 45%, var(--border))"
+                      : "var(--border)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <option value="">＋ Kunde</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <button
                 type="button"
                 onClick={() => remove(t.id)}
