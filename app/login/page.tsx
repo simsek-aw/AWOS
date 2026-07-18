@@ -3,7 +3,12 @@ import AuthBox from "@/components/AuthBox";
 // The Auth UI needs the runtime Supabase env; don't prerender at build time.
 export const dynamic = "force-dynamic";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   return (
     <main
       style={{
@@ -38,6 +43,21 @@ export default function LoginPage() {
         <p style={{ color: "var(--muted)", marginTop: 0 }}>
           Bitte melde dich an.
         </p>
+        {error && (
+          <div
+            style={{
+              background: "var(--danger-bg)",
+              border: "1px solid var(--danger)",
+              color: "var(--text)",
+              borderRadius: 8,
+              padding: "10px 12px",
+              fontSize: 13,
+              margin: "0 0 14px",
+            }}
+          >
+            {error}
+          </div>
+        )}
         <AuthBox />
       </div>
     </main>

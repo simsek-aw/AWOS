@@ -84,3 +84,64 @@ Diesen Weg bauen wir nur, wenn ein Tool nicht auf Supabase migriert werden kann.
 - [ ] In allen Tools `AUTH_COOKIE_DOMAIN=.<domain>` setzen (nur Prod).
 - [ ] Login/Logout zentral über AWOS.
 - [ ] Testen: in AWOS einloggen → AWmeet öffnen → ohne erneuten Login drin.
+
+---
+
+# Login per Microsoft 365 / Entra ID (SSO für Mitarbeiter)
+
+Mitarbeiter melden sich mit ihrem Microsoft-Firmenkonto an ("Mit Microsoft
+anmelden"). E-Mail/Passwort bleibt als Fallback (z. B. für Kunden-Accounts).
+
+**Was schon eingebaut ist (Code):**
+- Button „Mit Microsoft anmelden" auf `/login` (`components/AuthBox.tsx`),
+  startet den Azure-OAuth-Flow.
+- OAuth-Callback `app/auth/callback/route.ts`: tauscht den Code gegen eine
+  Session **und verlangt ein vorhandenes AWOS-Profil**. AWOS bleibt
+  invite-only: Wer sich bei Microsoft gültig anmeldet, aber kein AWOS-Profil
+  hat, wird wieder abgemeldet und abgewiesen.
+
+**Was du einmalig einrichten musst** (Azure-Portal + Supabase-Dashboard):
+
+### 1. App-Registrierung in Microsoft Entra (Azure)
+1. Entra Admin Center → **App registrations** → **New registration**.
+2. Name z. B. `AWOS`. **Supported account types**:
+   *Accounts in this organizational directory only* (nur euer Tenant →
+   Fremd-Microsoft-Konten sind so schon ausgeschlossen).
+3. **Redirect URI** (Web) =
+   `https://<PROJECT-REF>.supabase.co/auth/v1/callback`
+   (die Supabase-Callback-URL, steht im Supabase-Dashboard beim Azure-Provider).
+4. Nach dem Anlegen: **Application (client) ID** und **Directory (tenant) ID**
+   notieren.
+5. **Certificates & secrets** → **New client secret** → Wert kopieren
+   (nur einmal sichtbar).
+6. **API permissions** → Microsoft Graph → *Delegated* → `openid`, `email`,
+   `profile` (meist schon vorhanden) → ggf. **Grant admin consent**.
+
+### 2. Provider in Supabase aktivieren
+Supabase-Dashboard → **Authentication → Providers → Azure**:
+- **Enable** an.
+- **Client ID** = Application (client) ID.
+- **Secret** = der Client-Secret-Wert.
+- **Azure Tenant URL** = `https://login.microsoftonline.com/<TENANT-ID>`
+  (single-tenant; damit ist der Login auf euren Tenant beschränkt).
+- Speichern.
+
+### 3. Redirect-URLs in Supabase freigeben
+Supabase → **Authentication → URL Configuration**:
+- **Site URL**: `https://awos.absolutweb.de`
+- **Redirect URLs** (Allow-List) ergänzen:
+  - `https://awos.absolutweb.de/auth/callback`
+  - für lokale Tests zusätzlich `http://localhost:3000/auth/callback`
+
+### 4. Mitarbeiter anlegen
+- Mitarbeiter **wie bisher im Admin einladen** (Profil wird angelegt). Die
+  **E-Mail muss der Microsoft-Anmeldeadresse entsprechen** (@absolutweb.de).
+- Beim ersten „Mit Microsoft anmelden" verknüpft Supabase die Microsoft-
+  Identität automatisch mit dem bestehenden Konto (gleiche, bestätigte E-Mail)
+  → dasselbe Profil, dieselbe Rolle. Ein Passwort ist dann nicht mehr nötig.
+
+### Hinweise
+- **Zugriffssteuerung** = AWOS-Profil. Nur wer eingeladen wurde, kommt rein;
+  ein gültiger Microsoft-Login allein genügt nicht.
+- Kein Auto-Provisioning: neue Mitarbeiter zuerst im Admin einladen.
+- Kunden/externe Accounts nutzen weiterhin E-Mail/Passwort.
