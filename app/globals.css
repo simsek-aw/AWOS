@@ -289,6 +289,14 @@ button {
   transform: translateY(0);
 }
 
+/* Launcher tiles get a warm AW-brand glow on hover (on top of .lift). */
+.reveal-arrow.lift:hover {
+  box-shadow:
+    0 12px 34px color-mix(in srgb, var(--brand) 22%, transparent),
+    var(--shadow-hover);
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
+}
+
 /* Reveal a trailing arrow (→) on hover for launcher cards. */
 .reveal-arrow .reveal-arrow-icon {
   opacity: 0;
@@ -363,4 +371,31 @@ button {
   height: 4px;
   border-radius: 999px;
   background: var(--brand-gradient);
+}
+
+/* Indeterminate brand progress bar (e.g. while an image generates). */
+.brand-progress {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.brand-progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--brand-gradient);
+  animation: awos-progress 1.1s ease-in-out infinite;
+}
+@keyframes awos-progress {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-progress::before { animation: none; left: 0; width: 100%; }
 }

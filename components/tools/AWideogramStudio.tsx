@@ -921,6 +921,14 @@ export default function AWideogramStudio({
             <Icon name="sparkles" size={16} />
             {busy ? "Generiere…" : "Bild generieren"}
           </button>
+          {busy && (
+            <div
+              className="brand-progress"
+              style={{ marginTop: 12 }}
+              role="progressbar"
+              aria-label="Bild wird generiert"
+            />
+          )}
         </div>
       </div>
 

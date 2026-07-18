@@ -1,6 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="awbrand" x1="0" y1="512" x2="512" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e2431f"/>
+      <stop offset="0.55" stop-color="#f2701d"/>
+      <stop offset="1" stop-color="#f7b733"/>
+    </linearGradient>
+  </defs>
   <rect width="512" height="512" rx="96" fill="#0f1117"/>
-  <g transform="translate(56 187.4) scale(0.8295)" fill="#ffffff">
+  <g transform="translate(56 187.4) scale(0.8295)" fill="url(#awbrand)">
     <polygon points="245.51 22.73 217.01 81.45 199.22 22.73 167.56 22.73 148.77 80.71 121.23 22.73 90.17 22.73 132.61 124.7 165.1 124.7 182.45 70.19 198.91 124.7 231.42 124.7 273.78 22.73 245.51 22.73"/>
     <path d="M61.25,56.53l9.92,25.62h-19.84l9.92-25.62ZM44.61,22.73L0,124.7h35l6.84-17.75h38.78l6.85,17.75h35.56L78.42,22.73h-33.81Z"/>
     <path d="M273.68,74.36c0-30.34,23.2-52.95,54.73-52.95s54.58,22.46,54.58,52.95-23.35,52.95-54.58,52.95-54.73-22.61-54.73-52.95ZM371.99,74.36c0-24.84-18.59-43.13-43.58-43.13s-43.87,18.29-43.87,43.13,18.74,43.13,43.87,43.13,43.58-18.29,43.58-43.13Z"/>

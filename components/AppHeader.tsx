@@ -36,6 +36,7 @@ export default function AppHeader({
   return (
     <header
       style={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: 16,
@@ -44,6 +45,18 @@ export default function AppHeader({
         background: "var(--topbar-bg)",
       }}
     >
+      {/* AW brand line across the very top of the app. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: "var(--brand-gradient)",
+        }}
+      />
       {/* Left: hamburger (mobile) + logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
         {onMenuClick && (
