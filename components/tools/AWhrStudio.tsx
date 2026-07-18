@@ -39,7 +39,7 @@ export default function AWhrStudio({
   const [tab, setTab] = useState<"urlaub" | "recruiting">("urlaub");
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24 }}>
+    <div className="page-enter" style={{ maxWidth: 1000, margin: "0 auto", padding: 24 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ fontSize: 26 }}>🧑‍💼</span>
         <div>

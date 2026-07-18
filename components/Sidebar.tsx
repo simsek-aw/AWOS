@@ -50,6 +50,7 @@ export default function Sidebar({
       <a
         href="/my"
         onClick={onClose}
+        className="nav-item"
         style={{
           display: "flex",
           alignItems: "center",
@@ -58,7 +59,7 @@ export default function Sidebar({
           borderRadius: 8,
           textDecoration: "none",
           color: pathname === "/my" ? "var(--accent)" : "var(--muted)",
-          background: pathname === "/my" ? "var(--active)" : "transparent",
+          background: pathname === "/my" ? "var(--active)" : undefined,
           fontSize: 14,
           fontWeight: pathname === "/my" ? 600 : 400,
           marginBottom: 4,
@@ -72,6 +73,7 @@ export default function Sidebar({
         <a
           href="/agents"
           onClick={onClose}
+          className="nav-item"
           style={{
             display: "flex",
             alignItems: "center",
@@ -84,7 +86,7 @@ export default function Sidebar({
               : "var(--muted)",
             background: pathname?.startsWith("/agents")
               ? "var(--active)"
-              : "transparent",
+              : undefined,
             fontSize: 14,
             fontWeight: pathname?.startsWith("/agents") ? 600 : 400,
             marginBottom: 4,
@@ -207,6 +209,7 @@ function BoardLink({
     <a
       href={`/boards/${board.id}`}
       onClick={onNavigate}
+      className="nav-item"
       style={{
         display: "flex",
         alignItems: "center",
@@ -215,7 +218,7 @@ function BoardLink({
         borderRadius: 8,
         textDecoration: "none",
         color: active ? "var(--accent)" : "var(--muted)",
-        background: active ? "var(--active)" : "transparent",
+        background: active ? "var(--active)" : undefined,
         fontSize: 14,
         fontWeight: active || unread > 0 ? 600 : 400,
       }}

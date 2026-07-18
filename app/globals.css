@@ -286,6 +286,21 @@ button {
   .reveal-arrow .reveal-arrow-icon { animation: none !important; transition: none !important; transform: none !important; }
 }
 
+/* Nav / list items that only style an active background inline: give the
+   inactive state a smooth hover fill. (Inline active bg wins over this.) */
+.nav-item {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.nav-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Table rows: fade the hover/selection background instead of snapping. */
+.board-desktop tbody tr {
+  transition: background-color 110ms ease;
+}
+
 /* Gradient heading accent for hero titles. */
 .text-gradient {
   background: linear-gradient(

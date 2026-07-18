@@ -13,7 +13,7 @@ export default async function MyTasksPage() {
   const rows = await personTaskRows(supabase, ctx.userId);
 
   return (
-    <div className="page-pad" style={{ padding: "24px 28px", maxWidth: 880 }}>
+    <div className="page-pad page-enter" style={{ padding: "24px 28px", maxWidth: 880 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 16px" }}>
         Meine Aufgaben
       </h1>

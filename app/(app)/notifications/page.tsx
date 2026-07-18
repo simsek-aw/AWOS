@@ -52,7 +52,7 @@ export default async function NotificationsPage() {
   const unread = list.filter((n) => !n.read).length;
 
   return (
-    <div className="page-pad" style={{ padding: "24px 28px", maxWidth: 720 }}>
+    <div className="page-pad page-enter" style={{ padding: "24px 28px", maxWidth: 720 }}>
       <div
         style={{
           display: "flex",

@@ -132,7 +132,7 @@ export default async function AdminPage({
   return (
     <>
       <AppHeader ctx={ctx} />
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px" }}>
+      <main className="page-enter" style={{ maxWidth: 900, margin: "0 auto", padding: "24px" }}>
         <a href="/boards" style={{ color: "var(--muted)", fontSize: 14 }}>
           ← Boards
         </a>

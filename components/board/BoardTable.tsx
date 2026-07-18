@@ -908,8 +908,10 @@ export default function BoardTable({
               <div
                 key={t.id}
                 onClick={() => openTaskAndRead(t.id)}
+                className="lift"
                 style={{
                   border: "1px solid var(--border)",
+                  borderLeft: `3px solid ${statusVal ? statusColor : "var(--border)"}`,
                   borderRadius: 10,
                   background: "var(--surface)",
                   padding: 12,
