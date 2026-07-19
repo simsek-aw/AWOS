@@ -102,6 +102,9 @@ export default function Sidebar({
         </a>
       )}
 
+      {/* Divider between top navigation and the board lists. */}
+      <div style={{ height: 1, background: "var(--border)", margin: "10px 6px 2px" }} />
+
       {showSearch && (
         <div style={{ padding: "8px 4px 4px" }}>
           <input
@@ -125,6 +128,7 @@ export default function Sidebar({
       {favorites.length > 0 && (
         <Group
           title="Favoriten"
+          count={favorites.length}
           collapsed={!!collapsed.favorites}
           onToggle={() =>
             setCollapsed((c) => ({ ...c, favorites: !c.favorites }))
@@ -139,6 +143,7 @@ export default function Sidebar({
       {customer.length > 0 && (
         <Group
           title="Kunden"
+          count={customer.length}
           collapsed={!!collapsed.customer}
           onToggle={() =>
             setCollapsed((c) => ({ ...c, customer: !c.customer }))
@@ -153,6 +158,7 @@ export default function Sidebar({
       {internal.length > 0 && (
         <Group
           title="Intern"
+          count={internal.length}
           collapsed={!!collapsed.internal}
           onToggle={() =>
             setCollapsed((c) => ({ ...c, internal: !c.internal }))
@@ -181,10 +187,12 @@ export default function Sidebar({
 
 function Group({
   title,
+  count,
   collapsed,
   onToggle,
 }: {
   title: string;
+  count?: number;
   collapsed?: boolean;
   onToggle?: () => void;
 }) {
@@ -209,6 +217,11 @@ function Group({
     >
       <Icon name={collapsed ? "chevron-right" : "chevron-down"} size={12} />
       {title}
+      {count != null && (
+        <span style={{ marginLeft: "auto", color: "var(--faint)", fontWeight: 600 }}>
+          {count}
+        </span>
+      )}
     </button>
   );
 }

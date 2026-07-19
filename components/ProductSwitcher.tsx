@@ -74,6 +74,145 @@ export default function ProductSwitcher({
   };
   const external = (t: Tool) => t.kind === "link";
 
+  const available = tools.filter(
+    (t) => !!hrefFor(t) && t.status !== "maintenance",
+  );
+  const soon = tools.filter((t) => !hrefFor(t) || t.status === "maintenance");
+
+  const renderTile = (t: Tool) => {
+    const href = hrefFor(t);
+    const isCurrent = t.key === currentKey;
+    const maintenance = t.status === "maintenance";
+    const disabled = !href || maintenance;
+    const badge = maintenance ? "Wartung" : !href ? "Bald" : null;
+    const tile = (
+      <>
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 8,
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+            background: (t.color ?? "#579bfc") + "22",
+            border: `1px solid ${(t.color ?? "#579bfc") + "55"}`,
+          }}
+        >
+          {t.icon || t.name.slice(0, 2)}
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--text)",
+            }}
+          >
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {t.name}
+            </span>
+            {external(t) && !disabled && (
+              <Icon name="external" size={11} style={{ opacity: 0.6 }} />
+            )}
+            {badge && (
+              <span
+                style={{
+                  flexShrink: 0,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.4,
+                  color: maintenance ? "#fdab3d" : "var(--muted)",
+                  background: "var(--surface-2)",
+                  border: `1px solid ${maintenance ? "#fdab3d55" : "var(--border)"}`,
+                  borderRadius: 999,
+                  padding: "1px 6px",
+                }}
+              >
+                {badge}
+              </span>
+            )}
+          </span>
+          <span
+            style={{
+              display: "block",
+              fontSize: 11,
+              color: "var(--muted)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t.description || ""}
+          </span>
+        </span>
+      </>
+    );
+    const baseStyle: React.CSSProperties = {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: 8,
+      borderRadius: 10,
+      textDecoration: "none",
+      border: `1px solid ${isCurrent ? "var(--accent)" : "transparent"}`,
+      background: isCurrent ? "var(--active)" : "transparent",
+      cursor: disabled ? "default" : "pointer",
+      opacity: disabled ? 0.55 : 1,
+      minWidth: 0,
+      overflow: "hidden",
+    };
+    if (disabled) {
+      return (
+        <div key={t.key} style={baseStyle} title="Noch nicht verknüpft">
+          {tile}
+        </div>
+      );
+    }
+    return (
+      <a
+        key={t.key}
+        href={href}
+        target={external(t) ? "_blank" : undefined}
+        rel={external(t) ? "noopener noreferrer" : undefined}
+        onClick={() => {
+          recordRecent(t.key);
+          setOpen(false);
+        }}
+        style={baseStyle}
+        onMouseEnter={(e) => {
+          if (!isCurrent) e.currentTarget.style.background = "var(--surface-2)";
+        }}
+        onMouseLeave={(e) => {
+          if (!isCurrent) e.currentTarget.style.background = "transparent";
+        }}
+      >
+        {tile}
+      </a>
+    );
+  };
+
+  const groupLabel: React.CSSProperties = {
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    color: "var(--faint)",
+    fontWeight: 700,
+    padding: "10px 6px 4px",
+  };
+
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button
@@ -207,145 +346,21 @@ export default function ProductSwitcher({
           </div>
           <div
             className="switcher-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 6,
-            }}
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}
           >
-            {tools.map((t) => {
-              const href = hrefFor(t);
-              const isCurrent = t.key === currentKey;
-              const maintenance = t.status === "maintenance";
-              const disabled = !href || maintenance;
-              const badge = maintenance
-                ? "Wartung"
-                : !href
-                  ? "Bald"
-                  : null;
-              const tile = (
-                <>
-                  <span
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 8,
-                      flexShrink: 0,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 18,
-                      background: (t.color ?? "#579bfc") + "22",
-                      border: `1px solid ${(t.color ?? "#579bfc") + "55"}`,
-                    }}
-                  >
-                    {t.icon || t.name.slice(0, 2)}
-                  </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "var(--text)",
-                      }}
-                    >
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {t.name}
-                      </span>
-                      {external(t) && !disabled && (
-                        <Icon name="external" size={11} style={{ opacity: 0.6 }} />
-                      )}
-                      {badge && (
-                        <span
-                          style={{
-                            flexShrink: 0,
-                            fontSize: 9,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: 0.4,
-                            color: maintenance ? "#fdab3d" : "var(--muted)",
-                            background: "var(--surface-2)",
-                            border: `1px solid ${maintenance ? "#fdab3d55" : "var(--border)"}`,
-                            borderRadius: 999,
-                            padding: "1px 6px",
-                          }}
-                        >
-                          {badge}
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        color: "var(--muted)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {t.description || ""}
-                    </span>
-                  </span>
-                </>
-              );
-              const baseStyle: React.CSSProperties = {
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: 8,
-                borderRadius: 10,
-                textDecoration: "none",
-                border: `1px solid ${isCurrent ? "var(--accent)" : "transparent"}`,
-                background: isCurrent ? "var(--active)" : "transparent",
-                cursor: disabled ? "default" : "pointer",
-                opacity: disabled ? 0.55 : 1,
-                // Let the tile shrink to its grid column so long descriptions
-                // truncate instead of overflowing the panel.
-                minWidth: 0,
-                overflow: "hidden",
-              };
-              if (disabled) {
-                return (
-                  <div key={t.key} style={baseStyle} title="Noch nicht verknüpft">
-                    {tile}
-                  </div>
-                );
-              }
-              return (
-                <a
-                  key={t.key}
-                  href={href}
-                  target={external(t) ? "_blank" : undefined}
-                  rel={external(t) ? "noopener noreferrer" : undefined}
-                  onClick={() => {
-                    recordRecent(t.key);
-                    setOpen(false);
-                  }}
-                  style={baseStyle}
-                  onMouseEnter={(e) => {
-                    if (!isCurrent)
-                      e.currentTarget.style.background = "var(--surface-2)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isCurrent)
-                      e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  {tile}
-                </a>
-              );
-            })}
+            {available.map(renderTile)}
           </div>
+          {soon.length > 0 && (
+            <>
+              <div style={groupLabel}>Bald verfügbar</div>
+              <div
+                className="switcher-grid"
+                style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}
+              >
+                {soon.map(renderTile)}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

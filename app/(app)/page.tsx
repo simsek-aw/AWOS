@@ -10,6 +10,12 @@ import EmptyState from "@/components/EmptyState";
 import Icon from "@/components/icons";
 import PersonalTodos from "@/components/PersonalTodos";
 import RecentBoards from "@/components/RecentBoards";
+import {
+  SectionCard,
+  boardChipGrid,
+  boardChipName,
+  boardChipStyle,
+} from "@/components/Section";
 import { statusPillStyle } from "@/components/board/pills";
 
 const isDone = (s: string) => /fertig|done|erledigt|abgeschlossen/i.test(s);
@@ -160,6 +166,9 @@ export default async function Home() {
     return t.url ?? undefined;
   };
 
+  const activeTools = tools.filter((t) => !!hrefFor(t));
+  const soonTools = tools.filter((t) => !hrefFor(t));
+
   const today = new Date().toLocaleDateString("de-DE", {
     weekday: "long",
     day: "numeric",
@@ -213,53 +222,28 @@ export default async function Home() {
 
       {/* Favoriten */}
       {favBoards.length > 0 && (
-        <section style={{ marginTop: 26 }}>
-          <div style={sectionHead}>
-            <h2 style={h2}>Favoriten</h2>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: 12,
-            }}
-          >
+        <SectionCard
+          title="Favoriten"
+          icon={<Icon name="star" size={16} />}
+          bodyGap={0}
+          style={{ marginTop: 22 }}
+        >
+          <div style={boardChipGrid}>
             {favBoards.map((b) => (
               <a
                 key={b.id}
                 href={`/boards/${b.id}`}
                 className="lift"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  background: "var(--panel)",
-                  border: "1px solid var(--border)",
-                  borderLeft: `3px solid ${b.type === "internal" ? "#fdab3d" : "#00c875"}`,
-                  borderRadius: 12,
-                  padding: "12px 14px",
-                  textDecoration: "none",
-                  color: "var(--text)",
-                }}
+                style={boardChipStyle(b.type)}
               >
                 <span style={{ color: "#f5b301", display: "inline-flex", flexShrink: 0 }}>
-                  <Icon name="star" size={16} filled />
+                  <Icon name="star" size={15} filled />
                 </span>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 14,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {b.name}
-                </span>
+                <span style={boardChipName}>{b.name}</span>
               </a>
             ))}
           </div>
-        </section>
+        </SectionCard>
       )}
 
       {/* Zuletzt besucht (client, from localStorage) */}
@@ -276,13 +260,16 @@ export default async function Home() {
         className="dashboard-grid"
       >
         {/* My tasks */}
-        <section>
-          <div style={sectionHead}>
-            <h2 style={h2}>Meine Aufgaben</h2>
+        <SectionCard
+          title="Meine Aufgaben"
+          icon={<Icon name="check" size={16} />}
+          bodyGap={0}
+          action={
             <a href="/my" style={moreLink}>
               Alle →
             </a>
-          </div>
+          }
+        >
           {open.length === 0 ? (
             <EmptyState
               variant="tasks"
@@ -291,7 +278,7 @@ export default async function Home() {
               hint="Lehn dich zurück – du bist auf dem neuesten Stand."
             />
           ) : (
-            <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ display: "grid", gap: 1 }}>
               {open.slice(0, 8).map((t) => {
                 const urg =
                   t.deadline && !isDone(t.status)
@@ -301,8 +288,8 @@ export default async function Home() {
                   <a
                     key={t.id}
                     href={`/boards/${t.board_id}?task=${t.id}`}
-                    className="lift"
-                    style={rowCard}
+                    className="search-result"
+                    style={listRow}
                   >
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={rowTitle}>{t.title}</span>
@@ -330,172 +317,179 @@ export default async function Home() {
               })}
             </div>
           )}
-        </section>
+        </SectionCard>
 
         {/* Right column: personal to-dos + activity feed */}
         <div style={{ display: "grid", gap: 20 }}>
           <PersonalTodos initial={todos} customers={noteCustomers} />
 
-          <section>
-          <div style={sectionHead}>
-            <h2 style={h2}>Aktivität</h2>
-          </div>
-          {feed.length === 0 ? (
-            <EmptyState
-              variant="activity"
-              compact
-              title="Noch keine Aktivität"
-              hint="Änderungen an Aufgaben erscheinen hier."
-            />
-          ) : (
-            <div style={{ display: "grid", gap: 2 }}>
-              {feed.map((e) => (
-                <a
-                  key={e.id}
-                  href={`/boards/${e.task.board_id}?task=${e.task.id}`}
-                  style={{
-                    display: "block",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    textDecoration: "none",
-                    color: "var(--text)",
-                  }}
-                  className="search-result"
-                >
-                  <div style={{ fontSize: 13 }}>
-                    <strong>{e.actor_id ? actorName.get(e.actor_id) ?? "?" : "System"}</strong>{" "}
-                    <span style={{ color: "var(--muted)" }}>{e.summary}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--faint)" }}>
-                    {e.task.title} · {boardName.get(e.task.board_id) ?? "Board"} ·{" "}
-                    {ago(e.created_at)}
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
-          </section>
+          <SectionCard
+            title="Aktivität"
+            icon={<Icon name="bell" size={16} />}
+            bodyGap={0}
+          >
+            {feed.length === 0 ? (
+              <EmptyState
+                variant="activity"
+                compact
+                title="Noch keine Aktivität"
+                hint="Änderungen an Aufgaben erscheinen hier."
+              />
+            ) : (
+              <div style={{ display: "grid", gap: 1 }}>
+                {feed.map((e) => (
+                  <a
+                    key={e.id}
+                    href={`/boards/${e.task.board_id}?task=${e.task.id}`}
+                    style={{
+                      display: "block",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      textDecoration: "none",
+                      color: "var(--text)",
+                    }}
+                    className="search-result"
+                  >
+                    <div style={{ fontSize: 13 }}>
+                      <strong>{e.actor_id ? actorName.get(e.actor_id) ?? "?" : "System"}</strong>{" "}
+                      <span style={{ color: "var(--muted)" }}>{e.summary}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--faint)" }}>
+                      {e.task.title} · {boardName.get(e.task.board_id) ?? "Board"} ·{" "}
+                      {ago(e.created_at)}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </SectionCard>
         </div>
       </div>
 
-      {/* Tool launcher */}
-      <h2 style={{ ...h2, marginTop: 34 }}>Tools</h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-          gap: 14,
-          marginTop: 12,
-        }}
+      {/* Tool launcher — active vs. coming-soon */}
+      <SectionCard
+        title="Tools"
+        icon={<Icon name="grid" size={16} />}
+        style={{ marginTop: 24 }}
       >
-        {tools.map((t) => {
-          const href = hrefFor(t);
-          const external = t.kind === "link";
-          const maintenance = t.status === "maintenance";
-          const badge = maintenance ? "Wartung" : !href ? "Bald" : null;
-          const color = t.color ?? "#579bfc";
-          const inner = (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 22,
-                    background: color + "22",
-                    border: `1px solid ${color}55`,
-                  }}
-                >
-                  {t.icon || t.name.slice(0, 2)}
-                </span>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    fontWeight: 700,
-                    fontSize: 15,
-                    flex: 1,
-                    minWidth: 0,
-                  }}
-                >
-                  {t.name}
-                  {badge && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.4,
-                        color: maintenance ? "#fdab3d" : "var(--muted)",
-                        background: "var(--surface-2)",
-                        border: `1px solid ${maintenance ? "#fdab3d55" : "var(--border)"}`,
-                        borderRadius: 999,
-                        padding: "1px 7px",
-                      }}
-                    >
-                      {badge}
-                    </span>
-                  )}
-                </div>
-                {href && (
-                  <span
-                    className="reveal-arrow-icon"
-                    aria-hidden
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: 16,
-                      color,
-                      flexShrink: 0,
-                    }}
-                  >
-                    →
-                  </span>
-                )}
-              </div>
-              <p style={{ color: "var(--muted)", fontSize: 13, margin: "10px 0 0" }}>
-                {t.description ?? ""}
-              </p>
-            </>
-          );
-          const base: React.CSSProperties = {
-            display: "block",
-            position: "relative",
-            background: "var(--panel)",
-            border: "1px solid var(--border)",
-            borderTop: `3px solid ${href ? color : "var(--border)"}`,
-            borderRadius: 14,
-            padding: 16,
-            textDecoration: "none",
-            color: "var(--text)",
-            opacity: href ? 1 : 0.6,
-          };
-          if (!href)
-            return (
-              <div key={t.key} style={{ ...base, cursor: "default" }}>
-                {inner}
-              </div>
-            );
-          return (
-            <a
-              key={t.key}
-              href={href}
-              target={external ? "_blank" : undefined}
-              rel={external ? "noopener noreferrer" : undefined}
-              className="lift reveal-arrow"
-              style={base}
-            >
-              {inner}
-            </a>
-          );
-        })}
-      </div>
+        <div style={toolGrid}>
+          {activeTools.map((t) => (
+            <ToolTile key={t.key} tool={t} href={hrefFor(t)} />
+          ))}
+        </div>
+      </SectionCard>
+
+      {soonTools.length > 0 && (
+        <SectionCard title="Bald verfügbar" style={{ marginTop: 16 }}>
+          <div style={toolGrid}>
+            {soonTools.map((t) => (
+              <ToolTile key={t.key} tool={t} href={undefined} />
+            ))}
+          </div>
+        </SectionCard>
+      )}
     </div>
+  );
+}
+
+const toolGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+  gap: 12,
+};
+
+function ToolTile({ tool: t, href }: { tool: Tool; href?: string }) {
+  const external = t.kind === "link";
+  const maintenance = t.status === "maintenance";
+  const badge = maintenance ? "Wartung" : !href ? "Bald" : null;
+  const color = t.color ?? "#579bfc";
+  const inner = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 22,
+            background: color + "22",
+            border: `1px solid ${color}55`,
+          }}
+        >
+          {t.icon || t.name.slice(0, 2)}
+        </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontWeight: 700,
+            fontSize: 15,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          {t.name}
+          {badge && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: 0.4,
+                color: maintenance ? "#fdab3d" : "var(--muted)",
+                background: "var(--surface-2)",
+                border: `1px solid ${maintenance ? "#fdab3d55" : "var(--border)"}`,
+                borderRadius: 999,
+                padding: "1px 7px",
+              }}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {href && (
+          <span
+            className="reveal-arrow-icon"
+            aria-hidden
+            style={{ marginLeft: "auto", fontSize: 16, color, flexShrink: 0 }}
+          >
+            →
+          </span>
+        )}
+      </div>
+      <p style={{ color: "var(--muted)", fontSize: 13, margin: "10px 0 0" }}>
+        {t.description ?? ""}
+      </p>
+    </>
+  );
+  const base: React.CSSProperties = {
+    display: "block",
+    position: "relative",
+    background: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    borderTop: `3px solid ${href ? color : "var(--border)"}`,
+    borderRadius: 14,
+    padding: 16,
+    textDecoration: "none",
+    color: "var(--text)",
+    opacity: href ? 1 : 0.65,
+  };
+  if (!href) return <div style={{ ...base, cursor: "default" }}>{inner}</div>;
+  return (
+    <a
+      href={href}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
+      className="lift reveal-arrow"
+      style={base}
+    >
+      {inner}
+    </a>
   );
 }
 
@@ -570,26 +564,18 @@ function Stat({
   );
 }
 
-const h2: React.CSSProperties = { fontSize: 16, margin: 0 };
-const sectionHead: React.CSSProperties = {
-  display: "flex",
-  alignItems: "baseline",
-  justifyContent: "space-between",
-  marginBottom: 10,
-};
 const moreLink: React.CSSProperties = {
   fontSize: 13,
   color: "var(--accent)",
   textDecoration: "none",
 };
-const rowCard: React.CSSProperties = {
+// Light list row inside a SectionCard (no border; hover fill via .search-result).
+const listRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10,
-  padding: "9px 12px",
-  background: "var(--panel)",
-  border: "1px solid var(--border)",
-  borderRadius: 10,
+  padding: "9px 10px",
+  borderRadius: 8,
   textDecoration: "none",
   color: "var(--text)",
 };
