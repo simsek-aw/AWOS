@@ -178,7 +178,7 @@ export default async function Home() {
   return (
     <div
       className="page-enter page-pad"
-      style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 28px" }}
+      style={{ padding: "32px 28px" }}
     >
       <p
         style={{
