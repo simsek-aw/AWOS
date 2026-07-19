@@ -18,6 +18,7 @@ import {
   type VacationView,
   vote,
 } from "@/app/(app)/tools/awhr/actions";
+import { SectionCard } from "@/components/Section";
 import { toast } from "@/components/toast";
 import { RECRUIT_STAGES } from "@/lib/hr";
 
@@ -124,10 +125,9 @@ function VacationTab({
   };
 
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div style={{ display: "grid", gap: 16 }}>
       {/* Request form */}
-      <section>
-        <h2 style={h2}>Urlaub beantragen</h2>
+      <SectionCard title="Urlaub beantragen">
         <form
           action={createVacation}
           style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}
@@ -153,43 +153,37 @@ function VacationTab({
           </Field>
           <button style={btn}>Antrag senden</button>
         </form>
-      </section>
+      </SectionCard>
 
       {/* Own requests */}
-      <section>
-        <h2 style={h2}>Meine Anträge</h2>
+      <SectionCard title="Meine Anträge" bodyGap={6}>
         {mine.length === 0 ? (
           <p style={empty}>Noch keine Anträge.</p>
         ) : (
-          <div style={{ display: "grid", gap: 6 }}>
-            {mine.map((v) => (
-              <VacationRow key={v.id} v={v} onDelete={del} canDelete={v.status === "pending"} />
-            ))}
-          </div>
+          mine.map((v) => (
+            <VacationRow key={v.id} v={v} onDelete={del} canDelete={v.status === "pending"} />
+          ))
         )}
-      </section>
+      </SectionCard>
 
       {/* Admin: all requests + decisions */}
       {isAdmin && (
-        <section>
-          <h2 style={h2}>Alle Anträge (HR)</h2>
+        <SectionCard title="Alle Anträge (HR)" bodyGap={6}>
           {allVac.length === 0 ? (
             <p style={empty}>Keine Anträge.</p>
           ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {allVac.map((v) => (
-                <VacationRow
-                  key={v.id}
-                  v={v}
-                  admin
-                  onDecide={decide}
-                  onDelete={del}
-                  canDelete
-                />
-              ))}
-            </div>
+            allVac.map((v) => (
+              <VacationRow
+                key={v.id}
+                v={v}
+                admin
+                onDecide={decide}
+                onDelete={del}
+                canDelete
+              />
+            ))
           )}
-        </section>
+        </SectionCard>
       )}
     </div>
   );
@@ -224,8 +218,9 @@ function VacationRow({
     <div
       style={{
         border: "1px solid var(--border)",
+        borderLeft: `3px solid ${tone}`,
         borderRadius: 10,
-        background: "var(--panel)",
+        background: "var(--surface-2)",
         padding: 12,
       }}
     >
@@ -314,10 +309,9 @@ function RecruitingTab({
   employees: Emp[];
 }) {
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div style={{ display: "grid", gap: 16 }}>
       {isAdmin && (
-        <section>
-          <h2 style={h2}>Bewerber anlegen</h2>
+        <SectionCard title="Bewerber anlegen">
           <form
             action={createApplicant}
             style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}
@@ -333,11 +327,10 @@ function RecruitingTab({
             </Field>
             <button style={btn}>Anlegen</button>
           </form>
-        </section>
+        </SectionCard>
       )}
 
-      <section>
-        <h2 style={h2}>Bewerber</h2>
+      <SectionCard title="Bewerber" bodyGap={10}>
         {applicants.length === 0 ? (
           <p style={empty}>
             {isAdmin
@@ -345,13 +338,11 @@ function RecruitingTab({
               : "Dir sind aktuell keine Bewerber zugewiesen."}
           </p>
         ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            {applicants.map((a) => (
-              <ApplicantCard key={a.id} a={a} isAdmin={isAdmin} employees={employees} />
-            ))}
-          </div>
+          applicants.map((a) => (
+            <ApplicantCard key={a.id} a={a} isAdmin={isAdmin} employees={employees} />
+          ))
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }
@@ -410,7 +401,7 @@ function ApplicantCard({
       style={{
         border: "1px solid var(--border)",
         borderRadius: 10,
-        background: "var(--panel)",
+        background: "var(--surface-2)",
         padding: 12,
       }}
     >
@@ -583,7 +574,6 @@ function fmt(iso: string): string {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
 }
 
-const h2: React.CSSProperties = { fontSize: 16, margin: "0 0 10px" };
 const empty: React.CSSProperties = { color: "var(--faint)", fontSize: 14 };
 const subHead: React.CSSProperties = {
   fontSize: 11,

@@ -10,6 +10,7 @@ import {
 } from "@/app/(app)/tools/awideogram/actions";
 import EmptyState from "@/components/EmptyState";
 import Icon from "@/components/icons";
+import { SectionCard } from "@/components/Section";
 import { toast } from "@/components/toast";
 import type { RenderingSpeed } from "@/lib/ideogram";
 
@@ -934,42 +935,46 @@ export default function AWideogramStudio({
       </div>
 
       {/* Gallery */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginTop: 32,
-          flexWrap: "wrap",
-        }}
+      <SectionCard
+        title="Galerie"
+        icon={<Icon name="grid" size={16} />}
+        bodyGap={12}
+        style={{ marginTop: 24 }}
       >
-        <h2 style={{ fontSize: 16, margin: 0 }}>Galerie</h2>
-        <input
-          value={galQ}
-          onChange={(e) => setGalQ(e.target.value)}
-          placeholder="Galerie durchsuchen …"
-          style={{ ...inputStyle, width: 220 }}
-        />
-        <label
+        <div
           style={{
-            display: "inline-flex",
+            display: "flex",
             alignItems: "center",
-            gap: 6,
-            fontSize: 13,
-            color: "var(--muted)",
+            gap: 12,
+            flexWrap: "wrap",
           }}
         >
           <input
-            type="checkbox"
-            checked={galMine}
-            onChange={(e) => setGalMine(e.target.checked)}
+            value={galQ}
+            onChange={(e) => setGalQ(e.target.value)}
+            placeholder="Galerie durchsuchen …"
+            style={{ ...inputStyle, maxWidth: 220 }}
           />
-          Nur meine
-        </label>
-        {galLoading && (
-          <span style={{ color: "var(--faint)", fontSize: 12 }}>lädt …</span>
-        )}
-      </div>
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              color: "var(--muted)",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={galMine}
+              onChange={(e) => setGalMine(e.target.checked)}
+            />
+            Nur meine
+          </label>
+          {galLoading && (
+            <span style={{ color: "var(--faint)", fontSize: 12 }}>lädt …</span>
+          )}
+        </div>
       {gallery.length === 0 ? (
         galQ || galMine ? (
           <EmptyState variant="search" compact title="Keine Treffer" />
@@ -987,7 +992,6 @@ export default function AWideogramStudio({
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
             gap: 12,
-            marginTop: 12,
           }}
         >
           {gallery.map((g) => (
@@ -1071,6 +1075,7 @@ export default function AWideogramStudio({
           </button>
         </div>
       )}
+      </SectionCard>
     </div>
   );
 }
