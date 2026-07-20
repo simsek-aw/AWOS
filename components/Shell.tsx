@@ -72,7 +72,15 @@ export default function Shell({
         {showSidebar && open && (
           <div className="app-scrim" onClick={() => setOpen(false)} />
         )}
-        {showToolNav && <ToolNav tools={tools} />}
+        {showToolNav && (
+          <ToolNav
+            tools={tools}
+            favorites={boards
+              .filter((b) => favoriteIds.includes(b.id))
+              .map((b) => ({ id: b.id, name: b.name, type: b.type }))}
+            isAdmin={ctx.profile.is_admin ?? ctx.profile.role === "employee"}
+          />
+        )}
         <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>{children}</main>
       </div>
       <Toaster />
