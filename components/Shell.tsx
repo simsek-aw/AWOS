@@ -7,6 +7,7 @@ import type { Board, Tool } from "@/lib/types";
 import AppHeader from "./AppHeader";
 import Sidebar from "./Sidebar";
 import Toaster from "./Toaster";
+import ToolNav from "./ToolNav";
 
 // App chrome: top bar + header + off-canvas-capable sidebar + main. The sidebar
 // is a static column on desktop and a slide-in drawer (toggled by the header
@@ -37,6 +38,9 @@ export default function Shell({
     pathname ?? "",
   );
   const showSidebar = isCustomer || cmsRoute;
+  // Employees on non-board routes (dashboard, tool pages) get the tools rail as
+  // their left navigation instead of the board sidebar. Desktop-only.
+  const showToolNav = !isCustomer && !cmsRoute && tools.length > 0;
 
   // Apply the saved theme (dark default) on load.
   useEffect(() => {
@@ -51,6 +55,7 @@ export default function Shell({
         ctx={ctx}
         tools={tools}
         onMenuClick={showSidebar ? () => setOpen(true) : undefined}
+        toolNavVisible={showToolNav}
       />
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -67,6 +72,7 @@ export default function Shell({
         {showSidebar && open && (
           <div className="app-scrim" onClick={() => setOpen(false)} />
         )}
+        {showToolNav && <ToolNav tools={tools} />}
         <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>{children}</main>
       </div>
       <Toaster />

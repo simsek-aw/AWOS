@@ -196,6 +196,17 @@ button {
   .page-pad { padding: 16px 12px !important; }
 }
 
+/* Desktop-only tools rail (mobile uses the top switcher / full-screen overlay). */
+@media (max-width: 900px) {
+  .tool-nav { display: none !important; }
+}
+/* When the left tools rail is showing (desktop), the top switcher is redundant
+   → hide it there; keep it on mobile where the rail is hidden. */
+@media (min-width: 901px) {
+  .switcher-when-toolnav { display: none; }
+}
+.switcher-when-toolnav { display: inline-flex; }
+
 /* Global search result rows */
 .search-result:hover { background: var(--active); }
 .header-admin:hover { color: var(--text) !important; }

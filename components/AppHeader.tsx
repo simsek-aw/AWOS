@@ -13,10 +13,12 @@ export default function AppHeader({
   ctx,
   tools = [],
   onMenuClick,
+  toolNavVisible = false,
 }: {
   ctx: SessionContext;
   tools?: Tool[];
   onMenuClick?: () => void;
+  toolNavVisible?: boolean;
 }) {
   const admin = ctx.profile.is_admin ?? ctx.profile.role === "employee";
   const [searchOpen, setSearchOpen] = useState(false);
@@ -90,7 +92,9 @@ export default function AppHeader({
           </span>
         </a>
         {tools.length > 0 && (
-          <ProductSwitcher tools={tools} currentKey={CURRENT_TOOL_KEY} />
+          <span className={toolNavVisible ? "switcher-when-toolnav" : undefined}>
+            <ProductSwitcher tools={tools} currentKey={CURRENT_TOOL_KEY} />
+          </span>
         )}
       </div>
 
